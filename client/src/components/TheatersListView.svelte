@@ -1,26 +1,22 @@
 <script>
     export let theaters;
 
-    function hej() {
-        console.log("hej")
-    }
+	export let teleportToTheater = (position) => {};
 </script>
 
 <div class="list">
     {#each theaters as theater (theater._id)}
-        <ul on:click={hej}>
+        <ul on:click={() => teleportToTheater(theater.position)}>
             <li>
-                {theater.name}
+                {theater.eventName}
             </li>
             <li>
-                {theater.movie}
-            </li>
-            <li>
-                {theater._id}
+                {theater.movieName}
             </li>
         </ul>
     {/each}
 </div>
+
 <style>
     .list {
         display: flex;

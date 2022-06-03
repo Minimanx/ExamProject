@@ -288,7 +288,6 @@
         width: 45%;
     }
     .container {
-        font-family: 'Press Start 2P', cursive;
         position: fixed;
         padding: 1%;
         top: 50%;

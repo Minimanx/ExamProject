@@ -1,6 +1,8 @@
 import { Router } from "express";
 import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
+import fetch from "node-fetch";
+import "dotenv/config";
 const router = Router();
 
 router.get("/theaters", async (req, res) => {
@@ -9,9 +11,44 @@ router.get("/theaters", async (req, res) => {
 });
 
 router.post("/theaters", async (req, res) => {
-    const xCoord = req.body.data.x;
-    await db.theaters.insertOne({ name: "My Theater Event", movie: "James Bond Movie", coords: { x: xCoord, y: 20} });
-    res.send({ message: "Posted :)"});
+    if(!req.session.loggedIn) {
+        res.status(400).send({ message: "Must be logged in to create a new event"});
+        return;
+    }
+
+    let theater = req.body.data;
+    let count = 0;
+    const theaters = await db.theaters.find().toArray();
+    theaters.sort((a, b) => a.position - b.position);
+    for (let i = 0; i < theaters.length; i++) {
+        if(theaters[i].position === count) {
+            count++;
+        } else {
+            theater.position = count;
+        }
+    }
+    if(!theater.position) {
+        theater.position = count;
+    }
+    
+    const response = await fetch(`https://movie-database-alternative.p.rapidapi.com/?r=json&i=${theater.imdbID}`, {
+        headers: {
+          'X-RapidAPI-Host': 'movie-database-alternative.p.rapidapi.com',
+          'X-RapidAPI-Key': process.env.MOVIE_API_KEY
+        }
+    });
+    const result = await response.json();
+
+    theater.movieName = result.Title;
+    theater.movieReleaseYear = result.Year;
+    theater.movieRuntime = result.Runtime;
+    theater.imdbRating = result.imdbRating;
+    theater.hrefPoster = result.Poster;
+    theater.owner = req.session.userID;
+    
+
+    await db.theaters.insertOne(theater);
+    res.status(200).send({ message: "Posted :)"});
 });
 
 router.delete("/theaters/:id", async (req, res) => {

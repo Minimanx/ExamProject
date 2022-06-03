@@ -19,9 +19,6 @@ import { SvelteToast } from "@zerodevx/svelte-toast";
 			zoom: 0.8;
 		}
 	}
-	.toasts {
-		font-family: 'Press Start 2P', cursive;
-	}
 	:root {
 		--toastContainerTop: 8rem;
 		--toastContainerRight: auto;

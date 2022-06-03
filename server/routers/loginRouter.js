@@ -26,8 +26,9 @@ router.post("/login", async (req, res) => {
     if(await bcrypt.compare(clientUser.password, serverUser.password)) {
         const { password, passwordToken, ...responseUser } = serverUser;
         req.session.loggedIn = true;
-        req.session.userID = serverUser.id;
+        req.session.userID = serverUser._id;
         req.session.email = serverUser.email;
+
         res.status(200).send({ data: responseUser, message: "Successfully logged in"});
     } else {
         res.status(400).send({ message: "Password doesn't match" });
@@ -55,7 +56,6 @@ router.post("/forgotpassword", async (req, res) => {
 
     const token = crypto.randomBytes(3).toString('hex');
     await db.users.updateOne({ email: serverUser.email.toLowerCase() }, { $set: { passwordToken: token }});
-    await db.users.createIndex({ "createdAt": 1 }, { expireAfterSeconds: 10 })
 
     mailer("Forgot Password", `<span style="font-size: 25px;">Code to use for password reset:</span> <span style="font-size: 35px;">${token}</span>`, clientUser.email);
     res.status(200).send({ message: "If this email is tied to a user, an email has been sent to it." });
