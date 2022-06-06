@@ -9,12 +9,13 @@ const server = http.createServer(app);
 const io = new Server(server);
 
 import session from "express-session";
-app.use(session({
+const sessionMiddleware = session({
     secret: process.env.SESSION_SECRET,
     resave: false,
     saveUninitialized: true,
     cookie: { secure: false }
-}));
+});
+app.use(sessionMiddleware);
 
 function sanitizeRequest(req, res, next) {
     sanitize(req.body);
@@ -25,6 +26,9 @@ function sanitizeRequest(req, res, next) {
 
 app.use(sanitizeRequest)
 app.use(express.json())
+
+const wrap = middleware => (socket, next) => middleware(socket.request, {}, next);
+io.use(wrap(sessionMiddleware));
 
 import carSocket from "./socketios/carSocket.js";
 carSocket(io);
@@ -41,6 +45,10 @@ import userRouter from "./routers/userRouter.js";
 app.use(userRouter);
 import loginRouter from "./routers/loginRouter.js";
 app.use(loginRouter);
+
+app.get("*", (req, res) => {
+    res.sendFile(path.resolve("../client/public/index.html"));
+});
 
 const PORT = process.env.PORT || 5000;
 server.listen(PORT, () => {

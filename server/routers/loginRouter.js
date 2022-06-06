@@ -5,17 +5,19 @@ import mailer from "../mailer/mailer.js";
 import crypto from "crypto";
 const router = Router();
 
-router.get("/auth/logout/:id", (req, res) => {
-    if(parseInt(req.params.id) === req.session.userID) {
-        req.session.destroy();
-        res.sendStatus(200);
-    } else {
-        res.status(401).send({ message: "You must logout by clicking the button" })
-    }
+router.get("/logout", (req, res) => {
+    req.session.destroy();
+    res.status(200).send({ message: "Successfully logged out" });
 });
 
 router.post("/login", async (req, res) => {
     const clientUser = req.body;
+
+    if(!clientUser.email || !clientUser.password) {
+        res.status(400).send({ message: "All fields must be filled" });
+        return;
+    }
+
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
     if(serverUser === null) {
@@ -28,6 +30,7 @@ router.post("/login", async (req, res) => {
         req.session.loggedIn = true;
         req.session.userID = serverUser._id;
         req.session.email = serverUser.email;
+        req.session.username = serverUser.username;
 
         res.status(200).send({ data: responseUser, message: "Successfully logged in"});
     } else {

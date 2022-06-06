@@ -1,6 +1,9 @@
 <script>
-import InteractiveSpace from "./pages/InteractiveSpace.svelte";
-import { SvelteToast } from "@zerodevx/svelte-toast";
+	import { Router, Link, Route } from "svelte-navigator";
+	import InteractiveSpace from "./pages/InteractiveSpace.svelte";
+	import { SvelteToast } from "@zerodevx/svelte-toast";
+	import InsideTheater from "./pages/InsideTheater.svelte";
+	import { user } from "./stores/userStore.js";
 
 </script>
 
@@ -8,10 +11,16 @@ import { SvelteToast } from "@zerodevx/svelte-toast";
 	<SvelteToast options={{ intro: { y: -500 } }} />
 </div>
 
+<Router>
+	<main>
+		<Route path="/" component={InteractiveSpace} />
+		{#if $user.loggedIn === true}
+			<Route path="/theaters/:id" component={InsideTheater} />
+		{/if}
 
-<main>
-	<InteractiveSpace />
-</main>
+		<Route path="/*" component={InteractiveSpace} />
+	</main>
+</Router>
 
 <style>
 	@media only screen and (max-width: 1500px) {

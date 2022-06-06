@@ -6,10 +6,14 @@
 	import { user } from "../stores/userStore.js";
 	import TheatersListView from "../components/TheatersListView.svelte";
 	import CreateEventScreen from "../components/CreateEventScreen.svelte";
+	import { playerMovement } from "../stores/stateManagementStore.js";
 
 	const socket = io();
 
 	onMount(async () => {
+		if($user.loggedIn) {
+			$playerMovement = true;
+		}
 		getTheaters();
 	});
 
@@ -23,9 +27,10 @@
 			emitCarJoined();
 			cars = cars;
 		}
+		getTheaters();
 	});
 
-	socket.on("newCarLeft", ({ id }) => {
+	socket.on("carLeft", ({ id }) => {
 		cars.splice(cars.findIndex(car => car.id === id), 1);
 		cars = cars;
 	});
@@ -34,7 +39,17 @@
 		cars[cars.findIndex(car => car.id === id)].color = color;
 	});
 
+	socket.on("newCarNameUpdate", ({ id, name }) => {
+		cars[cars.findIndex(car => car.id === id)].name = name;
+	});
+
 	socket.on("newTheaterAdded", () => {
+		getTheaters();
+	});
+
+	socket.on("newJoinedTheater", ({ id }) => {
+		cars.splice(cars.findIndex(car => car.id === id), 1);
+		cars = cars;
 		getTheaters();
 	});
 
@@ -54,7 +69,6 @@
 	let theaters = [];
     let keys = { w: false, s: false, a: false, d: false };
 	let keyDown = false;
-	$: playerMovement = ($user.loggedIn ? true : false);
 	let playerCoords = { x: 60, y: 600 };
 	let playerColor = "#bd0000";
 	let playerSpeed = 5;
@@ -89,28 +103,29 @@
 	}
 
 	function checkIfInTheater() {
-		insideTheaterBool = theaters.some(theater => {
-			if(theater.position * 400 + 325 - screenScrollAmount > playerCoords.x && theater.position * 400 + 75 - screenScrollAmount < playerCoords.x + 50 && playerCoords.y < 550 && playerCoords.y > 400) {
-				currentTheater = theater;
-				return true;
-			}
-			currentTheater = {};
-			return false;
-		});
+		if(playerCoords.y < 555 && playerCoords.y > 400) {
+			insideTheaterBool = theaters.some(theater => {
+				if(theater.position * 400 + 325 - screenScrollAmount > playerCoords.x && theater.position * 400 + 75 - screenScrollAmount < playerCoords.x + 50 && playerCoords.y < 550 && playerCoords.y > 400) {
+					currentTheater = theater;
+					return true;
+				}
+				currentTheater = {};
+				return false;
+			});
+		}
 	}
 	
 	function teleportToTheater(position) {
-        playerCoords.y = 500;
-		console.log(position)
+        playerCoords.y = 470;
 		if(position === 0) {
 			screenScrollAmount = 0;
-			playerCoords.x = 200;
+			playerCoords.x = 185;
 		} else if(position === 1) {
 			screenScrollAmount = 0;
-			playerCoords.x = 600;
+			playerCoords.x = 585;
 		} else if(position > 1) {
 			screenScrollAmount = position * 400 - 600;
-			playerCoords.x = 800;
+			playerCoords.x = 785;
 		}
         
 		emitCarPosition();
@@ -121,28 +136,44 @@
 		const response = await fetch("/theaters");
 		const { data } = await response.json();
 		theaters = data;
-		highestPosition = [...theaters].sort((a, b) => b.position - a.position)[0].position + 1;
-	}
 
-	async function addTheater() {
-		const response = await fetch("/theaters", {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({ data: { x: theaters.length * 400 } }),
-		});
-		socket.emit("theaterAdded");
-		getTheaters();
+		if(theaters.length !== 0) {
+			highestPosition = [...theaters].sort((a, b) => b.position - a.position)[0].position + 1;
+			if(highestPosition < 3) {
+				highestPosition = 3;
+			}
+		} else {
+			highestPosition = 3;
+		}
+		if(screenScrollAmount > highestPosition * 400 - 1000) {
+			screenScrollAmount = highestPosition * 400 - 1000
+			emitCarPosition();
+		}
 	}
 
 	async function logout() {
-		localStorage.clear();
-		window.location.reload();
+		const response = await fetch("/logout");
+
+		if(response.status === 200) {
+			localStorage.clear();
+			window.location.reload();
+		}
 	}
 
+	function createEvent() {
+		$playerMovement = false;
+		createEventBool = true;
+	}
+
+	async function deleteTheater(id) {
+		const response = await fetch("/theaters/" + id, {
+			method: 'DELETE'
+		});
+		getTheaters();
+    }
+
 	setInterval(function() {
-		if(keyDown && playerMovement) {
+		if(keyDown && $playerMovement) {
 			if(keys.w === true && playerCoords.y > 410) {
 				playerCoords.y -= playerSpeed;
 			}
@@ -173,24 +204,15 @@
 			checkIfInTheater();
 		}
 	},20);
-
-	function createEvent() {
-		playerMovement = false;
-		createEventBool = true;
-	}
-
-	async function deleteTheater(id) {
-		const response = await fetch("/theaters/" + id, {
-			method: 'DELETE'
-		});
-		getTheaters();
-    }
 </script>
 
 <svelte:window on:keydown={handleKeydown} on:keyup={handleKeyUp}/>
 
+<button on:click={() => {deleteTheater(currentTheater._id)}}>Delete</button>
+<button on:click={() => (console.log(cars))}>Get</button>
+
 {#if $user.loggedIn === false}
-	<LoginScreen />
+	<LoginScreen {socket} />
 	<div class="container blackedout"></div>
 {/if}
 
@@ -276,7 +298,8 @@
 					<path stroke="#858482" d="M81 213h3M99 213h2M83 214h2M135 214h1M146 214h2M94 215h2M118 215h3M131 215h5M147 215h2M6 216h1M8 216h5M36 216h4M69 216h1M92 216h3M115 216h4M142 216h2M2 217h5M28 217h1M39 217h2M53 217h3M66 217h3M25 218h3M55 218h2M63 218h1M48 219h1M82 219h1M97 219h2M48 220h1M82 220h1M97 220h1M116 220h1M130 220h1M0 221h1M36 221h1M48 221h2M67 221h1M97 221h1M114 221h1M116 221h2M130 221h1M145 221h1M0 222h11M23 222h14M49 222h7M67 222h15M85 222h13M107 222h8M117 222h11M130 222h16M147 222h3" />
 					<path stroke="#615c58" d="M23 219h1" />
 					<text class="eventName" y="8" x="67%">{theater.eventName}</text>
-					<text class="movieTitle {"neoncolor" + Math.floor(Math.random() * 5)}" y="78" x="52%">{theater.movieName}</text>
+					<text class="movieTitle {"neoncolor" + Math.floor(Math.random() * 5)}" y="78" x="52%">{theater.movieNameCutToFit || theater.movieName}</text>
+					<text></text>
 					<image href="{theater.hrefPoster}" height="68" y="0.5" x="10%"/>
 				</svg>
 			{/each}
@@ -336,16 +359,12 @@
 			<TheaterInfoScreen theater={currentTheater} />
 		{/if}
 		{#if createEventBool === true}
-			<CreateEventScreen bind:createEventBool={createEventBool} bind:playerMovement={playerMovement} />
+			<CreateEventScreen bind:createEventBool={createEventBool} />
 		{/if}
 		<button class="menuButton" id="addTheaterButton" on:click={createEvent}>Create Event</button>
 		<button class="menuButton" id="addSomethingElseButton" on:click={logout}>???</button>
 	</div>
 </div>
-
-<button on:click={() => {deleteTheater(currentTheater._id)}}>Delete</button>
-
-<button on:click={addTheater}>Add a theater</button>
 
 <style>
 	.menuButton {

@@ -4,11 +4,6 @@ import bcrypt from "bcrypt";
 import mailer from "../mailer/mailer.js";
 const router = Router();
 
-router.get("/auth/account", async (req, res) => {
-    const user = await db.users.findOne(`SELECT email, name, address FROM users WHERE id = ?`, [req.session.userID]);
-    res.status(200).send({ data: user });
-});
-
 router.post("/users", async (req, res) => {
     const clientUser = req.body;
 

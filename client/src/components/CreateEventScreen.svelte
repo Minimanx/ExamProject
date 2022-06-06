@@ -1,10 +1,10 @@
 <script>
     import { success, error } from "./toasts/toastThemes.js";
     import { Pulse } from 'svelte-loading-spinners'
+    import { playerMovement } from "../stores/stateManagementStore.js";
     import io from "socket.io-client";
 
     export let createEventBool;
-    export let playerMovement;
 
     const socket = io();
 
@@ -65,14 +65,14 @@
 
     function back() {
         createEventBool = false;
-        playerMovement = true;
+        $playerMovement = true;
     }
 </script>
 
 <div class="container">
     <div>
         <label for="eventName">Event name</label>
-        <input name="eventName" type="text" bind:value={eventName} placeholder="Type event name here...">
+        <input name="eventName" type="text" bind:value={eventName} placeholder="Max 18 chars...">
     </div>
     
     <div>

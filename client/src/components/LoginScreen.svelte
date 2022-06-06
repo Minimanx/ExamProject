@@ -1,6 +1,9 @@
 <script>
     import { error, success } from "../components/toasts/toastThemes.js";
     import { user } from "../stores/userStore.js";
+    import { playerMovement } from "../stores/stateManagementStore.js";
+
+    export let socket;
 
     let email;
     let username;
@@ -35,6 +38,9 @@
         if(response.status === 200) {
             $user.loggedIn = true;
             $user.username = result.data.username;
+            $user.userID = result.data._id;
+            $playerMovement = true;
+            socket.emit("carNameUpdate", { name: result.data.username });
             success(result.message);
         }
 
@@ -130,9 +136,11 @@
             error(result.message);
             return;
         }
-
-        success(result.message);
-        changeToLogin();
+        if(response.status === 200) {
+            success(result.message);
+            changeToLogin();
+        }
+        
     }
 
     function changeToLogin() {
