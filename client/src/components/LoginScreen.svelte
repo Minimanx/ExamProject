@@ -39,6 +39,7 @@
             $user.loggedIn = true;
             $user.username = result.data.username;
             $user.userID = result.data._id;
+            $user.playerColor = "#" + Math.floor(Math.random()*16777215).toString(16);
             $playerMovement = true;
             socket.emit("carNameUpdate", { name: result.data.username });
             success(result.message);

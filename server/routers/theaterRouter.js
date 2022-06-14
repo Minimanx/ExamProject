@@ -7,18 +7,22 @@ import bcrypt from "bcrypt";
 const router = Router();
 
 router.get("/theaters", async (req, res) => {
-    const theaters = await db.theaters.find().toArray();
+    const theaters = await db.theaters.find({}, { projection: { password:0 }}).toArray();
     res.send({ data: theaters });
 });
 
 router.get("/theaters/:id", async (req, res) => {
-    const theater = await db.theaters.findOne({ _id: ObjectId(req.params.id )});
+    if(!req.session.loggedIn) {
+        res.status(400).send({ message: "Must be logged in" });
+        return;
+    }
+    const theater = await db.theaters.findOne({ _id: ObjectId(req.params.id) }, { projection: { password:0 }});
     res.send({ data: theater });
 });
 
 router.post("/theaters", async (req, res) => {
     if(!req.session.loggedIn) {
-        res.status(400).send({ message: "Must be logged in to create a new event"});
+        res.status(400).send({ message: "Must be logged in to create a new event" });
         return;
     }
     if(!req.session.creatingEvent) {
@@ -92,6 +96,18 @@ router.post("/theaters", async (req, res) => {
         theater.movieRuntime = Number(result.Runtime.split(" ")[0]);
         theater.imdbRating = result.imdbRating;
         theater.hrefPoster = result.Poster;
+
+        let startTime = new Date(new Date().toDateString() + " " + theater.startTime);
+        if(startTime.getTime() < new Date().getTime()) {
+            startTime = new Date(startTime.getTime() + 86400000);
+        }
+        if(startTime.getTime() > new Date().getTime() + 86400000 || startTime.getTime() < new Date().getTime()) {
+            req.session.creatingEvent = false;
+            res.status(400).send({ message: "Time must be within 24 hours" });
+            return;
+        }
+        theater.startTime = startTime;
+        theater.timeToClose = new Date(startTime.getTime() + (theater.movieRuntime * 60000) + 900000);
         
         let count = 0;
         theaters.sort((a, b) => a.position - b.position);

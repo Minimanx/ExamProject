@@ -1,7 +1,6 @@
 <script>
     export let theaters;
 	export let teleportToTheater = () => {};
-
 </script>
 
 <div class="list">
@@ -30,7 +29,7 @@
                         Starts
                     </li>
                     <li>
-                        {theater.startTime}
+                        {new Date(theater.startTime).getHours() < 10 ? "0" + new Date(theater.startTime).getHours() : new Date(theater.startTime).getHours()}:{new Date(theater.startTime).getMinutes() < 10 ? "0" + new Date(theater.startTime).getMinutes() : new Date(theater.startTime).getMinutes()}
                     </li>
                 </div>
                 <div>
