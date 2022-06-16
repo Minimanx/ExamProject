@@ -28,6 +28,7 @@
         if(response.status === 200) {
             success(result.message);
             socket.emit("joinedTheater");
+            $user.insideTheater = true;
             navigate("/theaters/" + theater._id);
         }
     }
@@ -40,6 +41,9 @@
     <h2>{theater.movieRuntime}</h2>
     <h2>{theater.imdbRating}</h2>
     <img src="{theater.hrefPoster}" alt="poster">
+    {#if theater.passwordBool}
+        <input type="password" bind:value={password} placeholder="Type password here...">
+    {/if}
     <button class="joinTheaterButton" on:click={joinTheater}>Join</button>
 </div>
 

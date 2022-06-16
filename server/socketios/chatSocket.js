@@ -13,8 +13,8 @@ const socket = (io) => {
         socket.on("disconnecting", async () => {
             if(socket.rooms.size === 2) {
                 await db.theaters.updateOne({ _id: ObjectId(socket.request.session.theater) }, { $pull: { usersInsideTheater: socket.request.session.userID }});
-                socket.request.session.theater = undefined;
                 io.to(socket.request.session.theater).emit("newMessage", { text: socket.request.session.username + " left the theater", username: "System", color: "#646464" });
+                socket.request.session.theater = undefined;
             }
         });
     });

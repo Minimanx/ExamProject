@@ -40,8 +40,9 @@
             $user.username = result.data.username;
             $user.userID = result.data._id;
             $user.playerColor = "#" + Math.floor(Math.random()*16777215).toString(16);
+            $user.insideTheater = false;
             $playerMovement = true;
-            socket.emit("carNameUpdate", { name: result.data.username });
+            socket.emit("carUpdate", { name: result.data.username, color: $user.playerColor });
             success(result.message);
         }
 

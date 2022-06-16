@@ -2,6 +2,7 @@
     import { onMount } from "svelte";
     import io from "socket.io-client";
     import { user } from "../stores/userStore.js";
+    import { error, success } from "../components/toasts/toastThemes.js";
 
     const socket = io();
 
@@ -13,6 +14,7 @@
         const response = await fetch("/theaters/" + id);
         const result = await response.json();
         theater = result.data;
+        sendMessageButton.focus();
     });
 
     let messages = [];
@@ -41,29 +43,46 @@
         sendMessageButton.focus();
     }
 
-    async function leaveTheater() {
+    function leaveTheater() {
         window.location.href = "/";
+    }
+
+    function inviteToTheater() {
+        navigator.clipboard.writeText("localhost:5000?position=" + theater.position);
+        success("Invite link copied to clipboard!");
+    }
+
+    async function deleteTheater() {
+		const response = await fetch("/theaters/" + theater._id, {
+			method: 'DELETE'
+		});
+        const result = await response.json();
+
+        if(response.status === 400) {
+            error(result.message);
+        }
+        if(response.status === 200) {
+            window.location.href = "/";
+        }
     }
 
     setInterval(() => {
         if(new Date(theater.startTime).getTime() < new Date().getTime()) {
-            console.log(new Date(theater.startTime))
-            console.log(new Date())
             timeLeftInMovie = new Date(new Date().getTime() - new Date(theater.startTime).getTime());
-            hoursLeft = timeLeftInMovie.getHours();
+            hoursLeft = timeLeftInMovie.getHours() - 1;
             minutesLeft = timeLeftInMovie.getMinutes();
             secondsLeft = timeLeftInMovie.getSeconds();
         }
     }, 1000);
-
 </script>
 
 <div class="container">
     <div class="movieInfoContainer">
         <button on:click={leaveTheater}>Leave</button>
+        <button on:click={inviteToTheater}>Copy Invite Link</button>
         {#if theater}
             {#if theater.ownerID === $user.userID}
-            <p>YOU OWN IT</p>
+                <button on:click={deleteTheater}>Delete</button>
             {/if}
             {#if timeLeftInMovie}
                 <p>Currently running:</p>
@@ -72,7 +91,6 @@
                 <p>Movie starts at:</p>
                 <p>{new Date(theater.startTime).getHours() < 10 ? "0" + new Date(theater.startTime).getHours() : new Date(theater.startTime).getHours()}:{new Date(theater.startTime).getMinutes() < 10 ? "0" + new Date(theater.startTime).getMinutes() : new Date(theater.startTime).getMinutes()}</p>
             {/if}
-            
         {/if}
 
     </div>
@@ -80,25 +98,27 @@
     <div class="liveChatContainer">
         <div class="liveChat" bind:this={scrollContainer}>
             {#each messages as message}
-                <ul>
-                    <div class="messageInfo">
-                        <li style="color: {message.color}">
-                            {message.username}
-                        </li>
+                <div class="wholeMessage">
+                    <ul>
+                        <div class="messageInfo">
+                            <li style="color: {message.color}">
+                                {message.username}
+                            </li>
+                            <li class="timeStamp">
+                                {(message.time.getHours() < 10 ? "0" : "") + message.time.getHours()}:{(message.time.getMinutes() < 10 ? "0" : "") + message.time.getMinutes()}:{(message.time.getSeconds() < 10 ? "0" : "") + message.time.getSeconds()}
+                            </li>
+                        </div>
                         <li>
-                            {message.time.getHours()}:{(message.time.getMinutes() < 10 ? '0' : '') + message.time.getMinutes()}:{(message.time.getSeconds() < 10 ? '0' : '') + message.time.getSeconds()}
+                            {message.text}
                         </li>
-                    </div>
-                    <li>
-                        {message.text}
-                    </li>
-                </ul>
+                    </ul>
+                </div>
             {/each}
         </div>
-        <div class="sendMessageButton">
+        <div class="messageDiv">
             <form onsubmit="return false">
-                <input type="text" bind:this={sendMessageButton} bind:value={sendMessage}>
-                <button on:click={emitMessage}>Send Message</button>
+                <input class="messageInput" type="text" bind:this={sendMessageButton} bind:value={sendMessage}>
+                <button class="messageButton" on:click={emitMessage}>></button>
             </form>
         </div>
     </div>
@@ -106,11 +126,30 @@
 
 
 <style>
+    .timeStamp {
+        color: rgb(241, 241, 241);
+    }
+    .messageDiv {
+        margin: 0 auto;
+    }
+    .wholeMessage:hover .timeStamp {
+        color: rgb(100, 100, 100);
+    }
+    .wholeMessage:hover {
+        background-color: rgb(228 228 228);
+    }
+    .messageInput {
+        width: 380px;
+        height: 50px;
+    }
+    .messageButton {
+        width: 75px;
+        height: 50px;
+    }
     .messageInfo {
         display: flex;
         width: 100%;
         justify-content: space-between;
-        color: rgb(100, 100, 100);
     }
     ul {
         width: 100%;
@@ -123,12 +162,20 @@
         box-sizing: border-box;
         gap: 5px;
         flex-direction: column;
-        border: 16px solid #f1f1f1;
+        border-top: 10px solid #f1f1f1;
+        border-bottom: 10px solid #f1f1f1;
+        border-left: 16px solid #f1f1f1;
+        border-right: 16px solid #f1f1f1;
     }
     .liveChat {
         overflow-y: auto;
         display: flex;
         flex-direction: column;
+        -ms-overflow-style: none;
+        scrollbar-width: none;
+    }
+    .liveChat::-webkit-scrollbar {
+        display: none;
     }
     .movieInfoContainer {
 		height: 800px;

@@ -7,15 +7,27 @@
 	import TheatersListView from "../components/TheatersListView.svelte";
 	import CreateEventScreen from "../components/CreateEventScreen.svelte";
 	import { playerMovement } from "../stores/stateManagementStore.js";
+	import AboutPage from "../components/AboutPage.svelte";
+	import { useLocation } from "svelte-navigator";
 
 	const socket = io();
+	const location = useLocation();
 
 	onMount(async () => {
+		await getTheaters();
 		if($user.loggedIn) {
 			$playerMovement = true;
+			$user.insideTheater = false;
+			if($location.search.split("=")[0] === "?position") {
+				const queryPosition = Number($location.search.split("=")[1]);
+				if(queryPosition > highestPosition) {
+					teleportToTheater(highestPosition - 1);
+				} else {
+					teleportToTheater(queryPosition);
+				}
+				
+			}
 		}
-		getTheaters();
-		
 	});
 
 	socket.on("newCarPosition", ({ id, coords, direction, screen }) => {
@@ -23,12 +35,14 @@
 	});
 
 	socket.on("newCarJoined", ({ id, coords, color, name, screen }) => {
-		if(cars.findIndex(car => car.id === id) === -1) {
-			cars.push({ id: id, color: color, name: name, coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 }});
-			emitCarJoined();
-			cars = cars;
+		if(!$user.insideTheater) {
+			if(cars.findIndex(car => car.id === id) === -1) {
+				cars.push({ id: id, color: color, name: name, coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 }});
+				emitCarJoined();
+				cars = cars;
+			}
+			getTheaters();
 		}
-		getTheaters();
 	});
 
 	socket.on("carLeft", ({ id }) => {
@@ -40,8 +54,9 @@
 		cars[cars.findIndex(car => car.id === id)].color = color;
 	});
 
-	socket.on("newCarNameUpdate", ({ id, name }) => {
+	socket.on("newCarUpdate", ({ id, name, color }) => {
 		cars[cars.findIndex(car => car.id === id)].name = name;
+		cars[cars.findIndex(car => car.id === id)].color = color;
 	});
 
 	socket.on("newTheaterAdded", () => {
@@ -79,7 +94,9 @@
 	let screenScrollAmount = 0;
 	$: canvasLength = (theaters.length < 20 ? 1000 : theaters.length * 400);
 	let createEventBool = false;
+	let aboutPageBool = false;
 	let highestPosition;
+	let currentTime = new Date();
 	
 	function changeColor(event) {
 		$user.playerColor = event.target.value;
@@ -118,16 +135,16 @@
 	function teleportToTheater(position) {
         playerCoords.y = 470;
 		if(position === 0) {
-			screenScrollAmount = 0;
 			playerCoords.x = 185;
-		} else if(position === 1) {
 			screenScrollAmount = 0;
+			console.log(playerCoords.x)
+		} else if(position === 1) {
 			playerCoords.x = 585;
+			screenScrollAmount = 0;
 		} else if(position > 1) {
 			screenScrollAmount = position * 400 - 600;
 			playerCoords.x = 785;
 		}
-        
 		emitCarPosition();
 		checkIfInTheater();
 	}
@@ -165,14 +182,11 @@
 		createEventBool = true;
 	}
 
-	async function deleteTheater(id) {
-		const response = await fetch("/theaters/" + id, {
-			method: 'DELETE'
-		});
-		getTheaters();
-    }
+	function aboutPage() {
+		aboutPageBool = true;
+	}
 
-	setInterval(function() {
+	setInterval(() => {
 		if(keyDown && $playerMovement) {
 			if(keys.w === true && playerCoords.y > 410) {
 				playerCoords.y -= playerSpeed;
@@ -203,13 +217,14 @@
 			emitCarPosition();
 			checkIfInTheater();
 		}
-	},20);
+	}, 20);
+
+	setInterval(() => {
+		currentTime = new Date();
+	}, 60000);
 </script>
 
 <svelte:window on:keydown={handleKeydown} on:keyup={handleKeyUp}/>
-
-<button on:click={() => {deleteTheater(currentTheater._id)}}>Delete</button>
-<button on:click={() => (console.log(cars))}>Get</button>
 
 {#if $user.loggedIn === false}
 	<LoginScreen {socket} />
@@ -297,9 +312,22 @@
 					<path stroke="#756b64" d="M9 213h2" />
 					<path stroke="#858482" d="M81 213h3M99 213h2M83 214h2M135 214h1M146 214h2M94 215h2M118 215h3M131 215h5M147 215h2M6 216h1M8 216h5M36 216h4M69 216h1M92 216h3M115 216h4M142 216h2M2 217h5M28 217h1M39 217h2M53 217h3M66 217h3M25 218h3M55 218h2M63 218h1M48 219h1M82 219h1M97 219h2M48 220h1M82 220h1M97 220h1M116 220h1M130 220h1M0 221h1M36 221h1M48 221h2M67 221h1M97 221h1M114 221h1M116 221h2M130 221h1M145 221h1M0 222h11M23 222h14M49 222h7M67 222h15M85 222h13M107 222h8M117 222h11M130 222h16M147 222h3" />
 					<path stroke="#615c58" d="M23 219h1" />
-					<text class="eventName" y="8" x="67%">{theater.eventName}</text>
+					<text class="eventInfo" y="8" x="67%">{theater.eventName}</text>
+					{#if currentTime.getTime() < new Date(theater.startTime).getTime()}
+						<text class="eventInfo" y="20" x="67%">Starts at:</text>
+						<text class="eventInfo startTime" y="26" x="67%">{(new Date(theater.startTime).getHours() < 10 ? "0" : "") + new Date(theater.startTime).getHours()}:{(new Date(theater.startTime).getMinutes() < 10 ? "0" : "") + new Date(theater.startTime).getMinutes()}</text>
+					{:else if currentTime.getTime() > new Date(theater.startTime).getTime() && currentTime.getTime() < new Date(theater.timeToClose).getTime() - 900000}
+						<text class="eventInfo startTime" y="23" x="67%">Currently showing</text>
+					{:else if currentTime.getTime() > new Date(theater.timeToClose).getTime() - 900000 && currentTime.getTime() < new Date(theater.timeToClose).getTime()}
+						<text class="eventInfo closing" y="23" x="67%">Closing</text>
+					{:else}
+						<text class="eventInfo closed" y="23" x="67%">Closed</text>
+					{/if}
+					<text class="eventInfo" y="39" x="67%">Runtime: {theater.movieRuntime}</text>
+					<text class="eventInfo" y="52" x="67%">{theater.usersInsideTheater.length}/{theater.amountOfSpaces}</text>
+					<svg y="-62" x="75%" width=8px xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Pro 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M224 256c70.7 0 128-57.31 128-128S294.7 0 224 0C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3c-95.73 0-173.3 77.6-173.3 173.3C0 496.5 15.52 512 34.66 512H413.3C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304zM479.1 320h-73.85C451.2 357.7 480 414.1 480 477.3C480 490.1 476.2 501.9 470 512h138C625.7 512 640 497.6 640 479.1C640 391.6 568.4 320 479.1 320zM432 256C493.9 256 544 205.9 544 144S493.9 32 432 32c-25.11 0-48.04 8.555-66.72 22.51C376.8 76.63 384 101.4 384 128c0 35.52-11.93 68.14-31.59 94.71C372.7 243.2 400.8 256 432 256z"/></svg>
+					<text class="eventInfo" y="64" x="67%">{theater.passwordBool ? "Private Event" : "Public Event"}</text>
 					<text class="movieTitle {"neoncolor" + Math.floor(Math.random() * 5)}" y="78" x="52%">{theater.movieNameCutToFit || theater.movieName}</text>
-					<text></text>
 					<image href="{theater.hrefPoster}" height="68" y="0.5" x="10%"/>
 				</svg>
 			{/each}
@@ -361,12 +389,24 @@
 		{#if createEventBool === true}
 			<CreateEventScreen bind:createEventBool={createEventBool} />
 		{/if}
+		{#if aboutPageBool === true}
+			<AboutPage bind:aboutPageBool={aboutPageBool} />
+		{/if}
 		<button class="menuButton" id="addTheaterButton" on:click={createEvent}>Create Event</button>
-		<button class="menuButton" id="addSomethingElseButton" on:click={logout}>???</button>
+		<button class="menuButton" id="addSomethingElseButton" on:click={aboutPage}>About</button>
 	</div>
 </div>
 
 <style>
+	.closed {
+		fill: red;
+	}
+	.closing {
+		fill: yellow;
+	}
+	.startTime {
+		fill: green;
+	}
 	.menuButton {
 		position: fixed;
 		padding: 0;
@@ -471,10 +511,8 @@
 		position: fixed;
     	top: 530px;
 	}
-	.eventName {
+	.eventInfo {
 		text-anchor: middle;
-		user-select: none;
-		fill: black;
 		font-size: 4px;
 	}
 	.movieTitle {

@@ -23,6 +23,9 @@
 </Router>
 
 <style>
+	main {
+		user-select: none;
+	}
 	@media only screen and (max-width: 1500px) {
 		main {
 			zoom: 0.8;

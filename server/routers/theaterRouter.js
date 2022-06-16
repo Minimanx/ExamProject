@@ -50,13 +50,13 @@ router.post("/theaters", async (req, res) => {
             return;
         }
         if(!theater.imdbID) {
-            res.status(400).send({ message: "Must choose a movie" });
             req.session.creatingEvent = false;
+            res.status(400).send({ message: "Must choose a movie" });
             return;
         }
         if(!theater.startTime) {
-            res.status(400).send({ message: "Must choose a time" });
             req.session.creatingEvent = false;
+            res.status(400).send({ message: "Must choose a time" });
             return;
         }
         if(theater.amountOfSpaces > 99 || theater.amountOfSpaces < 1) {
@@ -175,14 +175,23 @@ router.patch("/theaters/:id", async (req, res) => {
 
 router.delete("/theaters/:id", async (req, res) => {
     const id = req.params.id;
-    //CHECK USER YOU KNOW
-    if(id !== "undefined") {
-        const deletedTheater = await db.theaters.deleteOne({ _id: ObjectId(id) });
-        res.send({ message: "Deleted :)"});
-    } else {
-        res.send({ message: "not a number........."});
+    const theater = await db.theaters.findOne({ _id: ObjectId(id) });
+
+    if(theater === null) {
+        res.status(400).send({ message: "No theater found" });
+        return;
     }
-    
+    if(theater.ownerID !== req.session.userID) {
+        res.status(400).send({ message: "Only the owner can delete the theater" });
+        return;
+    }
+    if(theater.usersInsideTheater.length > 1 || !theater.usersInsideTheater.some((user) => user === req.session.userID)) {
+        res.status(400).send({ message: "Owner must be the only one inside the theater" });
+        return;
+    }
+
+    await db.theaters.deleteOne({ _id: ObjectId(id) });
+    res.send({ message: "Theater successfully deleted"});
 });
 
 export default router;
