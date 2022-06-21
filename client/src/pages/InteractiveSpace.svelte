@@ -31,42 +31,52 @@
 	});
 
 	socket.on("newCarPosition", ({ id, coords, direction, screen }) => {
-		cars[cars.findIndex(car => car.id === id)].coords = { x: coords.x + screen, y: coords.y, direction: direction };
+		if(!$user.insideTheater) {
+			cars[cars.findIndex(car => car.id === id)].coords = { x: coords.x + screen, y: coords.y, direction: direction };
+		}
 	});
 
 	socket.on("newCarJoined", ({ id, coords, color, name, screen }) => {
+		if(cars.findIndex(car => car.id === id) === -1) {
+			cars.push({ id: id, color: color, name: name, coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 }});
+			emitCarJoined();
+			cars = cars;
+		}
+		getTheaters();
+	});
+
+	socket.on("carLeft", ({ id }) => {
 		if(!$user.insideTheater) {
-			if(cars.findIndex(car => car.id === id) === -1) {
-				cars.push({ id: id, color: color, name: name, coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 }});
-				emitCarJoined();
-				cars = cars;
-			}
+			cars.splice(cars.findIndex(car => car.id === id), 1);
+			cars = cars;
+		}
+	});
+
+	socket.on("newColorChanged", ({ id, color }) => {
+		if(!$user.insideTheater) {
+			cars[cars.findIndex(car => car.id === id)].color = color;
+		}
+	});
+
+	socket.on("newCarUpdate", ({ id, name, color }) => {
+		if(!$user.insideTheater) {
+			cars[cars.findIndex(car => car.id === id)].name = name;
+			cars[cars.findIndex(car => car.id === id)].color = color;
+		}
+	});
+
+	socket.on("newTheaterAdded", () => {
+		if(!$user.insideTheater) {
 			getTheaters();
 		}
 	});
 
-	socket.on("carLeft", ({ id }) => {
-		cars.splice(cars.findIndex(car => car.id === id), 1);
-		cars = cars;
-	});
-
-	socket.on("newColorChanged", ({ id, color }) => {
-		cars[cars.findIndex(car => car.id === id)].color = color;
-	});
-
-	socket.on("newCarUpdate", ({ id, name, color }) => {
-		cars[cars.findIndex(car => car.id === id)].name = name;
-		cars[cars.findIndex(car => car.id === id)].color = color;
-	});
-
-	socket.on("newTheaterAdded", () => {
-		getTheaters();
-	});
-
 	socket.on("newJoinedTheater", ({ id }) => {
-		cars.splice(cars.findIndex(car => car.id === id), 1);
-		cars = cars;
-		getTheaters();
+		if(!$user.insideTheater) {
+			cars.splice(cars.findIndex(car => car.id === id), 1);
+			cars = cars;
+			getTheaters();
+		}
 	});
 
 	socket.on("connect", () => {
@@ -231,6 +241,7 @@
 	<div class="container blackedout"></div>
 {/if}
 
+
 <div class="container">
 	<div class="containerInteractiveSpace">
 		<svg class="backgroundimg" xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 400 140" shape-rendering="crispEdges">
@@ -323,7 +334,7 @@
 					{:else}
 						<text class="eventInfo closed" y="23" x="67%">Closed</text>
 					{/if}
-					<text class="eventInfo" y="39" x="67%">Runtime: {theater.movieRuntime}</text>
+					<text class="eventInfo" y="39" x="67%">Runtime: {theater.movieRuntime} min</text>
 					<text class="eventInfo" y="52" x="67%">{theater.usersInsideTheater.length}/{theater.amountOfSpaces}</text>
 					<svg y="-62" x="75%" width=8px xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 512"><!--! Font Awesome Pro 6.1.1 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license (Commercial License) Copyright 2022 Fonticons, Inc. --><path d="M224 256c70.7 0 128-57.31 128-128S294.7 0 224 0C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3c-95.73 0-173.3 77.6-173.3 173.3C0 496.5 15.52 512 34.66 512H413.3C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304zM479.1 320h-73.85C451.2 357.7 480 414.1 480 477.3C480 490.1 476.2 501.9 470 512h138C625.7 512 640 497.6 640 479.1C640 391.6 568.4 320 479.1 320zM432 256C493.9 256 544 205.9 544 144S493.9 32 432 32c-25.11 0-48.04 8.555-66.72 22.51C376.8 76.63 384 101.4 384 128c0 35.52-11.93 68.14-31.59 94.71C372.7 243.2 400.8 256 432 256z"/></svg>
 					<text class="eventInfo" y="64" x="67%">{theater.passwordBool ? "Private Event" : "Public Event"}</text>
@@ -381,7 +392,11 @@
 	<div class="containerListView">
 		<label id="colorInputLabel" for="colorInput">Change Color</label>
 		<input name="colorInput" id="colorInput" type="color" value="{$user.playerColor}" on:change={changeColor}/>
-		<button class="menuButton" id="logoutButton" on:click={logout}>X</button>
+		<button class="menuButton" id="logoutButton" on:click={logout}>
+			<svg width="40px" xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 19 23" shape-rendering="crispEdges">
+            <path stroke="rgb(100, 100, 100)" d="M0 0h15M0 1h15M0 2h6M13 2h2M0 3h2M4 3h4M13 3h2M0 4h2M6 4h4M13 4h2M0 5h2M8 5h2M13 5h2M0 6h2M8 6h2M13 6h2M0 7h2M8 7h2M13 7h2M0 8h2M8 8h2M13 8h2M0 9h2M8 9h2M16 9h2M0 10h2M8 10h2M11 10h8M0 11h2M8 11h2M11 11h8M0 12h2M8 12h2M16 12h2M0 13h2M8 13h2M13 13h2M0 14h2M8 14h2M13 14h2M0 15h2M8 15h2M13 15h2M0 16h2M8 16h2M13 16h2M0 17h2M8 17h2M13 17h2M0 18h2M8 18h7M0 19h4M8 19h7M2 20h4M8 20h2M4 21h6M6 22h4" />
+            </svg>
+		</button>
 		<TheatersListView theaters={theaters} teleportToTheater={teleportToTheater} />
 		{#if insideTheaterBool === true}
 			<TheaterInfoScreen theater={currentTheater} />
@@ -402,7 +417,7 @@
 		fill: red;
 	}
 	.closing {
-		fill: yellow;
+		fill: #e69f12
 	}
 	.startTime {
 		fill: green;

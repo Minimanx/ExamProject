@@ -72,7 +72,7 @@
 <div class="container">
     <div>
         <label for="eventName">Event name</label>
-        <input name="eventName" type="text" bind:value={eventName} placeholder="Max 18 chars...">
+        <input name="eventName" type="text" bind:value={eventName} maxlength="18" placeholder="Max 18 chars...">
     </div>
     
     <div>
@@ -107,12 +107,12 @@
     
     <div class="inputContainer">
         <label for="amountOfSpaces">Amount of spaces</label>
-        <input id="amountOfSpaceInput" name="amountOfSpaces" type="number" bind:value={amountOfSpaces} placeholder="#">
+        <input id="amountOfSpaceInput" name="amountOfSpaces" type="number" bind:value={amountOfSpaces} max="99" min="1" placeholder="#">
     </div>
     
     <div class="passwordInputs">
         {#if passwordBool}
-            <input name="password" type="password" bind:value={password} placeholder="Type password here...">
+            <input name="password" type="password" bind:value={password} maxlength="24" placeholder="Type password here...">
         {:else}
             <label for="searchMovie">Private event?</label>
         {/if}
@@ -181,6 +181,9 @@
     ul:hover {
         background-color: aquamarine;
         cursor: pointer;
+    }
+    ul:active {
+        background-color: aqua;
     }
     .container {
         position: fixed;

@@ -3,6 +3,7 @@ import path from "path"
 import http from "http";
 import { Server } from "socket.io";
 import sanitize from "mongo-sanitize";
+import rateLimit from "express-rate-limit";
 
 const app = express();
 const server = http.createServer(app);
@@ -17,14 +18,28 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
+const baseLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+	max: 1000,
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+	max: 10,
+	standardHeaders: true,
+	legacyHeaders: false,
+});
+app.use(baseLimiter);
+
 function sanitizeRequest(req, res, next) {
     sanitize(req.body);
     sanitize(req.query);
     sanitize(req.params);
     next();
 }
-
 app.use(sanitizeRequest)
+
 app.use(express.json())
 
 const wrap = middleware => (socket, next) => middleware(socket.request, {}, next);
@@ -43,6 +58,7 @@ import movieRouter from "./routers/movieRouter.js";
 app.use(movieRouter);
 import userRouter from "./routers/userRouter.js";
 app.use(userRouter);
+app.use(loginLimiter);
 import loginRouter from "./routers/loginRouter.js";
 app.use(loginRouter);
 

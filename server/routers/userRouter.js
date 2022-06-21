@@ -15,8 +15,8 @@ router.post("/users", async (req, res) => {
         res.status(400).send({ message: "Passwords must match" });
         return;
     }
-    if(clientUser.password.length < 8) {
-        res.status(400).send({ message: "Password is too short" });
+    if(clientUser.password.length < 8 || clientUser.password.length > 24) {
+        res.status(400).send({ message: "Password must be between 8 and 24 characters" });
         return;
     }
     if(!/\S+@\S+\.\S+/.test(clientUser.email)) {

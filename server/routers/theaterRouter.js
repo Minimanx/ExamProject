@@ -36,9 +36,9 @@ router.post("/theaters", async (req, res) => {
             return;
         }
         if(theater.passwordBool) {
-            if(theater.password.length < 8) {
+            if(theater.password.length < 8 || theater.password.length > 24) {
                 req.session.creatingEvent = false;
-                res.status(400).send({ message: "Password is too short" });
+                res.status(400).send({ message: "Password must be between 8 and 24 characters" });
                 return;
             }
         } else {
@@ -96,6 +96,8 @@ router.post("/theaters", async (req, res) => {
         theater.movieRuntime = Number(result.Runtime.split(" ")[0]);
         theater.imdbRating = result.imdbRating;
         theater.hrefPoster = result.Poster;
+        theater.moviePlot = result.Plot;
+        theater.movieGenres = result.Genre;
 
         let startTime = new Date(new Date().toDateString() + " " + theater.startTime);
         if(startTime.getTime() < new Date().getTime()) {

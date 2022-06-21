@@ -207,7 +207,7 @@
         <label for="email">Email</label>
         <input name="email" type="email" bind:value={email} placeholder="Type email here...">
         <label for="password">Password</label>
-        <input name="password" type="password" bind:value={password} placeholder="Type password here...">
+        <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
         <button id="mainbutton" on:click={login}>Login</button>
         <div class="otherOptions">
             <button on:click={changeToSignUp}>Sign Up</button>
@@ -220,11 +220,11 @@
         <label for="email">Email</label>
         <input name="email" type="email" bind:value={email} placeholder="Type email here...">
         <label for="username">Username</label>
-        <input name="username" type="text" bind:value={username} placeholder="Type username here...">
+        <input name="username" type="text" bind:value={username} placeholder="Type username here..." maxlength="16">
         <label for="password">Password</label>
-        <input name="password" type="password" bind:value={password} placeholder="Type password here...">
+        <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
         <label for="passwordRepeat">Repeat Password</label>
-        <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here...">
+        <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">
         <button id="mainbutton" on:click={signUp}>Create Account</button>
         <div class="otherOptions">
             <button on:click={changeToLogin}>Back</button>
@@ -254,9 +254,9 @@
 {#if changePassComponent === true}
     <div class="container">
         <label for="password">Password</label>
-        <input name="password" type="password" bind:value={password} placeholder="Type password here...">
+        <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
         <label for="passwordRepeat">Repeat Password</label>
-        <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here...">
+        <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">
         <button id="mainbutton" on:click={changePass}>Change Password</button>
         <div class="otherOptions">
             <button on:click={changeToLogin}>Back</button>
