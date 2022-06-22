@@ -21,7 +21,7 @@ router.post("/login", async (req, res) => {
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
     if(serverUser === null) {
-        res.status(400).send({ message: "Email doesn't exist" });
+        res.status(400).send({ message: "Email or password incorrect" });
         return;
     }
 
@@ -34,7 +34,7 @@ router.post("/login", async (req, res) => {
 
         res.status(200).send({ data: responseUser, message: "Successfully logged in"});
     } else {
-        res.status(400).send({ message: "Password doesn't match" });
+        res.status(400).send({ message: "Email or password incorrect" });
     }
 });
 

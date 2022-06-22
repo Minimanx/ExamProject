@@ -253,7 +253,7 @@
 {/if}
 {#if changePassComponent === true}
     <div class="container">
-        <label for="password">Password</label>
+        <label for="password">New Password</label>
         <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
         <label for="passwordRepeat">Repeat Password</label>
         <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">

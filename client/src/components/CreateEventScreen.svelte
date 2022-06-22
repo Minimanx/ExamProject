@@ -65,19 +65,18 @@
 
     function back() {
         createEventBool = false;
-        $playerMovement = true;
     }
 </script>
 
 <div class="container">
     <div>
         <label for="eventName">Event name</label>
-        <input name="eventName" type="text" bind:value={eventName} maxlength="18" placeholder="Max 18 chars...">
+        <input name="eventName" type="text" bind:value={eventName} on:focus={() => $playerMovement = false} on:blur={() => $playerMovement = true} maxlength="18" placeholder="Max 18 chars...">
     </div>
     
     <div>
         <label for="searchMovie">Search for a movie</label>
-        <input name="searchMovie" type="text" bind:value={searchMovieName} on:change={searchMovie} placeholder="Type movie here...">
+        <input name="searchMovie" type="text" bind:value={searchMovieName} on:change={searchMovie} on:focus={() => $playerMovement = false} on:blur={() => $playerMovement = true} placeholder="Type movie here...">
     </div>
 
     <div class="movieSearchContainer">
@@ -112,7 +111,7 @@
     
     <div class="passwordInputs">
         {#if passwordBool}
-            <input name="password" type="password" bind:value={password} maxlength="24" placeholder="Type password here...">
+            <input name="password" type="password" bind:value={password} on:focus={() => $playerMovement = false} on:blur={() => $playerMovement = true} maxlength="24" placeholder="Type password here...">
         {:else}
             <label for="searchMovie">Private event?</label>
         {/if}

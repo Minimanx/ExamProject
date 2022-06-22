@@ -7,8 +7,8 @@ import bcrypt from "bcrypt";
 const router = Router();
 
 router.get("/theaters", async (req, res) => {
-    const theaters = await db.theaters.find({}, { projection: { password:0 }}).toArray();
-    res.send({ data: theaters });
+    const theaters = await db.theaters.find({}, { projection: { password: 0 }}).toArray();
+    res.status(200).send({ data: theaters });
 });
 
 router.get("/theaters/:id", async (req, res) => {
@@ -16,8 +16,17 @@ router.get("/theaters/:id", async (req, res) => {
         res.status(400).send({ message: "Must be logged in" });
         return;
     }
-    const theater = await db.theaters.findOne({ _id: ObjectId(req.params.id) }, { projection: { password:0 }});
-    res.send({ data: theater });
+    
+    let theater;
+
+    try {
+        theater = await db.theaters.findOne({ _id: ObjectId(req.params.id) }, { projection: { password: 0 }});
+    } catch (error) {
+        res.status(204).send({});
+        return;
+    }
+    
+    res.status(200).send({ data: theater });
 });
 
 router.post("/theaters", async (req, res) => {
@@ -142,8 +151,15 @@ router.post("/theaters", async (req, res) => {
 router.patch("/theaters/:id", async (req, res) => {
     const id = req.params.id;
     const clientUser = req.body;
+    let theater;
 
-    const theater = await db.theaters.findOne({ _id: ObjectId(id) });
+    try {
+        theater = await db.theaters.findOne({ _id: ObjectId(id) });
+    } catch (error) {
+        res.status(204).send({});
+        return;
+    }
+
     if(theater === null) {
         res.status(400).send({ message: "Invalid theater" });
         return;
@@ -177,8 +193,14 @@ router.patch("/theaters/:id", async (req, res) => {
 
 router.delete("/theaters/:id", async (req, res) => {
     const id = req.params.id;
-    const theater = await db.theaters.findOne({ _id: ObjectId(id) });
+    let theater;
 
+    try {
+        theater = await db.theaters.findOne({ _id: ObjectId(id) });
+    } catch (error) {
+        res.status(204).send({});
+        return;
+    }
     if(theater === null) {
         res.status(400).send({ message: "No theater found" });
         return;

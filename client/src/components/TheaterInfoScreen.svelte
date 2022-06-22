@@ -70,6 +70,7 @@
 <style>
     h2 {
         margin: 0;
+        line-break: anywhere;
     }
     h3 {
         margin: 0;

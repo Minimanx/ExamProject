@@ -33,7 +33,7 @@ router.post("/users", async (req, res) => {
         return;
     }
     const findEmail = await db.users.findOne({ email: clientUser.email.toLowerCase() });
-    if(findEmail === null) {
+    if(findEmail !== null) {
         res.status(400).send({ message: "Email already exists" });
         return;
     }

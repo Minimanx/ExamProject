@@ -96,13 +96,13 @@
     let keys = { w: false, s: false, a: false, d: false };
 	let keyDown = false;
 	let playerCoords = { x: 60, y: 600 };
-	let playerSpeed = 5;
+	const playerSpeed = 5;
 	let insideTheaterBool = false;
 	let currentTheater = {};
 	let playerDirection = false;
 	$: playerName = $user.username || "";
 	let screenScrollAmount = 0;
-	$: canvasLength = (theaters.length < 20 ? 1000 : theaters.length * 400);
+	const canvasLength = 1000;
 	let createEventBool = false;
 	let aboutPageBool = false;
 	let highestPosition;
@@ -114,15 +114,15 @@
 	}
 
 	function handleKeydown(event) {
-		if(event.key === "w" || event.key === "a" || event.key === "s" || event.key === "d") {
-			let key = event.key;
+		let key = event.key.toLowerCase();
+		if(key === "w" || key === "a" || key === "s" || key === "d") {
         	keys[key] = true;
 			keyDown = true;
 		}
     }
 	
 	function handleKeyUp(event) {
-		let key = event.key;
+		let key = event.key.toLowerCase();
         keys[key] = false;
 		if(Object.values(keys).every(value => value === false)) {
 			keyDown = false;
@@ -188,7 +188,6 @@
 	}
 
 	function createEvent() {
-		$playerMovement = false;
 		createEventBool = true;
 	}
 
@@ -209,21 +208,22 @@
 				if(!playerDirection) {
 					playerDirection = true;
 				}
+				if(playerCoords.x < 150 && screenScrollAmount > 0) {
+					screenScrollAmount -= playerSpeed;
+					playerCoords.x += playerSpeed;
+				}
 			}
 			if(keys.d === true && playerCoords.x < (canvasLength) - 50) {
 				playerCoords.x += playerSpeed;
 				if(playerDirection) {
 					playerDirection = false;
 				}
+				if(playerCoords.x > 800 && screenScrollAmount < (highestPosition * 400) - 1000) {
+					screenScrollAmount += playerSpeed;
+					playerCoords.x -= playerSpeed;
+				}
 			}
-			if(playerCoords.x > 800 && screenScrollAmount < (highestPosition * 400) - 1000) {
-				screenScrollAmount += playerSpeed;
-				playerCoords.x -= playerSpeed;
-			}
-			if(playerCoords.x < 150 && screenScrollAmount > 0) {
-				screenScrollAmount -= playerSpeed;
-				playerCoords.x += playerSpeed;
-			}
+			
 			emitCarPosition();
 			checkIfInTheater();
 		}

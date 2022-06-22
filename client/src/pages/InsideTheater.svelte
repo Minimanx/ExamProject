@@ -74,8 +74,8 @@
     setInterval(() => {
         if(theater) {
             currentTime = new Date();
-            timeLeftInMovie = new Date(currentTime.getTime() - new Date(theater.startTime).getTime());
-            hoursLeft = timeLeftInMovie.getHours() - 1;
+            timeLeftInMovie = new Date(currentTime.getTime() - 3600000 - new Date(theater.startTime).getTime());
+            hoursLeft = timeLeftInMovie.getHours();
             minutesLeft = timeLeftInMovie.getMinutes();
             secondsLeft = timeLeftInMovie.getSeconds();
         }
@@ -87,20 +87,18 @@
     {#if theater}
         <div class="movieInfoContainer">
             <div class="timeOfMovie">
-                
                     {#if currentTime.getTime() < new Date(theater.startTime).getTime()}
                         <h1>Starts in:</h1>
-                        <h1>{(new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getHours() - 1 < 10 ? "0" : "") + String(new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getHours() - 1)}:{(new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getMinutes() < 10 ? "0" : "") + new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getMinutes()}:{(new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getSeconds() < 10 ? "0" : "") + new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getSeconds()}</h1>
+                        <h1>{(new Date(new Date(theater.startTime).getTime() - 3600000 - currentTime.getTime()).getHours() < 10 ? "0" : "") + String(new Date(new Date(theater.startTime).getTime() - 3600000 - currentTime.getTime()).getHours())}:{(new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getMinutes() < 10 ? "0" : "") + new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getMinutes()}:{(new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getSeconds() < 10 ? "0" : "") + new Date(new Date(theater.startTime).getTime() - currentTime.getTime()).getSeconds()}</h1>
                     {:else if currentTime.getTime() > new Date(theater.startTime).getTime() && currentTime.getTime() < new Date(theater.timeToClose).getTime() - 900000}
                         <h1>Ongoing:</h1>
                         <h1>{(hoursLeft < 10 ? "0" + hoursLeft : hoursLeft)}:{(minutesLeft < 10 ? "0" + minutesLeft : minutesLeft)}:{(secondsLeft < 10 ? "0" + secondsLeft : secondsLeft)}</h1>
                     {:else if currentTime.getTime() > new Date(theater.timeToClose).getTime() - 900000 && currentTime.getTime() < new Date(theater.timeToClose).getTime()}
                         <h1>Closing in:</h1>
-                        <h1>{(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getHours() - 1 < 10 ? "0" : "") + String(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getHours() - 1)}:{(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getMinutes() < 10 ? "0" : "") + String(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getMinutes())}:{(new Date(new Date(theater.timeToClose).getTime() - (new Date(currentTime))).getSeconds() < 10 ? "0" : "") + String(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getSeconds())}</h1>
+                        <h1>{(new Date(new Date(theater.timeToClose).getTime() - 3600000 - new Date(currentTime)).getHours() < 10 ? "0" : "") + String(new Date(new Date(theater.timeToClose).getTime() - 3600000 - new Date(currentTime)).getHours())}:{(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getMinutes() < 10 ? "0" : "") + String(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getMinutes())}:{(new Date(new Date(theater.timeToClose).getTime() - (new Date(currentTime))).getSeconds() < 10 ? "0" : "") + String(new Date(new Date(theater.timeToClose).getTime() - new Date(currentTime)).getSeconds())}</h1>
                     {:else}
                         <h1>Closed</h1>
                     {/if}
-                
             </div>
         </div>
 
