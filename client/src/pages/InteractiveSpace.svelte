@@ -147,7 +147,6 @@
 		if(position === 0) {
 			playerCoords.x = 185;
 			screenScrollAmount = 0;
-			console.log(playerCoords.x)
 		} else if(position === 1) {
 			playerCoords.x = 585;
 			screenScrollAmount = 0;

@@ -73,6 +73,16 @@ router.post("/theaters", async (req, res) => {
             res.status(400).send({ message: "Amount of spaces must be between 1 and 99" });
             return;
         }
+        let startTime = new Date(new Date().toDateString() + " " + theater.startTime);
+        if(startTime.getTime() < new Date().getTime()) {
+            startTime = new Date(startTime.getTime() + 86400000);
+        }
+        if(startTime.getTime() > new Date().getTime() + 86400000 || startTime.getTime() < new Date().getTime()) {
+            req.session.creatingEvent = false;
+            res.status(400).send({ message: "Time must be within 24 hours" });
+            return;
+        }
+        theater.startTime = startTime;
 
         const theaters = await db.theaters.find().toArray();
 
@@ -107,17 +117,6 @@ router.post("/theaters", async (req, res) => {
         theater.hrefPoster = result.Poster;
         theater.moviePlot = result.Plot;
         theater.movieGenres = result.Genre;
-
-        let startTime = new Date(new Date().toDateString() + " " + theater.startTime);
-        if(startTime.getTime() < new Date().getTime()) {
-            startTime = new Date(startTime.getTime() + 86400000);
-        }
-        if(startTime.getTime() > new Date().getTime() + 86400000 || startTime.getTime() < new Date().getTime()) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "Time must be within 24 hours" });
-            return;
-        }
-        theater.startTime = startTime;
         theater.timeToClose = new Date(startTime.getTime() + (theater.movieRuntime * 60000) + 900000);
         
         let count = 0;
