@@ -37,12 +37,14 @@
 	});
 
 	socket.on("newCarJoined", ({ id, coords, color, name, screen }) => {
-		if(cars.findIndex(car => car.id === id) === -1) {
-			cars.push({ id: id, color: color, name: name, coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 }});
-			emitCarJoined();
-			cars = cars;
+		if(!$user.insideTheater) {
+			if(cars.findIndex(car => car.id === id) === -1) {
+				cars.push({ id: id, color: color, name: name, coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 }});
+				emitCarJoined();
+				cars = cars;
+			}
+			getTheaters();
 		}
-		getTheaters();
 	});
 
 	socket.on("carLeft", ({ id }) => {
