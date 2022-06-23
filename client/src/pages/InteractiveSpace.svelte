@@ -9,6 +9,7 @@
 	import { playerMovement } from "../stores/stateManagementStore.js";
 	import AboutPage from "../components/AboutPage.svelte";
 	import { useLocation } from "svelte-navigator";
+	import { Pulse } from 'svelte-loading-spinners'
 
 	const socket = io();
 	const location = useLocation();
@@ -32,7 +33,11 @@
 
 	socket.on("newCarPosition", ({ id, coords, direction, screen }) => {
 		if(!$user.insideTheater) {
-			cars[cars.findIndex(car => car.id === id)].coords = { x: coords.x + screen, y: coords.y, direction: direction };
+			try {
+				cars[cars.findIndex(car => car.id === id)].coords = { x: coords.x + screen, y: coords.y, direction: direction };
+			} catch (error) {
+				
+			}
 		}
 	});
 
@@ -237,6 +242,8 @@
 
 <svelte:window on:keydown={handleKeydown} on:keyup={handleKeyUp}/>
 
+{#if highestPosition}
+
 {#if $user.loggedIn === false}
 	<LoginScreen {socket} />
 	<div class="container blackedout"></div>
@@ -412,6 +419,14 @@
 		<button class="menuButton" id="addSomethingElseButton" on:click={aboutPage}>About</button>
 	</div>
 </div>
+
+{:else}
+
+<div id="loadingSpinner">
+	<Pulse size="200" color="aqua" unit="px" duration="1s" />
+</div>
+
+{/if}
 
 <style>
 	.closed {
