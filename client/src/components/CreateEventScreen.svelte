@@ -47,7 +47,7 @@
                     passwordBool: passwordBool,
                     password: password,
                     amountOfSpaces: amountOfSpaces,
-                    startTime: startTime
+                    startTime: new Date(new Date().toDateString() + " " + startTime)
                 }
             }),
 		});

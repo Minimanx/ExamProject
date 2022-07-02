@@ -13,20 +13,17 @@ router.get("/theaters", async (req, res) => {
 
 router.get("/theaters/:id", async (req, res) => {
     if(!req.session.loggedIn) {
-        res.status(400).send({ message: "Must be logged in" });
-        return;
+        return res.status(400).send({ message: "Must be logged in" });
     }
-    
-    let theater;
 
     try {
-        theater = await db.theaters.findOne({ _id: ObjectId(req.params.id) }, { projection: { password: 0 }});
+        const theater = await db.theaters.findOne({ _id: ObjectId(req.params.id) }, { projection: { password: 0 }});
+        res.status(200).send({ data: theater });
     } catch (error) {
         res.status(204).send({});
         return;
     }
     
-    res.status(200).send({ data: theater });
 });
 
 router.post("/theaters", async (req, res) => {
@@ -73,7 +70,7 @@ router.post("/theaters", async (req, res) => {
             res.status(400).send({ message: "Amount of spaces must be between 1 and 99" });
             return;
         }
-        let startTime = new Date(new Date().toDateString() + " " + theater.startTime);
+        let startTime = new Date(theater.startTime);
         if(startTime.getTime() < new Date().getTime()) {
             startTime = new Date(startTime.getTime() + 86400000);
         }
