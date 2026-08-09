@@ -873,20 +873,14 @@
   .loadingScreen {
     position: fixed;
     inset: 0;
-    width: 100vw;
-    height: 100vh;
+    width: 1500px;
+    height: 800px;
     display: grid;
     place-items: center;
   }
   .loadingBars {
     width: 200px;
     height: 80px;
-  }
-  @media only screen and (max-width: 1500px) {
-    .loadingScreen {
-      width: 125vw;
-      height: 125vh;
-    }
   }
   .closed {
     fill: red;
