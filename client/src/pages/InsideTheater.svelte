@@ -223,14 +223,14 @@
         width: 394px;
         position: fixed;
         height: 50px;
-        top: 742px;
+        bottom: 8px;
         right: 94px;
     }
     .messageButton {
         width: 75px;
         height: 50px;
         font-size: 30px;
-        top: 742px;
+        bottom: 8px;
         right: 10px;
     }
     .messageInfo {
@@ -264,7 +264,7 @@
         bottom: 62px;
         right: 2px;
         width: 494px;
-        max-height: 656px;
+        max-height: calc(var(--stage-height) - 144px);
         overflow-x: auto;
         overflow-wrap: anywhere;
     }
@@ -272,7 +272,7 @@
         display: none;
     }
     .movieInfoContainer {
-		height: 800px;
+		height: var(--stage-height);
 		width: 1000px;
 		background-color:rgb(225, 241, 255);
 		overflow: hidden;
@@ -282,7 +282,7 @@
         align-items: center;
 	}
 	.liveChatContainer {
-		height: 800px;
+		height: var(--stage-height);
 		width: 500px;
 		background-color:rgb(241, 241, 241);
 		overflow: hidden;
@@ -297,9 +297,9 @@
 		max-width: 1500px;
 		display: flex;
 		position: fixed;
-		top: 50%;
-		transform: translate(-50%, -50%);
-		left: 50%;
+		top: 0;
+		left: 0;
+		height: var(--stage-height);
 	}
     .menuButton {
 		position: fixed;

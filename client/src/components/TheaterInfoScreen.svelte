@@ -138,7 +138,7 @@
         z-index: 100;
         right: 0;
         top: 80px;
-        height: 720px;
+        height: calc(var(--stage-height) - 80px);
         width: 500px;
 		border-top: 3px solid rgb(27, 27, 27);
         border-left: 3px solid rgb(27, 27, 27);

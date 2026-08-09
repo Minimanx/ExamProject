@@ -535,7 +535,7 @@
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 -0.5 150 223"
             shape-rendering="crispEdges"
-            style="left: {theater.position * 400}px; bottom: 0; width: 400px; position: absolute;"
+            style="left: {theater.position * 400}px; bottom: 0; width: 401px; position: absolute;"
           >
             <path
               stroke="#331b02"
@@ -665,7 +665,7 @@
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 -0.5 150 223"
               shape-rendering="crispEdges"
-              style="left: {index * 400}px; bottom: 0; width: 400px; position: absolute;"
+              style="left: {index * 400}px; bottom: 0; width: 401px; position: absolute;"
             >
               <path
                 stroke="#331b02"
@@ -778,28 +778,29 @@
           <path stroke="#a1855a" d="M18 15h1M2 16h5M17 16h5" />
           </svg>
         </div>
-        <div
-          class="playerCar"
-          style="transform: translate3d({playerCoords.x}px, {playerCoords.y}px, 0);"
-        >
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 -0.5 48 18"
-            shape-rendering="crispEdges"
-            preserveAspectRatio="xMaxYMax meet"
-            transform={playerDirection === false ? "scale(-1, 1)" : ""}
+        <div class="playerLayer">
+          <div
+            class="playerCar"
+            style="transform: translate3d({playerCoords.x}px, {playerCoords.y}px, 0);"
           >
-            <text
-              class="carName"
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 -0.5 48 18"
+              shape-rendering="crispEdges"
+              preserveAspectRatio="xMaxYMax meet"
               transform={playerDirection === false ? "scale(-1, 1)" : ""}
-              transform-origin={playerDirection === false ? "50% 50%" : ""}
-              font-size="10px"
-              font-weight="bold">{playerName}</text
             >
-            <path
-              stroke="#000000"
-              d="M22 0h2M21 1h1M23 1h1M20 2h1M22 2h1M19 3h1M21 3h1M18 4h1M20 4h1M27 4h2M34 4h4M17 5h1M19 5h1M26 5h1M28 5h1M33 5h1M35 5h1M38 5h3M9 6h8M18 6h17M41 6h6M4 7h5M17 7h1M30 7h1M46 7h1M2 8h2M17 8h1M27 8h2M31 8h1M46 8h1M1 9h1M16 9h1M31 9h1M46 9h1M0 10h1M7 10h4M16 10h1M30 10h1M35 10h4M47 10h1M0 11h1M6 11h1M11 11h1M16 11h1M30 11h1M34 11h1M39 11h1M47 11h1M0 12h3M5 12h1M12 12h1M16 12h1M29 12h1M33 12h1M40 12h1M44 12h4M0 13h1M3 13h3M12 13h22M40 13h4M47 13h1M1 14h1M5 14h1M12 14h1M33 14h1M40 14h1M45 14h2M2 15h4M12 15h22M40 15h5M6 16h1M11 16h1M34 16h1M39 16h1M7 17h4M35 17h4"
-            />
+              <text
+                class="carName"
+                transform={playerDirection === false ? "scale(-1, 1)" : ""}
+                transform-origin={playerDirection === false ? "50% 50%" : ""}
+                font-size="10px"
+                font-weight="bold">{playerName}</text
+              >
+              <path
+                stroke="#000000"
+                d="M22 0h2M21 1h1M23 1h1M20 2h1M22 2h1M19 3h1M21 3h1M18 4h1M20 4h1M27 4h2M34 4h4M17 5h1M19 5h1M26 5h1M28 5h1M33 5h1M35 5h1M38 5h3M9 6h8M18 6h17M41 6h6M4 7h5M17 7h1M30 7h1M46 7h1M2 8h2M17 8h1M27 8h2M31 8h1M46 8h1M1 9h1M16 9h1M31 9h1M46 9h1M0 10h1M7 10h4M16 10h1M30 10h1M35 10h4M47 10h1M0 11h1M6 11h1M11 11h1M16 11h1M30 11h1M34 11h1M39 11h1M47 11h1M0 12h3M5 12h1M12 12h1M16 12h1M29 12h1M33 12h1M40 12h1M44 12h4M0 13h1M3 13h3M12 13h22M40 13h4M47 13h1M1 14h1M5 14h1M12 14h1M33 14h1M40 14h1M45 14h2M2 15h4M12 15h22M40 15h5M6 16h1M11 16h1M34 16h1M39 16h1M7 17h4M35 17h4"
+              />
           <path
             stroke={$user.playerColor}
             d="M22 1h1M21 2h1M20 3h1M19 4h1M18 5h1M36 5h2M17 6h1M35 6h6M9 7h8M18 7h12M31 7h15M4 8h13M18 8h9M29 8h2M32 8h14M2 9h14M17 9h14M32 9h14M1 10h6M11 10h5M17 10h13M31 10h4M39 10h8M1 11h5M12 11h4M17 11h13M31 11h3M40 11h7M3 12h2M13 12h3M17 12h12M30 12h3M41 12h3M1 13h2M44 13h3M2 14h3M13 14h20M41 14h4"
@@ -814,7 +815,8 @@
             d="M8 12h2M36 12h2M7 13h1M10 13h1M35 13h1M38 13h1M7 14h1M10 14h1M35 14h1M38 14h1M8 15h2M36 15h2"
           />
           <path stroke="#ababab" d="M8 13h2M36 13h2M8 14h2M36 14h2" />
-          </svg>
+            </svg>
+          </div>
         </div>
       </div>
     </div>
@@ -874,7 +876,7 @@
     position: fixed;
     inset: 0;
     width: 1500px;
-    height: 800px;
+    height: var(--stage-height);
     display: grid;
     place-items: center;
   }
@@ -949,17 +951,17 @@
     background-color: black;
     z-index: 2;
     opacity: 0.5;
-    height: 800px;
+    height: var(--stage-height);
     position: fixed;
   }
   .containerInteractiveSpace {
-    height: 800px;
+    height: var(--stage-height);
     width: 1000px;
     background-color: rgb(225, 241, 255);
     overflow: hidden;
   }
   .containerListView {
-    height: 800px;
+    height: var(--stage-height);
     width: 500px;
     background-color: rgb(241, 241, 241);
     overflow: hidden;
@@ -972,9 +974,9 @@
     max-width: 1500px;
     display: flex;
     position: fixed;
-    top: 50%;
-    transform: translate(-50%, -50%);
-    left: 50%;
+    top: 0;
+    left: 0;
+    height: var(--stage-height);
   }
   .backgroundimg {
     height: 350px;
@@ -982,7 +984,7 @@
     position: absolute;
   }
   .container2 {
-    height: 800px;
+    height: var(--stage-height);
     position: relative;
     overflow: hidden;
     contain: content;
@@ -991,8 +993,15 @@
     height: 800px;
     position: absolute;
     left: 0;
-    top: 0;
+    top: var(--scene-offset);
     will-change: transform;
+  }
+  .playerLayer {
+    width: 1000px;
+    height: 800px;
+    position: absolute;
+    left: 0;
+    top: var(--scene-offset);
   }
   .remoteCar,
   .playerCar {

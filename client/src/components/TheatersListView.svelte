@@ -240,7 +240,7 @@
         flex-direction: column;
         width: 497px;
         align-items: center;
-        height: 640px;
+        height: calc(var(--stage-height) - 160px);
         position: fixed;
         top: 80px;
         font-size: 14px;

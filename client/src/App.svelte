@@ -9,27 +9,33 @@
 	const stageWidth = 1500;
 	const stageHeight = 800;
 
-	function getStageScale() {
+	function getStageLayout() {
 		const viewport = window.visualViewport;
 		const viewportWidth = viewport?.width || window.innerWidth;
 		const viewportHeight = viewport?.height || window.innerHeight;
+		const scale = Math.min(viewportWidth / stageWidth, viewportHeight / stageHeight);
+		const height = viewportHeight / scale;
 
-		return Math.min(viewportWidth / stageWidth, viewportHeight / stageHeight);
+		return {
+			scale,
+			height,
+			sceneOffset: Math.max(0, height - stageHeight),
+		};
 	}
 
-	let stageScale = getStageScale();
+	let stageLayout = getStageLayout();
 
 	onMount(() => {
-		function updateStageScale() {
-			stageScale = getStageScale();
+		function updateStageLayout() {
+			stageLayout = getStageLayout();
 		}
 
-		window.addEventListener("resize", updateStageScale);
-		window.visualViewport?.addEventListener("resize", updateStageScale);
+		window.addEventListener("resize", updateStageLayout);
+		window.visualViewport?.addEventListener("resize", updateStageLayout);
 
 		return () => {
-			window.removeEventListener("resize", updateStageScale);
-			window.visualViewport?.removeEventListener("resize", updateStageScale);
+			window.removeEventListener("resize", updateStageLayout);
+			window.visualViewport?.removeEventListener("resize", updateStageLayout);
 		};
 	});
 </script>
@@ -39,7 +45,9 @@
 </div>
 
 <Router>
-	<main style="--stage-scale: {stageScale};">
+	<main
+		style="--stage-scale: {stageLayout.scale}; --stage-height: {stageLayout.height}px; --scene-offset: {stageLayout.sceneOffset}px;"
+	>
 		<Route path="/" component={InteractiveSpace} />
 		{#if $user.loggedIn === true}
 			<Route path="/theaters/:id" component={InsideTheater} />
@@ -52,7 +60,7 @@
 <style>
 	main {
 		width: 1500px;
-		height: 800px;
+		height: var(--stage-height);
 		position: fixed;
 		top: 50%;
 		left: 50%;
