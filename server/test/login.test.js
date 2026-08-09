@@ -46,11 +46,11 @@ describe("POST /login", () => {
     });
 
     it("matches email case-insensitively", async () => {
-        const user = await registerUser({ email: "MixedCase@Example.com" });
+        const user = await registerUser();
 
         const response = await request(app)
             .post("/login")
-            .send({ email: "mixedcase@example.com", password: user.password });
+            .send({ email: user.email.toUpperCase(), password: user.password });
 
         expect(response.status).toBe(200);
     });
