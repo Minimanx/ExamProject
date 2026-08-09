@@ -128,3 +128,6 @@ dist
 .yarn/build-state.yml
 .yarn/install-state.gz
 .pnp.*
+# Claude Code worktrees and subagent-driven-development scratch
+.claude/worktrees/
+.superpowers/
