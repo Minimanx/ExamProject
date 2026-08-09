@@ -28,7 +28,7 @@ router.post("/login", async (req, res) => {
     if(await bcrypt.compare(clientUser.password, serverUser.password)) {
         const { password, passwordToken, ...responseUser } = serverUser;
         req.session.loggedIn = true;
-        req.session.userID = serverUser._id;
+        req.session.userID = serverUser._id.toString();
         req.session.email = serverUser.email;
         req.session.username = serverUser.username;
 

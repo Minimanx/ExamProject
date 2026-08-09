@@ -15,13 +15,19 @@ router.get("/theaters/:id", async (req, res) => {
     if(!req.session.loggedIn) {
         return res.status(400).send({ message: "Must be logged in" });
     }
+    if(!ObjectId.isValid(req.params.id)) {
+        return res.status(400).send({ message: "Invalid theater" });
+    }
 
     try {
-        const theater = await db.theaters.findOne({ _id: ObjectId(req.params.id) }, { projection: { password: 0 }});
-        res.status(200).send({ data: theater });
+        const theater = await db.theaters.findOne({ _id: new ObjectId(req.params.id) }, { projection: { password: 0 }});
+        if(theater === null) {
+            return res.status(404).send({ message: "Theater not found" });
+        }
+        return res.status(200).send({ data: theater });
     } catch (error) {
-        res.status(204).send({});
-        return;
+        console.error("Failed to load theater", { message: error.message });
+        return res.status(500).send({ message: "Failed to load theater" });
     }
     
 });
@@ -83,7 +89,8 @@ router.post("/theaters", async (req, res) => {
 
         const theaters = await db.theaters.find().toArray();
 
-        if(theaters.some((theater) => theater.ownerID === req.session.userID)) {
+        const sessionUserId = req.session.userID.toString();
+        if(theaters.some((theater) => theater.ownerID.toString() === sessionUserId)) {
             req.session.creatingEvent = false;
             res.status(400).send({ message: "You already have an ongoing event" });
             return;
@@ -158,7 +165,7 @@ router.post("/theaters", async (req, res) => {
             theater.position = count;
         }
     
-        theater.ownerID = req.session.userID;
+        theater.ownerID = sessionUserId;
         theater.usersInsideTheater = [];
         if(theater.passwordBool) {
             theater.password = await bcrypt.hash(theater.password, 12);
@@ -178,11 +185,15 @@ router.patch("/theaters/:id", async (req, res) => {
     const clientUser = req.body;
     let theater;
 
+    if(!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid theater" });
+    }
+
     try {
-        theater = await db.theaters.findOne({ _id: ObjectId(id) });
+        theater = await db.theaters.findOne({ _id: new ObjectId(id) });
     } catch (error) {
-        res.status(204).send({});
-        return;
+        console.error("Failed to load theater for update", { message: error.message });
+        return res.status(500).send({ message: "Failed to join theater" });
     }
 
     if(theater === null) {
@@ -191,7 +202,8 @@ router.patch("/theaters/:id", async (req, res) => {
     }
 
     if(clientUser.joining) {
-        if(!clientUser.userID || !req.session.userID || clientUser.userID !== req.session.userID) {
+        const sessionUserId = req.session.userID?.toString();
+        if(!clientUser.userID || !sessionUserId || clientUser.userID.toString() !== sessionUserId) {
             res.status(400).send({ message: "Must be logged in to join theater" });
             return;
         }
@@ -205,41 +217,48 @@ router.patch("/theaters/:id", async (req, res) => {
             res.status(400).send({ message: "Theater is full" });
             return;
         }
-        if(theater.usersInsideTheater.some((user) => user === req.session.userID)) {
+        if(theater.usersInsideTheater.some((user) => user.toString() === sessionUserId)) {
             res.status(400).send({ message: "You are already inside the theater" });
             return;
         }
         
-        await db.theaters.updateOne({ _id: ObjectId(id) }, { $push: { usersInsideTheater: req.session.userID }});
+        await db.theaters.updateOne({ _id: new ObjectId(id) }, { $addToSet: { usersInsideTheater: sessionUserId }});
         req.session.theater = theater._id.toString();
-        res.status(200).send({ message: "Successfully joined lobby" });
+        return res.status(200).send({ message: "Successfully joined lobby" });
     }
+
+    return res.status(400).send({ message: "Unsupported theater update" });
 });
 
 router.delete("/theaters/:id", async (req, res) => {
     const id = req.params.id;
     let theater;
 
+    if(!ObjectId.isValid(id)) {
+        return res.status(400).send({ message: "Invalid theater" });
+    }
+
     try {
-        theater = await db.theaters.findOne({ _id: ObjectId(id) });
+        theater = await db.theaters.findOne({ _id: new ObjectId(id) });
     } catch (error) {
-        res.status(204).send({});
-        return;
+        console.error("Failed to load theater for deletion", { message: error.message });
+        return res.status(500).send({ message: "Failed to delete theater" });
     }
     if(theater === null) {
         res.status(400).send({ message: "No theater found" });
         return;
     }
-    if(theater.ownerID !== req.session.userID) {
+    const sessionUserId = req.session.userID?.toString();
+    if(!sessionUserId || theater.ownerID.toString() !== sessionUserId) {
         res.status(400).send({ message: "Only the owner can delete the theater" });
         return;
     }
-    if(theater.usersInsideTheater.length > 1 || !theater.usersInsideTheater.some((user) => user === req.session.userID)) {
+    if(theater.usersInsideTheater.length > 1 || !theater.usersInsideTheater.some((user) => user.toString() === sessionUserId)) {
         res.status(400).send({ message: "Owner must be the only one inside the theater" });
         return;
     }
 
-    await db.theaters.deleteOne({ _id: ObjectId(id) });
+    await db.theaters.deleteOne({ _id: new ObjectId(id) });
     res.send({ message: "Theater successfully deleted"});
 });
 

@@ -8,33 +8,50 @@
     const socket = createSocket();
     export let theater;
     let password = "";
+    let joining = false;
 
     async function joinTheater() {
+        if(joining) return;
         if(new Date(theater.timeToClose).getTime() < new Date().getTime()) {
             error("Theater is closed");
             return;
         }
-        const response = await apiFetch("/theaters/" + theater._id, {
-			method: 'PATCH',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-                userID: $user.userID,
-                password: password,
-                joining: true
-            }),
-		});
-        const result = await response.json();
-        
-        if(response.status === 400) {
-            error(result.message);
-        }
-        if(response.status === 200) {
-            success(result.message);
+
+        joining = true;
+        try {
+            const response = await apiFetch("/theaters/" + theater._id, {
+				method: 'PATCH',
+				headers: {
+					'Content-Type': 'application/json',
+				},
+				body: JSON.stringify({
+                    userID: $user.userID,
+                    password: password,
+                    joining: true
+                }),
+			});
+
+            const responseText = await response.text();
+            let result = {};
+            if(responseText) {
+                try {
+                    result = JSON.parse(responseText);
+                } catch (parseError) {}
+            }
+
+            if(!response.ok) {
+                error(result.message || `Unable to join theater (${response.status})`);
+                return;
+            }
+
+            success(result.message || "Successfully joined lobby");
             socket.emit("joinedTheater");
             $user.insideTheater = true;
             navigate("/theaters/" + theater._id);
+        } catch (requestError) {
+            error("Unable to reach the server");
+        } finally {
+            joining = false;
         }
     }
 </script>
@@ -62,7 +79,7 @@
         {/if}
     </div>
 
-    <button class="joinTheaterButton" on:click={joinTheater}>Join</button>
+    <button class="joinTheaterButton" on:click={joinTheater} disabled={joining}>{joining ? "Joining..." : "Join"}</button>
 
     
 </div>
