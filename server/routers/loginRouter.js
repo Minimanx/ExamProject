@@ -60,7 +60,7 @@ router.post("/forgotpassword", async (req, res) => {
     const token = crypto.randomBytes(3).toString('hex');
     await db.users.updateOne({ email: serverUser.email.toLowerCase() }, { $set: { passwordToken: token }});
 
-    mailer("Forgot Password", `<span style="font-size: 25px;">Code to use for password reset:</span> <span style="font-size: 35px;">${token}</span>`, clientUser.email);
+    void mailer("Forgot Password", `<span style="font-size: 25px;">Code to use for password reset:</span> <span style="font-size: 35px;">${token}</span>`, clientUser.email);
     res.status(200).send({ message: "If this email is tied to a user, an email has been sent to it." });
 });
 
@@ -107,7 +107,7 @@ router.patch("/resetpassword", async (req, res) => {
 
     const newPassword = await bcrypt.hash(clientUser.password, 12);
     await db.users.updateOne({ email: clientUser.email.toLowerCase(), passwordToken: clientUser.token }, { $set: { password: newPassword }, $unset: { passwordtoken: "" }});
-    mailer("Password changed successfully", `<h2>Your password has been changed!</h2>`, clientUser.email);
+    void mailer("Password changed successfully", `<h2>Your password has been changed!</h2>`, clientUser.email);
     res.status(200).send({ message: "Password changed successfully" });
 });
 

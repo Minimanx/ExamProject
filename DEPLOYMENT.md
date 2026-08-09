@@ -143,6 +143,10 @@ website; Nodemailer needs a dedicated Google app password.
 The app password is only for the Coolify mailer. It is not your normal Google
 password and does not replace the passkey used for interactive sign-in.
 
+The server connects to Gmail at `smtp.gmail.com:587` using STARTTLS. Hetzner
+allows outbound port `587`; its default SMTP restriction blocks ports `25` and
+`465`, so do not change the mailer to port `465` on this server.
+
 If the App Passwords page is unavailable, check whether 2-Step Verification
 is off, the account is managed by work or school, 2-Step Verification permits
 only security keys, or the account uses Google's Advanced Protection Program.
@@ -282,7 +286,8 @@ restored into the Coolify MongoDB resource.
 | Login succeeds but does not persist | Both public URLs must use HTTPS and the frontend must call the configured API URL |
 | Socket.IO does not connect | Check `/socket.io/` in Network, Coolify proxy logs, and the exact allowed origin |
 | Movie searches fail | Verify `MOVIE_API_KEY` |
-| Email fails | Verify the Gmail address, two-factor authentication, and app password |
+| Email times out | Confirm the deployed code uses `smtp.gmail.com:587`; Hetzner blocks outbound port `465` by default |
+| Gmail rejects email login | Verify the Gmail address, two-factor authentication, and app password |
 | TLS shows a default/self-signed certificate | Confirm the exact hostname is assigned to the Coolify resource and wait for certificate issuance |
 
 ## References
@@ -294,3 +299,5 @@ restored into the Coolify MongoDB resource.
 - [Vercel monorepos](https://vercel.com/docs/monorepos)
 - [Vercel project configuration](https://vercel.com/docs/project-configuration/vercel-json)
 - [Socket.IO CORS](https://socket.io/docs/v4/handling-cors/)
+- [Hetzner outbound mail ports](https://docs.hetzner.com/cloud/servers/faq/#why-can-i-not-send-any-mails-from-my-server)
+- [Nodemailer SMTP transport](https://nodemailer.com/smtp)

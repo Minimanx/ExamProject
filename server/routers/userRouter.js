@@ -40,7 +40,7 @@ router.post("/users", async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(clientUser.password, 12);
     await db.users.insertOne({ username: clientUser.username, email: clientUser.email.toLowerCase(), password: hashedPassword });
-    mailer("Account Created", "<h1>You created an account!<h1>", clientUser.email);
+    void mailer("Account Created", "<h1>You created an account!<h1>", clientUser.email);
     res.status(200).send({ message: "User created" });
 });
 
