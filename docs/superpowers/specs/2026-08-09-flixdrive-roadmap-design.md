@@ -1,0 +1,446 @@
+# FlixDrive Roadmap
+
+**Date:** 2026-08-09
+**Status:** Approved (roadmap level). Individual phases still need their own specs.
+
+---
+
+## 1. What FlixDrive is today
+
+A pixel-art drive-in cinema. You drive a car along a shared 1D side-scrolling strip,
+park at a screen, and enter a lobby with text chat synced to a movie start time. OMDB
+supplies title, runtime, poster and plot; the film itself is never touched — everyone
+presses play on their own copy.
+
+It began as a school exam project and is being revived as a product.
+
+### Verified stack
+
+| Layer | Current | Notes |
+|---|---|---|
+| Client | Svelte 3, Rollup 2, svelte-navigator 3.2.2 | ~2,600 lines |
+| Server | Express 4, raw `mongodb` driver 6, Socket.IO 4 | ESM, ~700 lines |
+| Sessions | `express-session` + `connect-mongo` | Cookie, 7-day, Mongo-backed |
+| Data | Two collections: `theaters`, `users` | No schema layer, no indexes |
+| Deploy | Vercel (client) + Heroku-style dyno (server) | `DEPLOYMENT.md` |
+| Tests | **None.** `npm test` exits 1 | No lint, no CI, no types |
+
+### Constraints baked into the current design
+
+These are load-bearing today and several roadmap items push directly against them:
+
+- One live event per user (`theaterRouter.js:93`).
+- Events must start within 24 hours (`theaterRouter.js:83`).
+- Theaters occupy integer slot positions on a single global strip.
+- Every client fetches and renders every theater.
+- `usersInsideTheater` is written by the HTTP layer and removed by the socket layer.
+- Rendering happens on a fixed 1500×800 stage, CSS-scaled to the viewport.
+
+---
+
+## 2. Product decisions
+
+Settled during the brainstorm; these drive the sequencing.
+
+| Question | Decision |
+|---|---|
+| What is it becoming? | **A real product** — public launch, strangers, revenue. |
+| How is the film watched? | **BYO copy with synced host controls** now. Browser-extension sync (Teleparty model) much later. |
+| Capacity | **Solo, evenings and weekends**, with heavy agent assistance. |
+| Monetization | **Cosmetics + film clubs + hosting privileges/capacity.** Media quality is explicitly *not* monetized. |
+| World model | **Hub + instanced spaces.** Hub sharding later, only if the userbase demands it. |
+| Sequencing | **Features first, safety retrofitted** behind a named gate. |
+| Router | **Migrate to SvelteKit.** |
+
+### Two consequences worth stating explicitly
+
+**Media is a pure cost centre.** Because voice and camera are not monetized, they must not
+run on an SFU. Peer-to-peer mesh, hard-capped at roughly 5 participants, costs nothing in
+bandwidth. A TURN relay is unavoidable (10–20% of connections need one) and is the only
+recurring media cost.
+
+**Review capacity is the bottleneck, not authorship.** Agents write most of the code;
+~5–10 h/week of human review is the scarce resource. CI is therefore not hygiene, it is
+review capacity. This is why a test harness appears inside Phase 0 rather than after it.
+
+---
+
+## 3. Sequencing rationale
+
+Three shapes were considered:
+
+- **Gate everything on public launch** — build the full trust-&-safety stack before any
+  stranger arrives. Safest legally; ~2 months of invisible work with no feedback loop.
+- **Invite-only beta first** — ship closed, defer most T&S until opening up.
+- **Features first, safety retrofitted** — *chosen.* Build the product, then harden it
+  before opening registration.
+
+The chosen shape carries a real risk: retrofitting moderation into a live social product
+is how products get overrun. Two cheap hedges reduce it to an acceptable level, and both
+are included below rather than left implicit:
+
+1. **Registration stays invite-only behind a flag until Phase 9.** "Features first" does
+   not have to mean "strangers first," and it costs one boolean.
+2. **Safety data models land early (Phase 2), unused.** Empty `reports` and `blocks`
+   collections and a `moderationState` field on users. Retrofitting UI is easy;
+   retrofitting a data model across a live database with real user history is not.
+
+---
+
+## 4. The phases
+
+| # | Phase | Size |
+|---|---|---|
+| 0 | Upgrades & framework migration | 3–4 wk |
+| 1 | Test coverage | 2 wk |
+| 2 | Bug fixes, code smells, production readiness | 3–4 wk |
+| 3 | Core loop | 4–6 wk |
+| 4 | Hub + instanced spaces | 6–10 wk |
+| 5 | Friends & film clubs | 6–10 wk |
+| 6 | Voice & camera | 6–10 wk |
+| 7 | Procedural terrain | 4–8 wk |
+| 8 | Monetization | 4–6 wk |
+| 9 | **GATE:** trust & safety | 8–12 wk |
+| 10 | Browser extension sync | 8–12 wk |
+| 11 | Hub sharding | if needed |
+
+Sizes are calendar estimates at evenings-and-weekends pace with agent assistance, not
+person-weeks.
+
+---
+
+### Phase 0 — Upgrades & framework migration (3–4 weeks)
+
+**Goal:** get onto current, maintained versions before writing any new feature code, so
+that new code is written once in the modern idiom rather than migrated later.
+
+**Version reality** (checked 2026-08-09):
+
+| Package | Current | Latest | Action |
+|---|---|---|---|
+| svelte | 3.x | 5.56.8 | Migrate to runes |
+| rollup | 2.x | — | Replaced by SvelteKit's Vite |
+| svelte-navigator | 3.2.2 | 3.2.2 | **Dead.** Peer-deps `svelte: 3.x`, last published Aug 2022. Must be replaced |
+| @zerodevx/svelte-toast | 0.7.2 | 0.9.6 | Bump; already Svelte 5 compatible |
+| svelte-loading-spinners | 0.1.7 | 0.3.6 | Bump or replace with CSS |
+| express | 4.x | 5.2.1 | Upgrade |
+| express-rate-limit | 6.x | 8.6.2 | Upgrade |
+| mongodb | 6.x | 7.5.0 | Upgrade |
+| node-fetch | 3.x | — | **Delete.** Node 22 has global `fetch` |
+| socket.io, bcrypt, connect-mongo, nodemailer | — | — | Already current, no action |
+
+**Six independently shippable steps.** Combining these into one PR produces something
+nobody can review at 5–10 h/week.
+
+| Step | Work |
+|---|---|
+| 0.1 | Supertest characterization tests over the 12 existing endpoints. Framework-agnostic — survives every change below |
+| 0.2 | Express 5, rate-limit 8, mongodb 7, delete `node-fetch`. Verified by 0.1 |
+| 0.3 | Extract inline SVG art into components (`car`, `theater`, `empty-lot`, `street-sign`, `skyline`) |
+| 0.4 | Rollup → Vite, plus a throwaway ~40-line history router replacing svelte-navigator |
+| 0.5 | Svelte 3 → 5 runes; toast 0.9.6; spinners 0.3.6 |
+| 0.6 | Vite SPA → SvelteKit; throwaway router deleted |
+
+Step 0.3 sits before the runes migration deliberately: `InteractiveSpace.svelte` is 1,086
+lines of which roughly 85% is inline SVG path data. Extracting it first takes the file to
+~250 lines, so 0.5 migrates small files instead of one enormous one. Step 0.4's throwaway
+router is 40 lines of deliberate waste that buys the ability to land the runes migration
+and the SvelteKit adoption as two separately reviewable changes.
+
+**Known breakages to expect:**
+
+- `app.js:115` uses `app.get("*")`. Bare `"*"` is invalid in Express 5's path matcher and
+  throws at boot. Only active when `SERVE_CLIENT=true`.
+- `userStore.js:4` calls `localStorage.getItem` at **module scope**, which throws under
+  SSR. Needs a `browser` guard in 0.6.
+- The world route touches `window` directly; it needs `export const ssr = false`. Later
+  marketing, club and legal pages keep SSR on — that is the point of adopting SvelteKit.
+- `client/public/` becomes `static/`. `process.env.API_URL` (currently injected by
+  `@rollup/plugin-replace`) becomes `$env/static/public` with a `PUBLIC_` prefix.
+- `vercel.json`'s rewrite rule is replaced by `adapter-vercel`.
+
+**Exit criteria:** app runs on SvelteKit + Svelte 5 + Express 5; the 12 endpoint tests
+pass; no dependency in either `package.json` is a major version behind.
+
+---
+
+### Phase 1 — Test coverage (2 weeks)
+
+**Goal:** make agent-written code checkable by CI rather than by eye.
+
+- Component tests written **against Svelte 5**, so nothing is written twice.
+- Playwright smoke path: signup → login → create event → drive → join lobby → chat.
+- ESLint + Prettier + `eslint-plugin-svelte`.
+- GitHub Actions: lint, test, build on every PR. Branch protection on `main`.
+
+**Exit criteria:** a red CI run blocks merge; the smoke path runs on every PR.
+
+---
+
+### Phase 2 — Bug fixes, code smells, production readiness (3–4 weeks)
+
+**Goal:** turn an exam project into something that can be operated.
+
+**Defects** — see the inventory in §5. All of them land here.
+
+**Production readiness:**
+
+- Structured logging (`pino`) replacing `console.log`/`console.error`.
+- Express error-handling middleware. `GET /theaters` currently has no `try`/`catch` at all.
+- Graceful shutdown: SIGTERM → drain Socket.IO, close Mongo.
+- Boot-time config validation — fail fast on missing env rather than at first request.
+- `helmet` for security headers. Currently none are set.
+- **CSRF protection.** Production runs `sameSite: "none"` with `credentials: "include"`,
+  so the session cookie *is* sent cross-site. This is a genuine hole today.
+- **Socket authentication.** `io.use(wrap(sessionMiddleware))` attaches the session, but
+  `carSocket.js` never checks `session.loggedIn`. Any unauthenticated socket can join the
+  world and emit.
+- Expired-theater cleanup. `timeToClose` is written at `theaterRouter.js:153` and never
+  read anywhere on the server.
+- Mongo indexes on `users.email`, `users.username`, `theaters.position`.
+- Consistent error envelopes; use 401/403 for auth failures instead of the current 400.
+
+**Code smells:**
+
+- Replace the ad-hoc `if`-chain validation with schema validation at the edges (`zod`).
+  This also gives agents a spec to code against.
+- Introduce a domain layer (theater service, user service) between routers and Mongo, and
+  make it the single owner of `usersInsideTheater`.
+- Rewrite date handling: store UTC, render in the viewer's locale, delete the hardcoded
+  `3600000` offsets.
+
+**The two hedges from §3 land here:**
+
+- **Invite-only registration behind a flag.** Signup requires an invite code until Phase 9
+  flips it off. One boolean plus an `invites` collection.
+- **Safety data models, unused.** Empty `reports` and `blocks` collections, plus a
+  `moderationState` field on users. Nothing reads them until Phase 9.
+
+**Exit criteria:** §5 inventory closed; a `SIGTERM` drains cleanly; no unhandled promise
+rejection reachable from any route.
+
+---
+
+### Phase 3 — Core loop (4–6 weeks)
+
+**Goal:** make the thing people actually came for good.
+
+- **Speech-bubble proximity chat** in the hub — chat outside the theaters.
+- **Synced playback controls:** host play/pause/seek broadcast to the lobby, ready-check,
+  shared countdown. The video still never touches your servers.
+- **Theater search and filters.**
+- **Lobby keys** — proper invite links/keys, replacing today's bcrypt-hashed password on
+  the theater document.
+- **Lift the hardcoded limits:** the 24-hour scheduling window, one-event-per-user, and
+  the 99-seat cap. These become the free/paid boundary in Phase 8.
+
+**Exit criteria:** two people can find each other by search, chat in the open world, and
+watch a film with synchronized play/pause.
+
+---
+
+### Phase 4 — Hub + instanced spaces (6–10 weeks)
+
+**Goal:** the architectural change that unblocks clubs, multiple lobbies and procgen.
+
+- Hub becomes a first-class entity carrying an `instanceId`, with a capacity cap — even
+  though only one instance will exist for a long time. Sharding later becomes config
+  rather than a rewrite.
+- Instanced spaces for events and clubs.
+- **Server-authoritative movement.** Today the client is authoritative and trivially
+  spoofable.
+- **Spatial interest management** — only sync nearby players. Required once concurrency
+  passes roughly 30.
+- Multiple concurrent lobbies.
+
+**Exit criteria:** two lobbies run simultaneously in separate instances; a client only
+receives position updates for players it can see.
+
+---
+
+### Phase 5 — Friends & film clubs (6–10 weeks)
+
+**Goal:** the retention and monetization centrepiece. People stay for groups.
+
+- Friends: request/accept, presence, join-a-friend.
+- Clubs: member roster, roles and permissions, an owned space, recurring schedule, history.
+- Club discovery — public club pages, which is where SvelteKit's SSR starts paying rent.
+
+**Exit criteria:** a club can hold a recurring film night with a stable membership and a
+public page.
+
+---
+
+### Phase 6 — Voice & camera (6–10 weeks)
+
+**Goal:** presence, without an infrastructure bill.
+
+- **P2P mesh WebRTC, hard-capped at ~5 participants. No SFU.** Mesh bandwidth grows
+  quadratically, which is exactly why the cap is a hard product constraint, not a setting.
+- TURN relay — the one unavoidable recurring cost.
+- Push-to-talk, mute, per-user volume. Camera off by default.
+- **Camera gated to clubs and friends only.** Open camera to strangers is the single
+  highest-risk surface in this product, and Phase 9 has not happened yet at this point.
+
+**Exit criteria:** five people hold a voice conversation in a lobby with no server-side
+media relay beyond TURN.
+
+---
+
+### Phase 7 — Procedural terrain (4–8 weeks)
+
+**Goal:** variety, without discarding the hand-drawn identity.
+
+- Seeded and deterministic, with the server assigning the seed so all clients agree.
+- Generates **club and instance spaces** in the established pixel aesthetic. The hub stays
+  hand-authored — it is the product's face.
+
+**Exit criteria:** two clients given the same seed render an identical space.
+
+---
+
+### Phase 8 — Monetization (4–6 weeks)
+
+**Goal:** revenue, server-enforced.
+
+- Stripe: subscriptions plus one-off cosmetic purchases.
+- **Entitlements service** — a single server-side authority on what a user may do. Client
+  checks are presentation only.
+- Cosmetics: car skins and plates, extending the existing colour system.
+- Free/paid limits wired to entitlements — the caps lifted in Phase 3 become the ladder.
+- Billing edges: dunning, refunds, downgrade behaviour.
+
+**Open policy question:** what happens to a film club when its owner stops paying? This
+needs an answer before launch, not after.
+
+**Exit criteria:** a paid entitlement can be purchased, revoked on non-payment, and is
+never enforced client-side alone.
+
+---
+
+### Phase 9 — GATE: trust & safety (8–12 weeks)
+
+**This phase is the gate on opening registration to the public.** Until it ships,
+registration stays invite-only behind the Phase 2 flag.
+
+- Email verification and an age gate.
+- Reporting flow with evidence snapshots — report a user, a lobby, or a message.
+- Moderation queue and admin surface.
+- Blocking and muting, enforced server-side.
+- Text classification, flood control, per-user rate limits on chat.
+- Ban and suspension model, with session invalidation.
+- Audit log.
+- Legal minimum: Terms of Service, privacy policy, GDPR export and delete, DSA
+  notice-and-action for EU users.
+- Camera policy review before any loosening of the Phase 6 gating.
+
+**Exit criteria:** a reported user can be actioned end-to-end by a moderator, and a
+GDPR delete request can be satisfied.
+
+---
+
+### Phase 10 — Browser extension sync (8–12 weeks)
+
+A separate codebase with its own release cadence. Chrome and Firefox extensions,
+per-platform adapters for the streaming services, store review cycles.
+
+Deliberately last among build items: it is a permanent maintenance treadmill against
+platforms that will break it, and it is only worth taking on once there is a social layer
+people already show up for.
+
+---
+
+### Phase 11 — Hub sharding (only if needed)
+
+Triggered by concurrency, not by calendar. The `instanceId` groundwork from Phase 4 makes
+this configuration rather than rearchitecture.
+
+---
+
+## 5. Verified defect inventory
+
+Every item below was read in the source, not inferred.
+
+### Security
+
+| # | Location | Issue |
+|---|---|---|
+| S1 | `loginRouter.js:109` | `$unset: { passwordtoken: "" }` — lowercase `t`, but the field is written as `passwordToken` at line 61. **Reset tokens are never invalidated after use.** |
+| S2 | `loginRouter.js:60` | Reset token is `crypto.randomBytes(3)` — 6 hex characters, no expiry, no attempt cap. Combined with S1 this is a standing account-takeover path. |
+| S3 | `carSocket.js:5,11` | `carPosition` and `carJoined` trust a client-supplied `id` instead of `socket.id`. Position and identity are spoofable. |
+| S4 | `carSocket.js` (all handlers) | No `session.loggedIn` check. Unauthenticated sockets can join the world and emit. |
+| S5 | `app.js:56–61` | `sameSite: "none"` + `credentials: "include"` with no CSRF protection. |
+| S6 | `app.js` | No `helmet`; no security headers set. |
+| S7 | `chatSocket.js:21` | No server-side message length or rate validation. The client's `maxlength="200"` is the only limit. |
+| S8 | `theaterRouter.js:9` | `GET /theaters` is unauthenticated and returns every theater including `ownerID`. |
+
+### Correctness
+
+| # | Location | Issue |
+|---|---|---|
+| C1 | `userRouter.js:26` | `clientUser.username < 3 \|\| clientUser.username > 16` compares a **string to a number**. Both comparisons are always false — username length is never validated. |
+| C2 | `InsideTheater.svelte` (throughout) | Hardcoded `3600000` offsets assume UTC+1. Breaks outside CET and across DST. |
+| C3 | `theaterRouter.js:155–166` | Slot allocation: the `else` branch reassigns `theater.position` without breaking, and `if(!theater.position)` treats slot 0 as unset. |
+| C4 | `theaterRouter.js:40` | `req.session.creatingEvent` used as a mutex. Does not hold across multiple instances. |
+| C5 | `theaterRouter.js:225` vs `chatSocket.js:47` | `usersInsideTheater` is added by HTTP and removed by socket. A crash leaves ghost occupants permanently consuming seats. |
+| C6 | `theaterRouter.js:153` | `timeToClose` is written and never read server-side. Closed theaters are never cleaned up. |
+| C7 | `InteractiveSpace.svelte:656,746` | `Math.random()` inline in markup re-randomizes the neon colour on every reactive update. |
+| C8 | `api.js:6` | `configuredApiUrl.replace(...)` throws if `API_URL` is unset at build time. |
+
+### Operability
+
+| # | Location | Issue |
+|---|---|---|
+| O1 | `createConnection.js` | No indexes on any collection. Every signup does a full collection scan with a collation query. |
+| O2 | `theaterRouter.js:9` | No `try`/`catch`; an unhandled rejection escapes the route. |
+| O3 | Everywhere | `console.log`/`console.error` only. No structured logging, no correlation IDs. |
+| O4 | `app.js` | No graceful shutdown; no readiness check on Mongo behind `/health`. |
+| O5 | Both packages | No tests, lint, formatter, types or CI. |
+
+### Corrected
+
+An earlier read suggested `client/public/build/*` was committed. It is not —
+`client/.gitignore:2` covers it. No action needed.
+
+---
+
+## 6. Explicitly not doing
+
+- **Screen sharing over WebRTC.** It would make FlixDrive the pipe for unlicensed
+  retransmission — copyright liability and DMCA exposure that undercuts the entire
+  moderation story on a paid public product.
+- **A licensed film catalog.** A content-acquisition business with CDN and transcoding
+  costs, larger than the rest of this roadmap combined.
+- **An SFU for voice/video.** Media is not monetized; mesh with a hard participant cap
+  keeps the marginal cost at zero.
+- **Monetizing media quality.** Explicitly rejected — it would put the entire WebRTC stack
+  on the critical path to first revenue.
+
+---
+
+## 7. Open decisions
+
+| Decision | Needed by |
+|---|---|
+| What happens to a film club when its owner stops paying? | Phase 8 |
+| Age gate threshold — 13 or 16 — and whether EU users get a different one | Phase 9 |
+| Whether camera ever opens beyond clubs and friends | Phase 9 |
+| Express 4 → 5 is in Phase 0; whether Node 22 → 24 rides along | Phase 0 |
+
+---
+
+## 8. Risks
+
+| Risk | Mitigation |
+|---|---|
+| Safety lands at Phase 9, after voice and camera ship | Invite-only flag until Phase 9; camera gated to clubs/friends in Phase 6; safety data models land in Phase 2 |
+| Blind Svelte 5 migration with no client tests | Server characterization tests in 0.1; SVG extraction in 0.3 shrinks the migration surface by ~85% |
+| Agent-authored code outpaces review capacity | CI gating from Phase 1; every Phase 0 step independently shippable |
+| Phase 4 world rearchitecture is the largest technical risk | `instanceId` groundwork makes Phase 11 config rather than rewrite |
+| An 18-month arc on evenings and weekends | Phases 3, 5 and 7 each ship visible player-facing value independently |
+
+---
+
+## 9. Next step
+
+Phase 0 gets its own implementation plan. Each of its six steps is a separate PR.
