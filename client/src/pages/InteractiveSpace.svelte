@@ -809,12 +809,32 @@
     </div>
   </div>
 {:else}
-  <div id="loadingSpinner">
-    <Pulse size="200" color="aqua" unit="px" duration="1s" />
+  <div class="loadingScreen" role="status" aria-label="Loading">
+    <div class="loadingBars">
+      <Pulse size="200" color="aqua" unit="px" duration="1s" />
+    </div>
   </div>
 {/if}
 
 <style>
+  .loadingScreen {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: grid;
+    place-items: center;
+  }
+  .loadingBars {
+    width: 200px;
+    height: 80px;
+  }
+  @media only screen and (max-width: 1500px) {
+    .loadingScreen {
+      width: 125vw;
+      height: 125vh;
+    }
+  }
   .closed {
     fill: red;
   }
