@@ -14,93 +14,88 @@
   const socket = createSocket();
   const location = useLocation();
 
-  onMount(async () => {
-    await getTheaters();
-    if ($user.loggedIn) {
-      $playerMovement = true;
-      $user.insideTheater = false;
-      if ($location.search.split("=")[0] === "?position") {
-        const queryPosition = Number($location.search.split("=")[1]);
-        if (queryPosition > highestPosition) {
-          teleportToTheater(highestPosition - 1);
-        } else {
-          teleportToTheater(queryPosition);
-        }
+  function handleNewCarPosition({ id, coords, direction, screen }) {
+    if (!$user.insideTheater) {
+      const carIndex = cars.findIndex((car) => car.id === id);
+      if (carIndex !== -1) {
+        cars[carIndex] = {
+          ...cars[carIndex],
+          coords: {
+            x: coords.x + screen,
+            y: coords.y,
+            direction: direction,
+          },
+        };
+        cars = cars;
       }
     }
-  });
+  }
 
-  socket.on("newCarPosition", ({ id, coords, direction, screen }) => {
-    if (!$user.insideTheater) {
-      try {
-        cars[cars.findIndex((car) => car.id === id)].coords = {
-          x: coords.x + screen,
-          y: coords.y,
-          direction: direction,
-        };
-      } catch (error) {}
-    }
-  });
-
-  socket.on("newCarJoined", ({ id, coords, color, name, screen }) => {
+  function handleNewCarJoined({ id, coords, color, name, screen }) {
     if (!$user.insideTheater) {
       if (cars.findIndex((car) => car.id === id) === -1) {
         cars.push({
-          id: id,
-          color: color,
-          name: name,
-          coords: { x: coords.x + screen, y: coords.y } || { x: 60, y: 600 },
+          id,
+          color,
+          name,
+          coords: {
+            x: Number.isFinite(coords?.x + screen) ? coords.x + screen : 60,
+            y: Number.isFinite(coords?.y) ? coords.y : 600,
+          },
         });
         emitCarJoined();
         cars = cars;
       }
+    }
+  }
+
+  function handleCarLeft({ id }) {
+    if (!$user.insideTheater) {
+      const carIndex = cars.findIndex((car) => car.id === id);
+      if (carIndex !== -1) {
+        cars.splice(carIndex, 1);
+        cars = cars;
+      }
+    }
+  }
+
+  function handleNewColorChanged({ id, color }) {
+    if (!$user.insideTheater) {
+      const carIndex = cars.findIndex((car) => car.id === id);
+      if (carIndex !== -1) {
+        cars[carIndex].color = color;
+        cars = cars;
+      }
+    }
+  }
+
+  function handleNewCarUpdate({ id, name, color }) {
+    if (!$user.insideTheater) {
+      const carIndex = cars.findIndex((car) => car.id === id);
+      if (carIndex !== -1) {
+        cars[carIndex].name = name;
+        cars[carIndex].color = color;
+        cars = cars;
+      }
+    }
+  }
+
+  function handleNewTheaterAdded() {
+    if (!$user.insideTheater) {
       getTheaters();
     }
-  });
+  }
 
-  socket.on("carLeft", ({ id }) => {
+  function handleNewJoinedTheater({ id }) {
     if (!$user.insideTheater) {
-      cars.splice(
-        cars.findIndex((car) => car.id === id),
-        1
-      );
-      cars = cars;
-    }
-  });
-
-  socket.on("newColorChanged", ({ id, color }) => {
-    if (!$user.insideTheater) {
-      cars[cars.findIndex((car) => car.id === id)].color = color;
-    }
-  });
-
-  socket.on("newCarUpdate", ({ id, name, color }) => {
-    if (!$user.insideTheater) {
-      cars[cars.findIndex((car) => car.id === id)].name = name;
-      cars[cars.findIndex((car) => car.id === id)].color = color;
-    }
-  });
-
-  socket.on("newTheaterAdded", () => {
-    if (!$user.insideTheater) {
+      handleCarLeft({ id });
       getTheaters();
     }
-  });
+  }
 
-  socket.on("newJoinedTheater", ({ id }) => {
-    if (!$user.insideTheater) {
-      cars.splice(
-        cars.findIndex((car) => car.id === id),
-        1
-      );
-      cars = cars;
-      getTheaters();
-    }
-  });
-
-  socket.on("connect", () => {
+  function handleConnect() {
     emitCarJoined();
-  });
+  }
 
   function emitCarJoined() {
     socket.emit("carJoined", {
@@ -112,7 +107,11 @@
     });
   }
 
-  function emitCarPosition() {
+  function emitCarPosition(force = false) {
+    const now = Date.now();
+    if (!force && now - lastPositionBroadcast < positionBroadcastInterval) return;
+    lastPositionBroadcast = now;
+
     socket.emit("carPosition", {
       id: socket.id,
       coords: playerCoords,
@@ -126,9 +125,11 @@
   let keys = { w: false, s: false, a: false, d: false };
   let keyDown = false;
   let playerCoords = { x: 60, y: 600 };
-  const playerSpeed = 5;
+  const playerSpeed = 250;
+  const positionBroadcastInterval = 1000 / 15;
+  let lastPositionBroadcast = 0;
   let insideTheaterBool = false;
-  let currentTheater = {};
+  let currentTheater = null;
   let playerDirection = false;
   $: playerName = $user.username || "";
   let screenScrollAmount = 0;
@@ -137,6 +138,87 @@
   let aboutPageBool = false;
   let highestPosition;
   let currentTime = new Date();
+
+  onMount(() => {
+    const socketHandlers = [
+      ["newCarPosition", handleNewCarPosition],
+      ["newCarJoined", handleNewCarJoined],
+      ["carLeft", handleCarLeft],
+      ["newColorChanged", handleNewColorChanged],
+      ["newCarUpdate", handleNewCarUpdate],
+      ["newTheaterAdded", handleNewTheaterAdded],
+      ["newJoinedTheater", handleNewJoinedTheater],
+      ["connect", handleConnect],
+    ];
+
+    socketHandlers.forEach(([eventName, handler]) => socket.on(eventName, handler));
+    if (socket.connected) handleConnect();
+
+    let active = true;
+    async function initialize() {
+      await getTheaters();
+      if (!active || !$user.loggedIn) return;
+
+      $playerMovement = true;
+      $user.insideTheater = false;
+      if ($location.search.split("=")[0] === "?position") {
+        const queryPosition = Number($location.search.split("=")[1]);
+        teleportToTheater(queryPosition >= highestPosition ? highestPosition - 1 : queryPosition);
+      }
+    }
+    initialize().catch((err) => console.error("Failed to initialize theaters", err));
+
+    let previousFrame = performance.now();
+    let animationFrameId;
+    function updateMovement(timestamp) {
+      const deltaSeconds = Math.min((timestamp - previousFrame) / 1000, 0.05);
+      previousFrame = timestamp;
+
+      if (keyDown && $playerMovement) {
+        const distance = playerSpeed * deltaSeconds;
+        if (keys.w && playerCoords.y > 410) playerCoords.y = Math.max(410, playerCoords.y - distance);
+        if (keys.s && playerCoords.y < 725) playerCoords.y = Math.min(725, playerCoords.y + distance);
+        if (keys.a && playerCoords.x > 0) {
+          playerCoords.x = Math.max(0, playerCoords.x - distance);
+          playerDirection = true;
+          if (playerCoords.x < 150 && screenScrollAmount > 0) {
+            const scrollDistance = Math.min(distance, screenScrollAmount);
+            screenScrollAmount -= scrollDistance;
+            playerCoords.x += scrollDistance;
+          }
+        }
+        if (keys.d && playerCoords.x < canvasLength - 50) {
+          playerCoords.x = Math.min(canvasLength - 50, playerCoords.x + distance);
+          playerDirection = false;
+          const maxScroll = highestPosition * 400 - 1000;
+          if (playerCoords.x > 800 && screenScrollAmount < maxScroll) {
+            const scrollDistance = Math.min(distance, maxScroll - screenScrollAmount);
+            screenScrollAmount += scrollDistance;
+            playerCoords.x -= scrollDistance;
+          }
+        }
+
+        emitCarPosition();
+        checkIfInTheater();
+      }
+
+      animationFrameId = requestAnimationFrame(updateMovement);
+    }
+    animationFrameId = requestAnimationFrame(updateMovement);
+
+    const clockInterval = setInterval(() => {
+      currentTime = new Date();
+    }, 60000);
+
+    return () => {
+      active = false;
+      cancelAnimationFrame(animationFrameId);
+      clearInterval(clockInterval);
+      socketHandlers.forEach(([eventName, handler]) => socket.off(eventName, handler));
+      keys = { w: false, s: false, a: false, d: false };
+      keyDown = false;
+    };
+  });
 
   function changeColor(event) {
     $user.playerColor = event.target.value;
@@ -166,21 +248,17 @@
   }
 
   function checkIfInTheater() {
-    if (playerCoords.y < 555 && playerCoords.y > 400) {
-      insideTheaterBool = theaters.some((theater) => {
-        if (
-          theater.position * 400 + 325 - screenScrollAmount > playerCoords.x &&
-          theater.position * 400 + 75 - screenScrollAmount <
-            playerCoords.x + 50 &&
-          playerCoords.y < 550 &&
-          playerCoords.y > 400
-        ) {
-          currentTheater = theater;
-          return true;
-        }
-        currentTheater = {};
-        return false;
-      });
+    const playerWorldX = playerCoords.x + screenScrollAmount;
+    const nextTheater = playerCoords.y < 550 && playerCoords.y > 400
+      ? theaters.find((theater) => (
+          theater.position * 400 + 325 > playerWorldX &&
+          theater.position * 400 + 75 < playerWorldX + 50
+        ))
+      : null;
+
+    if (nextTheater?._id !== currentTheater?._id) {
+      currentTheater = nextTheater || null;
+      insideTheaterBool = Boolean(nextTheater);
     }
   }
 
@@ -196,7 +274,7 @@
       screenScrollAmount = position * 400 - 600;
       playerCoords.x = 785;
     }
-    emitCarPosition();
+    emitCarPosition(true);
     checkIfInTheater();
   }
 
@@ -216,7 +294,7 @@
     }
     if (screenScrollAmount > highestPosition * 400 - 1000) {
       screenScrollAmount = highestPosition * 400 - 1000;
-      emitCarPosition();
+      emitCarPosition(true);
     }
   }
 
@@ -237,46 +315,6 @@
     aboutPageBool = true;
   }
 
-  setInterval(() => {
-    if (keyDown && $playerMovement) {
-      if (keys.w === true && playerCoords.y > 410) {
-        playerCoords.y -= playerSpeed;
-      }
-      if (keys.s === true && playerCoords.y < 725) {
-        playerCoords.y += playerSpeed;
-      }
-      if (keys.a === true && playerCoords.x > 0) {
-        playerCoords.x -= playerSpeed;
-        if (!playerDirection) {
-          playerDirection = true;
-        }
-        if (playerCoords.x < 150 && screenScrollAmount > 0) {
-          screenScrollAmount -= playerSpeed;
-          playerCoords.x += playerSpeed;
-        }
-      }
-      if (keys.d === true && playerCoords.x < canvasLength - 50) {
-        playerCoords.x += playerSpeed;
-        if (playerDirection) {
-          playerDirection = false;
-        }
-        if (
-          playerCoords.x > 800 &&
-          screenScrollAmount < highestPosition * 400 - 1000
-        ) {
-          screenScrollAmount += playerSpeed;
-          playerCoords.x -= playerSpeed;
-        }
-      }
-
-      emitCarPosition();
-      checkIfInTheater();
-    }
-  }, 20);
-
-  setInterval(() => {
-    currentTime = new Date();
-  }, 60000);
 </script>
 
 <svelte:window on:keydown={handleKeydown} on:keyup={handleKeyUp} />
@@ -447,27 +485,33 @@
         />
       </svg>
       <div class="container2" style="width: {canvasLength}px">
-        {#each cars as car (car.id)}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            viewBox="0 -0.5 48 18"
-            shape-rendering="crispEdges"
-            preserveAspectRatio="xMaxYMax meet"
-            style="width: 50px; height: 30px; z-index: 1000; position: fixed; left: {car
-              .coords.x - screenScrollAmount}; top: {car.coords.y}"
-            transform={car.coords.direction === false ? "scale(-1, 1)" : ""}
+        <div
+          class="world"
+          style="width: {highestPosition * 400}px; transform: translate3d({-screenScrollAmount}px, 0, 0);"
+        >
+          {#each cars as car (car.id)}
+          <div
+            class="remoteCar"
+            style="transform: translate3d({car.coords.x}px, {car.coords.y}px, 0);"
           >
-            <text
-              class="carName"
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              viewBox="0 -0.5 48 18"
+              shape-rendering="crispEdges"
+              preserveAspectRatio="xMaxYMax meet"
               transform={car.coords.direction === false ? "scale(-1, 1)" : ""}
-              transform-origin={car.coords.direction === false ? "50% 50%" : ""}
-              font-size="10px"
-              font-weight="bold">{car.name}</text
             >
-            <path
-              stroke="#000000"
-              d="M22 0h2M21 1h1M23 1h1M20 2h1M22 2h1M19 3h1M21 3h1M18 4h1M20 4h1M27 4h2M34 4h4M17 5h1M19 5h1M26 5h1M28 5h1M33 5h1M35 5h1M38 5h3M9 6h8M18 6h17M41 6h6M4 7h5M17 7h1M30 7h1M46 7h1M2 8h2M17 8h1M27 8h2M31 8h1M46 8h1M1 9h1M16 9h1M31 9h1M46 9h1M0 10h1M7 10h4M16 10h1M30 10h1M35 10h4M47 10h1M0 11h1M6 11h1M11 11h1M16 11h1M30 11h1M34 11h1M39 11h1M47 11h1M0 12h3M5 12h1M12 12h1M16 12h1M29 12h1M33 12h1M40 12h1M44 12h4M0 13h1M3 13h3M12 13h22M40 13h4M47 13h1M1 14h1M5 14h1M12 14h1M33 14h1M40 14h1M45 14h2M2 15h4M12 15h22M40 15h5M6 16h1M11 16h1M34 16h1M39 16h1M7 17h4M35 17h4"
-            />
+              <text
+                class="carName"
+                transform={car.coords.direction === false ? "scale(-1, 1)" : ""}
+                transform-origin={car.coords.direction === false ? "50% 50%" : ""}
+                font-size="10px"
+                font-weight="bold">{car.name}</text
+              >
+              <path
+                stroke="#000000"
+                d="M22 0h2M21 1h1M23 1h1M20 2h1M22 2h1M19 3h1M21 3h1M18 4h1M20 4h1M27 4h2M34 4h4M17 5h1M19 5h1M26 5h1M28 5h1M33 5h1M35 5h1M38 5h3M9 6h8M18 6h17M41 6h6M4 7h5M17 7h1M30 7h1M46 7h1M2 8h2M17 8h1M27 8h2M31 8h1M46 8h1M1 9h1M16 9h1M31 9h1M46 9h1M0 10h1M7 10h4M16 10h1M30 10h1M35 10h4M47 10h1M0 11h1M6 11h1M11 11h1M16 11h1M30 11h1M34 11h1M39 11h1M47 11h1M0 12h3M5 12h1M12 12h1M16 12h1M29 12h1M33 12h1M40 12h1M44 12h4M0 13h1M3 13h3M12 13h22M40 13h4M47 13h1M1 14h1M5 14h1M12 14h1M33 14h1M40 14h1M45 14h2M2 15h4M12 15h22M40 15h5M6 16h1M11 16h1M34 16h1M39 16h1M7 17h4M35 17h4"
+              />
             <path
               stroke={car.color}
               d="M22 1h1M21 2h1M20 3h1M19 4h1M18 5h1M36 5h2M17 6h1M35 6h6M9 7h8M18 7h12M31 7h15M4 8h13M18 8h9M29 8h2M32 8h14M2 9h14M17 9h14M32 9h14M1 10h6M11 10h5M17 10h13M31 10h4M39 10h8M1 11h5M12 11h4M17 11h13M31 11h3M40 11h7M3 12h2M13 12h3M17 12h12M30 12h3M41 12h3M1 13h2M44 13h3M2 14h3M13 14h20M41 14h4"
@@ -482,16 +526,16 @@
               d="M8 12h2M36 12h2M7 13h1M10 13h1M35 13h1M38 13h1M7 14h1M10 14h1M35 14h1M38 14h1M8 15h2M36 15h2"
             />
             <path stroke="#ababab" d="M8 13h2M36 13h2M8 14h2M36 14h2" />
-          </svg>
-        {/each}
+            </svg>
+          </div>
+          {/each}
 
-        {#each theaters as theater (theater._id)}
+          {#each theaters as theater (theater._id)}
           <svg
             xmlns="http://www.w3.org/2000/svg"
             viewBox="0 -0.5 150 223"
             shape-rendering="crispEdges"
-            style="left: {theater.position * 400 -
-              screenScrollAmount}; bottom: 0; width: 400px; position: fixed;"
+            style="left: {theater.position * 400}px; bottom: 0; width: 400px; position: absolute;"
           >
             <path
               stroke="#331b02"
@@ -614,15 +658,14 @@
             >
             <image href={theater.hrefPoster} height="68" y="0.5" x="10%" />
           </svg>
-        {/each}
-        {#each Array(highestPosition) as _, index (index)}
+          {/each}
+          {#each Array(highestPosition) as _, index (index)}
           {#if !theaters.some((theater) => theater.position === index)}
             <svg
               xmlns="http://www.w3.org/2000/svg"
               viewBox="0 -0.5 150 223"
               shape-rendering="crispEdges"
-              style="left: {index * 400 -
-                screenScrollAmount}; bottom: 0; width: 400px; position: fixed;"
+              style="left: {index * 400}px; bottom: 0; width: 400px; position: absolute;"
             >
               <path
                 stroke="#331b02"
@@ -705,14 +748,13 @@
               >
             </svg>
           {/if}
-        {/each}
-        <svg
-          class="streetSign"
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 -0.5 28 17"
-          shape-rendering="crispEdges"
-          style="left: {15 - screenScrollAmount}px;"
-        >
+          {/each}
+          <svg
+            class="streetSign"
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 -0.5 28 17"
+            shape-rendering="crispEdges"
+          >
           <path
             stroke="#163d1d"
             d="M1 0h23M0 1h1M24 1h1M0 2h1M25 2h1M0 3h1M26 3h1M0 4h1M27 4h1M0 5h1M26 5h1M0 6h1M25 6h1M0 7h1M24 7h1M0 8h24"
@@ -734,26 +776,30 @@
             d="M5 9h1M20 9h1M5 10h1M20 10h1M5 11h1M20 11h1M5 12h1M20 12h1M5 13h1M20 13h1M5 14h1M20 14h1M5 15h1M20 15h1"
           />
           <path stroke="#a1855a" d="M18 15h1M2 16h5M17 16h5" />
-        </svg>
-        <svg
-          xmlns="http://www.w3.org/2000/svg"
-          viewBox="0 -0.5 48 18"
-          shape-rendering="crispEdges"
-          preserveAspectRatio="xMaxYMax meet"
-          style="width: 50px; height: 30px; position: fixed; left: {playerCoords.x}; top: {playerCoords.y}"
-          transform={playerDirection === false ? "scale(-1, 1)" : ""}
+          </svg>
+        </div>
+        <div
+          class="playerCar"
+          style="transform: translate3d({playerCoords.x}px, {playerCoords.y}px, 0);"
         >
-          <text
-            class="carName"
+          <svg
+            xmlns="http://www.w3.org/2000/svg"
+            viewBox="0 -0.5 48 18"
+            shape-rendering="crispEdges"
+            preserveAspectRatio="xMaxYMax meet"
             transform={playerDirection === false ? "scale(-1, 1)" : ""}
-            transform-origin={playerDirection === false ? "50% 50%" : ""}
-            font-size="10px"
-            font-weight="bold">{playerName}</text
           >
-          <path
-            stroke="#000000"
-            d="M22 0h2M21 1h1M23 1h1M20 2h1M22 2h1M19 3h1M21 3h1M18 4h1M20 4h1M27 4h2M34 4h4M17 5h1M19 5h1M26 5h1M28 5h1M33 5h1M35 5h1M38 5h3M9 6h8M18 6h17M41 6h6M4 7h5M17 7h1M30 7h1M46 7h1M2 8h2M17 8h1M27 8h2M31 8h1M46 8h1M1 9h1M16 9h1M31 9h1M46 9h1M0 10h1M7 10h4M16 10h1M30 10h1M35 10h4M47 10h1M0 11h1M6 11h1M11 11h1M16 11h1M30 11h1M34 11h1M39 11h1M47 11h1M0 12h3M5 12h1M12 12h1M16 12h1M29 12h1M33 12h1M40 12h1M44 12h4M0 13h1M3 13h3M12 13h22M40 13h4M47 13h1M1 14h1M5 14h1M12 14h1M33 14h1M40 14h1M45 14h2M2 15h4M12 15h22M40 15h5M6 16h1M11 16h1M34 16h1M39 16h1M7 17h4M35 17h4"
-          />
+            <text
+              class="carName"
+              transform={playerDirection === false ? "scale(-1, 1)" : ""}
+              transform-origin={playerDirection === false ? "50% 50%" : ""}
+              font-size="10px"
+              font-weight="bold">{playerName}</text
+            >
+            <path
+              stroke="#000000"
+              d="M22 0h2M21 1h1M23 1h1M20 2h1M22 2h1M19 3h1M21 3h1M18 4h1M20 4h1M27 4h2M34 4h4M17 5h1M19 5h1M26 5h1M28 5h1M33 5h1M35 5h1M38 5h3M9 6h8M18 6h17M41 6h6M4 7h5M17 7h1M30 7h1M46 7h1M2 8h2M17 8h1M27 8h2M31 8h1M46 8h1M1 9h1M16 9h1M31 9h1M46 9h1M0 10h1M7 10h4M16 10h1M30 10h1M35 10h4M47 10h1M0 11h1M6 11h1M11 11h1M16 11h1M30 11h1M34 11h1M39 11h1M47 11h1M0 12h3M5 12h1M12 12h1M16 12h1M29 12h1M33 12h1M40 12h1M44 12h4M0 13h1M3 13h3M12 13h22M40 13h4M47 13h1M1 14h1M5 14h1M12 14h1M33 14h1M40 14h1M45 14h2M2 15h4M12 15h22M40 15h5M6 16h1M11 16h1M34 16h1M39 16h1M7 17h4M35 17h4"
+            />
           <path
             stroke={$user.playerColor}
             d="M22 1h1M21 2h1M20 3h1M19 4h1M18 5h1M36 5h2M17 6h1M35 6h6M9 7h8M18 7h12M31 7h15M4 8h13M18 8h9M29 8h2M32 8h14M2 9h14M17 9h14M32 9h14M1 10h6M11 10h5M17 10h13M31 10h4M39 10h8M1 11h5M12 11h4M17 11h13M31 11h3M40 11h7M3 12h2M13 12h3M17 12h12M30 12h3M41 12h3M1 13h2M44 13h3M2 14h3M13 14h20M41 14h4"
@@ -768,7 +814,8 @@
             d="M8 12h2M36 12h2M7 13h1M10 13h1M35 13h1M38 13h1M7 14h1M10 14h1M35 14h1M38 14h1M8 15h2M36 15h2"
           />
           <path stroke="#ababab" d="M8 13h2M36 13h2M8 14h2M36 14h2" />
-        </svg>
+          </svg>
+        </div>
       </div>
     </div>
 
@@ -942,7 +989,38 @@
   }
   .container2 {
     height: 800px;
+    position: relative;
+    overflow: hidden;
     contain: content;
+  }
+  .world {
+    height: 800px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
+  }
+  .remoteCar,
+  .playerCar {
+    width: 50px;
+    height: 30px;
+    position: absolute;
+    left: 0;
+    top: 0;
+    will-change: transform;
+  }
+  .remoteCar svg,
+  .playerCar svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
+  .remoteCar {
+    z-index: 1000;
+    transition: transform 70ms linear;
+  }
+  .playerCar {
+    z-index: 1001;
   }
   .carName {
     alignment-baseline: after-edge;
@@ -951,7 +1029,8 @@
   }
   .streetSign {
     width: 80px;
-    position: fixed;
+    position: absolute;
+    left: 15px;
     top: 530px;
   }
   .eventInfo {

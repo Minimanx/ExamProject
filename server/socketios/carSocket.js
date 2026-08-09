@@ -1,6 +1,11 @@
 const socket = (io) => {
     io.on("connection", (socket) => {
+        let lastPositionBroadcast = 0;
+
         socket.on("carPosition", ({ id, coords, direction, screen }) => {
+            const now = Date.now();
+            if(now - lastPositionBroadcast < 50) return;
+            lastPositionBroadcast = now;
             socket.broadcast.emit("newCarPosition", { id, coords, direction, screen });
         });
         socket.on("carJoined", ({ id, coords, color, name, screen }) => {

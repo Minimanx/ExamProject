@@ -3,21 +3,9 @@
     import { apiFetch, createSocket } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { error, success } from "../components/toasts/toastThemes.js";
-    import { Pulse } from 'svelte-loading-spinners'
+    import { Pulse } from "svelte-loading-spinners";
 
     const socket = createSocket();
-
-    onMount(async () => {
-        socket.emit("enteredTheater");
-        const response = await apiFetch("/theaters/" + id);
-        const result = await response.json();
-        theater = result.data;
-        currentTime = new Date();
-        timeLeftInMovie = new Date(currentTime.getTime() - new Date(theater.startTime).getTime());
-        hoursLeft = timeLeftInMovie.getHours() - 1;
-        minutesLeft = timeLeftInMovie.getMinutes();
-        secondsLeft = timeLeftInMovie.getSeconds();
-    });
 
     export let id;
     let theater;
@@ -30,22 +18,58 @@
     let minutesLeft;
     let secondsLeft;
     let currentTime = new Date();
+    let scrollFrameId;
 
-    socket.on("newMessage", ({ text, username, color }) => {
-        const newMessage = { text, time: new Date(), username, color }
-        messages.push(newMessage);
-        messages = messages;
-        
-        setTimeout(() => {
-            scrollContainer.scrollTop = scrollContainer.scrollHeight;
-        }, 1);
+    function handleNewMessage({ text, username, color }) {
+        messages = [...messages, { text, time: new Date(), username, color }];
+
+        cancelAnimationFrame(scrollFrameId);
+        scrollFrameId = requestAnimationFrame(() => {
+            if (scrollContainer) scrollContainer.scrollTop = scrollContainer.scrollHeight;
+        });
+    }
+
+    function updateElapsedTime() {
+        if (!theater) return;
+
+        currentTime = new Date();
+        timeLeftInMovie = new Date(currentTime.getTime() - 3600000 - new Date(theater.startTime).getTime());
+        hoursLeft = timeLeftInMovie.getHours();
+        minutesLeft = timeLeftInMovie.getMinutes();
+        secondsLeft = timeLeftInMovie.getSeconds();
+    }
+
+    onMount(() => {
+        let active = true;
+        socket.on("newMessage", handleNewMessage);
+        socket.emit("enteredTheater", { theaterId: id });
+
+        async function initialize() {
+            const response = await apiFetch("/theaters/" + id);
+            const result = await response.json();
+            if (!active) return;
+
+            theater = result.data;
+            updateElapsedTime();
+        }
+        initialize().catch((err) => console.error("Failed to load theater", err));
+
+        const clockInterval = setInterval(updateElapsedTime, 1000);
+
+        return () => {
+            active = false;
+            clearInterval(clockInterval);
+            cancelAnimationFrame(scrollFrameId);
+            socket.off("newMessage", handleNewMessage);
+            socket.emit("leftTheater");
+        };
     });
 
     function emitMessage() {
         if(!sendMessage || !sendMessage.trim().length) return;
         socket.emit("sendNewMessage", { sendMessage, color: $user.playerColor });
         sendMessage = "";
-        sendMessageButton.focus();
+        sendMessageButton?.focus();
     }
 
     function leaveTheater() {
@@ -71,16 +95,6 @@
         }
     }
 
-    setInterval(() => {
-        if(theater) {
-            currentTime = new Date();
-            timeLeftInMovie = new Date(currentTime.getTime() - 3600000 - new Date(theater.startTime).getTime());
-            hoursLeft = timeLeftInMovie.getHours();
-            minutesLeft = timeLeftInMovie.getMinutes();
-            secondsLeft = timeLeftInMovie.getSeconds();
-        }
-    }, 1000);
-    
 </script>
 
 <div class="container">

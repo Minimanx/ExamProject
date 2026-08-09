@@ -43,6 +43,7 @@
             $user.playerColor = "#" + Math.floor(Math.random()*16777215).toString(16);
             $user.insideTheater = false;
             $playerMovement = true;
+            socket.disconnect().connect();
             socket.emit("carUpdate", { name: result.data.username, color: $user.playerColor });
             success(result.message);
         }
