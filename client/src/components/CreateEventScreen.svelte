@@ -2,11 +2,11 @@
     import { success, error } from "./toasts/toastThemes.js";
     import { Pulse } from 'svelte-loading-spinners'
     import { playerMovement } from "../stores/stateManagementStore.js";
-    import io from "socket.io-client";
+    import { apiFetch, createSocket } from "../services/api.js";
 
     export let createEventBool;
 
-    const socket = io();
+    const socket = createSocket();
 
     let eventName = "";
     let searchMovieName = "";
@@ -23,7 +23,7 @@
         clearTimeout(timeoutID)
         loadingMovieSearch = true;
         timeoutID = setTimeout(async () => {
-            const response = await fetch(`/movies?s=${searchMovieName}`);
+            const response = await apiFetch(`/movies?s=${searchMovieName}`);
             const result = await response.json();
             loadingMovieSearch = false;
             if(result.data.Response === "False") {
@@ -35,7 +35,7 @@
     }
 
     async function createEvent() {
-		const response = await fetch("/theaters", {
+		const response = await apiFetch("/theaters", {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',

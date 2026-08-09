@@ -1,5 +1,6 @@
 <script>
     import { error, success } from "../components/toasts/toastThemes.js";
+    import { apiFetch } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
 
@@ -18,7 +19,7 @@
     let changePassComponent = false;
 
     async function login() {
-        const response = await fetch("/login", {
+        const response = await apiFetch("/login", {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -49,7 +50,7 @@
     }
 
     async function signUp() {
-		const response = await fetch("/users", {
+		const response = await apiFetch("/users", {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -75,7 +76,7 @@
     }
 
     async function forgotPass() {
-		const response = await fetch("/forgotpassword", {
+		const response = await apiFetch("/forgotpassword", {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -97,7 +98,7 @@
     }
 
     async function confirmToken() {
-		const response = await fetch("/resetpassword", {
+		const response = await apiFetch("/resetpassword", {
 			method: 'POST',
 			headers: {
 				'Content-Type': 'application/json',
@@ -119,7 +120,7 @@
     }
 
     async function changePass() {
-		const response = await fetch("/resetpassword", {
+		const response = await apiFetch("/resetpassword", {
 			method: 'PATCH',
 			headers: {
 				'Content-Type': 'application/json',

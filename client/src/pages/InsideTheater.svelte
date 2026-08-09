@@ -1,15 +1,15 @@
 <script>
     import { onMount } from "svelte";
-    import io from "socket.io-client";
+    import { apiFetch, createSocket } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { error, success } from "../components/toasts/toastThemes.js";
     import { Pulse } from 'svelte-loading-spinners'
 
-    const socket = io();
+    const socket = createSocket();
 
     onMount(async () => {
         socket.emit("enteredTheater");
-        const response = await fetch("/theaters/" + id);
+        const response = await apiFetch("/theaters/" + id);
         const result = await response.json();
         theater = result.data;
         currentTime = new Date();
@@ -53,12 +53,12 @@
     }
 
     function inviteToTheater() {
-        navigator.clipboard.writeText("localhost:5000?position=" + theater.position);
+        navigator.clipboard.writeText(`${window.location.origin}?position=${theater.position}`);
         success("Invite link copied to clipboard!");
     }
 
     async function deleteTheater() {
-		const response = await fetch("/theaters/" + theater._id, {
+		const response = await apiFetch("/theaters/" + theater._id, {
 			method: 'DELETE'
 		});
         const result = await response.json();

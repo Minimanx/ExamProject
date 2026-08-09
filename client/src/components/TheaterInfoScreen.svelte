@@ -1,11 +1,11 @@
 <script>
     import { navigate } from "svelte-navigator";
-    import { io } from "socket.io-client";
+    import { apiFetch, createSocket } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { error, success } from "./toasts/toastThemes.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
 
-    const socket = io();
+    const socket = createSocket();
     export let theater;
     let password = "";
 
@@ -14,7 +14,7 @@
             error("Theater is closed");
             return;
         }
-        const response = await fetch("/theaters/" + theater._id, {
+        const response = await apiFetch("/theaters/" + theater._id, {
 			method: 'PATCH',
 			headers: {
 				'Content-Type': 'application/json',

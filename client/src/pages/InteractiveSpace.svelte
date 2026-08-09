@@ -1,5 +1,5 @@
 <script>
-  import io from "socket.io-client";
+  import { apiFetch, createSocket } from "../services/api.js";
   import { onMount } from "svelte";
   import TheaterInfoScreen from "../components/TheaterInfoScreen.svelte";
   import LoginScreen from "../components/LoginScreen.svelte";
@@ -11,7 +11,7 @@
   import { useLocation } from "svelte-navigator";
   import { Pulse } from "svelte-loading-spinners";
 
-  const socket = io();
+  const socket = createSocket();
   const location = useLocation();
 
   onMount(async () => {
@@ -195,7 +195,7 @@
   }
 
   async function getTheaters() {
-    const response = await fetch("/theaters");
+    const response = await apiFetch("/theaters");
     const { data } = await response.json();
     theaters = data;
 
@@ -215,7 +215,7 @@
   }
 
   async function logout() {
-    const response = await fetch("/logout");
+    const response = await apiFetch("/logout");
 
     if (response.status === 200) {
       localStorage.clear();
