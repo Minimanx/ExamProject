@@ -484,6 +484,7 @@
           d="M331 121h41M8 125h57M178 128h28M356 129h19M48 134h142M317 135h65"
         />
       </svg>
+      <div class="waterExtension" aria-hidden="true"></div>
       <div class="container2" style="width: {canvasLength}px">
         <div
           class="world"
@@ -957,7 +958,7 @@
   .containerInteractiveSpace {
     height: var(--stage-height);
     width: 1000px;
-    background-color: rgb(225, 241, 255);
+    background-color: #177aeb;
     overflow: hidden;
   }
   .containerListView {
@@ -982,6 +983,13 @@
     height: 350px;
     width: 1000px;
     position: absolute;
+  }
+  .waterExtension {
+    position: absolute;
+    top: 350px;
+    bottom: 0;
+    width: 1000px;
+    background: #177aeb url("/water-tile.svg") top left / 1000px 160px repeat-y;
   }
   .container2 {
     height: var(--stage-height);
