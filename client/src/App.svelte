@@ -14,7 +14,7 @@
 		const viewportWidth = viewport?.width || window.innerWidth;
 		const viewportHeight = viewport?.height || window.innerHeight;
 
-		return Math.min(1, viewportWidth / stageWidth, viewportHeight / stageHeight);
+		return Math.min(viewportWidth / stageWidth, viewportHeight / stageHeight);
 	}
 
 	let stageScale = getStageScale();
