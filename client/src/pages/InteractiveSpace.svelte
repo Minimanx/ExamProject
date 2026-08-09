@@ -144,15 +144,21 @@
   }
 
   function handleKeydown(event) {
-    let key = event.key.toLowerCase();
-    if (key === "w" || key === "a" || key === "s" || key === "d") {
-      keys[key] = true;
-      keyDown = true;
-    }
+    if (!$playerMovement || typeof event.key !== "string") return;
+
+    const key = event.key.toLowerCase();
+    if (!(key in keys)) return;
+
+    keys[key] = true;
+    keyDown = true;
   }
 
   function handleKeyUp(event) {
-    let key = event.key.toLowerCase();
+    if (typeof event.key !== "string") return;
+
+    const key = event.key.toLowerCase();
+    if (!(key in keys)) return;
+
     keys[key] = false;
     if (Object.values(keys).every((value) => value === false)) {
       keyDown = false;

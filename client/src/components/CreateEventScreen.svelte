@@ -20,16 +20,39 @@
     let movies = [];
 
     function searchMovie() {
-        clearTimeout(timeoutID)
+        clearTimeout(timeoutID);
+        const query = searchMovieName.trim();
+        movies = [];
+
+        if(!query) {
+            loadingMovieSearch = false;
+            return;
+        }
+
         loadingMovieSearch = true;
         timeoutID = setTimeout(async () => {
-            const response = await apiFetch(`/movies?s=${searchMovieName}`);
-            const result = await response.json();
-            loadingMovieSearch = false;
-            if(result.data.Response === "False") {
-                error(result.data.Error);
-            } else {
+            try {
+                const response = await apiFetch(`/movies?s=${encodeURIComponent(query)}`);
+                const result = await response.json();
+
+                if(!response.ok) {
+                    error(result.message || "Movie search is temporarily unavailable");
+                    return;
+                }
+                if(result.data && result.data.Response === "False") {
+                    error(result.data.Error || "No movies found");
+                    return;
+                }
+                if(!result.data || !Array.isArray(result.data.Search)) {
+                    error("Movie search returned an invalid response");
+                    return;
+                }
+
                 movies = result.data.Search;
+            } catch (requestError) {
+                error("Movie search is temporarily unavailable");
+            } finally {
+                loadingMovieSearch = false;
             }
         }, 2000);
     }

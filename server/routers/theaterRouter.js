@@ -89,13 +89,42 @@ router.post("/theaters", async (req, res) => {
             return;
         }
     
-        const response = await fetch(`https://movie-database-alternative.p.rapidapi.com/?r=json&i=${theater.imdbID}`, {
-            headers: {
-              'X-RapidAPI-Host': 'movie-database-alternative.p.rapidapi.com',
-              'X-RapidAPI-Key': process.env.MOVIE_API_KEY
-            }
-        });
-        const result = await response.json();
+        if(!process.env.OMDB_API_KEY) {
+            req.session.creatingEvent = false;
+            console.error("Movie API request failed: OMDB_API_KEY is not configured");
+            return res.status(503).send({ message: "Movie search is not configured" });
+        }
+
+        const movieApiUrl = new URL("https://www.omdbapi.com/");
+        movieApiUrl.searchParams.set("apikey", process.env.OMDB_API_KEY);
+        movieApiUrl.searchParams.set("r", "json");
+        movieApiUrl.searchParams.set("i", theater.imdbID);
+
+        let response;
+        let result;
+
+        try {
+            response = await fetch(movieApiUrl, {
+                signal: AbortSignal.timeout(10000)
+            });
+            result = await response.json();
+        } catch (error) {
+            req.session.creatingEvent = false;
+            console.error("Movie API request failed", {
+                name: error.name,
+                code: error.code || error.cause?.code
+            });
+            return res.status(502).send({ message: "Movie details are temporarily unavailable" });
+        }
+
+        if(!response.ok) {
+            req.session.creatingEvent = false;
+            console.error("Movie API request failed", {
+                status: response.status,
+                message: result.Error || `HTTP ${response.status}`
+            });
+            return res.status(502).send({ message: "Movie details are temporarily unavailable" });
+        }
     
         if(result.Response === "False") {
             req.session.creatingEvent = false;
