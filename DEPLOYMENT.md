@@ -89,12 +89,21 @@ the test suite. It has a `postinstall` hook that downloads a full `mongod`
 binary (roughly 148 MB) on install. A plain `npm ci` installs
 devDependencies too, and `NODE_ENV=production` is only added as a runtime
 variable in step 4 below, so it is not necessarily set at build time either.
-Leaving the install command empty therefore downloads that binary into
-every deploy for no reason. Set the install command explicitly to
-`npm ci --omit=dev` as shown above so devDependencies are skipped
-entirely; if the build pack does not allow overriding the install command,
-set `MONGOMS_DISABLE_POSTINSTALL=1` as a build-time environment variable
-instead so the `postinstall` hook no-ops even when devDependencies install.
+Leaving the install command empty would therefore download that binary into
+every deploy for no reason.
+
+That hook is now disabled in the repository rather than per-environment —
+`server/package.json` sets `config.mongodbMemoryServer.disablePostinstall`,
+which the library reads in preference to its own default. It applies
+everywhere, including hosts where you cannot override the install command,
+so no build-time environment variable is required. The test suite downloads
+the binary on first use instead, and CI fetches it explicitly before running
+tests so a cold cache never races the test timeout.
+
+The `npm ci --omit=dev` install command above is still worth setting: it
+keeps roughly 130 dev packages out of the production image. It is now an
+image-size optimisation rather than the thing standing between you and a
+148 MB download.
 
 5. Confirm that the application uses the same server and destination as
    `flixdrive-mongodb`.

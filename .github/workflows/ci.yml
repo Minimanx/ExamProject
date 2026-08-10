@@ -30,6 +30,14 @@ jobs:
             mongodb-binaries-${{ runner.os }}-
       - run: npm ci
         working-directory: server
+      # The postinstall download is disabled repo-wide (server/package.json
+      # config.mongodbMemoryServer.disablePostinstall) so deploy builds stop
+      # pulling a ~148MB mongod they never use. Fetch it explicitly here
+      # instead, so a cold cache is never downloading inside vitest's setup
+      # hook where it would race the timeout.
+      - name: Ensure the mongod binary is present
+        run: node --input-type=module -e "import {MongoMemoryServer} from 'mongodb-memory-server'; const s = await MongoMemoryServer.create(); await s.stop();"
+        working-directory: server
       - run: npm test
         working-directory: server
 

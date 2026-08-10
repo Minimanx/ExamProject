@@ -14,6 +14,12 @@
   },
   "author": "",
   "license": "ISC",
+  "config": {
+    "mongodbMemoryServer": {
+      "_comment": "Stops the postinstall hook downloading a ~148MB mongod on every install. A plain `npm ci` in a deploy build installs devDependencies unless NODE_ENV=production is set at BUILD time, which most hosts do not do — so the binary was being pulled into production images that never run a test. Tests download it on first use instead; CI caches it via MONGOMS_DOWNLOAD_DIR. See DEPLOYMENT.md.",
+      "disablePostinstall": "true"
+    }
+  },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "connect-mongo": "^6.0.0",
