@@ -80,6 +80,15 @@ jobs:
         working-directory: client
         env:
           PUBLIC_API_URL: http://localhost:5000
+      # A dirty tree after a build means the build wrote output no ignore file
+      # covers — that is how .vercel/output once got committed.
+      - name: Build leaves no untracked output
+        run: |
+          if [ -n "$(git status --porcelain)" ]; then
+            echo "Build produced files that are not gitignored:"
+            git status --porcelain
+            exit 1
+          fi
 
   e2e:
     name: Client e2e

@@ -7,3 +7,4 @@
 /blob-report/
 /build
 /.svelte-kit
+/.vercel
