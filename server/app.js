@@ -64,15 +64,15 @@ app.use(sessionMiddleware);
 
 const baseLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-	max: 1000,
-	standardHeaders: true,
-	legacyHeaders: false,
+    limit: 1000,
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 const loginLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-	max: 10,
-	standardHeaders: true,
-	legacyHeaders: false,
+    limit: 10,
+    standardHeaders: true,
+    legacyHeaders: false,
 });
 app.use(baseLimiter);
 

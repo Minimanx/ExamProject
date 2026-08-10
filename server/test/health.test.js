@@ -19,3 +19,12 @@ describe("error handling", () => {
         expect(response.body.message).toBe("Something went wrong");
     });
 });
+
+describe("rate limiting", () => {
+    it("sends standard RateLimit headers", async () => {
+        const response = await request(app).get("/health");
+
+        expect(response.headers["ratelimit-limit"] ?? response.headers["ratelimit"]).toBeDefined();
+        expect(response.headers["x-ratelimit-limit"]).toBeUndefined();
+    });
+});
