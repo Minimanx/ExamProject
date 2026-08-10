@@ -5,6 +5,11 @@ import { app } from "../app.js";
 import db from "../database/createConnection.js";
 import { registerUser, loginAgent, seedTheater } from "./helpers.js";
 
+/** An occupant entry as the join route writes it. */
+function occupant(userID, joinedAt = new Date()) {
+    return { userID, joinedAt };
+}
+
 async function loggedInUser() {
     const user = await registerUser();
     const agent = await loginAgent(user);
@@ -59,7 +64,7 @@ describe("PATCH /theaters/:id", () => {
         expect(response.body.message).toBe("Successfully joined lobby");
 
         const stored = await db.theaters.findOne({ _id: theater._id });
-        expect(stored.usersInsideTheater).toEqual([userID]);
+        expect(stored.usersInsideTheater.map((occupant) => occupant.userID)).toEqual([userID]);
     });
 
     it("rejects a wrong lobby password", async () => {
@@ -95,7 +100,7 @@ describe("PATCH /theaters/:id", () => {
         const { agent, userID } = await loggedInUser();
         const theater = await seedTheater({
             amountOfSpaces: 1,
-            usersInsideTheater: ["000000000000000000000003"],
+            usersInsideTheater: [occupant("000000000000000000000003")],
         });
 
         const response = await agent
@@ -147,7 +152,7 @@ describe("DELETE /theaters/:id", () => {
         const { agent, userID } = await loggedInUser();
         const theater = await seedTheater({
             ownerID: userID,
-            usersInsideTheater: [userID, "000000000000000000000005"],
+            usersInsideTheater: [occupant(userID), occupant("000000000000000000000005")],
         });
 
         const response = await agent.delete(`/theaters/${theater._id}`);
@@ -158,7 +163,10 @@ describe("DELETE /theaters/:id", () => {
 
     it("deletes when the owner is alone inside", async () => {
         const { agent, userID } = await loggedInUser();
-        const theater = await seedTheater({ ownerID: userID, usersInsideTheater: [userID] });
+        const theater = await seedTheater({
+            ownerID: userID,
+            usersInsideTheater: [occupant(userID)],
+        });
 
         const response = await agent.delete(`/theaters/${theater._id}`);
 
@@ -167,5 +175,87 @@ describe("DELETE /theaters/:id", () => {
 
         const stored = await db.theaters.findOne({ _id: theater._id });
         expect(stored).toBeNull();
+    });
+});
+
+// DEFECT C5 (roadmap spec §5): an occupant was added to usersInsideTheater by
+// the HTTP join and removed by the socket's disconnect handler. Anything that
+// broke that pairing — a tab closed before the socket opened, a dropped
+// connection, a server restart — left a ghost holding a seat for the life of
+// the theater. Nothing ever reconciled the list against who was actually there.
+describe("ghost occupants (defect C5)", () => {
+    const OUTSIDE_GRACE = new Date(Date.now() - 5 * 60 * 1000);
+
+    it("frees a seat held by someone who never opened a socket", async () => {
+        const { agent, userID } = await loggedInUser();
+        const theater = await seedTheater({
+            amountOfSpaces: 1,
+            usersInsideTheater: [occupant("000000000000000000000003", OUTSIDE_GRACE)],
+        });
+
+        const response = await agent
+            .patch(`/theaters/${theater._id}`)
+            .send({ joining: true, userID });
+
+        expect(response.status).toBe(200);
+    });
+
+    // The join and the socket handshake are two round trips. Sweeping on the
+    // absence of a socket alone would evict people between them.
+    it("holds the seat of someone who has only just joined", async () => {
+        const { agent, userID } = await loggedInUser();
+        const theater = await seedTheater({
+            amountOfSpaces: 1,
+            usersInsideTheater: [occupant("000000000000000000000003")],
+        });
+
+        const response = await agent
+            .patch(`/theaters/${theater._id}`)
+            .send({ joining: true, userID });
+
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe("Theater is full");
+    });
+
+    // Documents written before this change hold bare id strings with no join
+    // time. They have no live socket either, so they sweep on first contact.
+    it("sweeps occupants recorded in the old string format", async () => {
+        const { agent, userID } = await loggedInUser();
+        const theater = await seedTheater({
+            amountOfSpaces: 1,
+            usersInsideTheater: ["000000000000000000000003"],
+        });
+
+        const response = await agent
+            .patch(`/theaters/${theater._id}`)
+            .send({ joining: true, userID });
+
+        expect(response.status).toBe(200);
+    });
+
+    it("persists the sweep rather than recomputing it every read", async () => {
+        const theater = await seedTheater({
+            usersInsideTheater: [occupant("000000000000000000000003", OUTSIDE_GRACE)],
+        });
+
+        await request(app).get("/theaters");
+
+        const stored = await db.theaters.findOne({ _id: theater._id });
+        expect(stored.usersInsideTheater).toEqual([]);
+    });
+
+    it("reports the swept count in the listing", async () => {
+        await seedTheater({
+            eventName: "Haunted",
+            usersInsideTheater: [
+                occupant("000000000000000000000003", OUTSIDE_GRACE),
+                occupant("000000000000000000000004"),
+            ],
+        });
+
+        const response = await request(app).get("/theaters");
+        const listed = response.body.data.find((t) => t.eventName === "Haunted");
+
+        expect(listed.usersInsideTheater).toHaveLength(1);
     });
 });

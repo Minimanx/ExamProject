@@ -157,6 +157,9 @@ app.get("/health", async (req, res) => {
 const wrap = (middleware) => (socket, next) => middleware(socket.request, {}, next);
 io.use(wrap(sessionMiddleware));
 
+import { registerSocketServer } from "./socketios/presence.js";
+registerSocketServer(io);
+
 import carSocket from "./socketios/carSocket.js";
 carSocket(io);
 import chatSocket from "./socketios/chatSocket.js";

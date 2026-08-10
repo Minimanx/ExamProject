@@ -120,6 +120,70 @@ describe("socket identity (defect S3)", () => {
     });
 });
 
+// DEFECT C5 (roadmap spec §5): without this test the whole suite would pass on
+// the grace period alone — every other C5 case involves an occupant with no
+// socket, so a reconcile that ignored live sockets entirely would look correct.
+// This one only passes if the live room is actually consulted.
+describe("live occupants survive the sweep (defect C5)", () => {
+    async function joinOverHttpAndSocket(theater) {
+        const user = await registerUser();
+        const agent = request.agent(app);
+        const login = await agent
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: user.email, password: user.password });
+        expect(login.status).toBe(200);
+
+        const stored = await db.users.findOne({ email: user.email.toLowerCase() });
+        const join = await agent
+            .patch(`/theaters/${theater._id}`)
+            .send({ joining: true, userID: stored._id.toString() });
+        expect(join.status).toBe(200);
+
+        const cookie = login.headers["set-cookie"].map((c) => c.split(";")[0]).join("; ");
+        const socket = await connect({ Cookie: cookie });
+        socket.emit("enteredTheater", { theaterId: theater._id.toString() });
+        await new Promise((r) => setTimeout(r, 300));
+        return { socket, userID: stored._id.toString() };
+    }
+
+    it("keeps an occupant whose join is old but whose socket is open", async () => {
+        const theater = await seedTheater();
+        const { socket, userID } = await joinOverHttpAndSocket(theater);
+
+        try {
+            // Past the grace period: only the live socket can save them now.
+            await db.theaters.updateOne(
+                { _id: theater._id },
+                { $set: { "usersInsideTheater.$[].joinedAt": new Date(Date.now() - 300000) } }
+            );
+
+            await request(app).get("/theaters");
+
+            const after = await db.theaters.findOne({ _id: theater._id });
+            expect(after.usersInsideTheater.map((o) => o.userID)).toEqual([userID]);
+        } finally {
+            socket.close();
+        }
+    });
+
+    it("sweeps that same occupant once the socket closes", async () => {
+        const theater = await seedTheater();
+        const { socket } = await joinOverHttpAndSocket(theater);
+        await db.theaters.updateOne(
+            { _id: theater._id },
+            { $set: { "usersInsideTheater.$[].joinedAt": new Date(Date.now() - 300000) } }
+        );
+
+        socket.close();
+        await new Promise((r) => setTimeout(r, 300));
+        await request(app).get("/theaters");
+
+        const after = await db.theaters.findOne({ _id: theater._id });
+        expect(after.usersInsideTheater).toEqual([]);
+    });
+});
+
 // DEFECT S7: the only limit on a chat message was the client's maxlength
 // attribute. Nothing server-side checked length, type or rate, so a crafted
 // client could flood every occupant of a theater with arbitrary payloads.

@@ -3,6 +3,7 @@ import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
 import "dotenv/config";
 import bcrypt from "bcrypt";
+import { liveOccupants } from "../socketios/presence.js";
 const router = Router();
 
 /**
@@ -39,6 +40,45 @@ function firstFreeSlot(theaters) {
     return slot;
 }
 
+/**
+ * Drop occupants who are no longer there.
+ *
+ * An occupant is added by the HTTP join and removed by the socket's disconnect
+ * handler, so anything that breaks that pairing leaves a ghost holding a seat
+ * for the life of the theater — a tab closed before the socket opened, a
+ * dropped connection, a restart that clears every socket at once. The stored
+ * list is reconciled against the live room instead of trusted. See defect C5.
+ *
+ * The grace period is what makes this safe: the join and the socket handshake
+ * are two round trips, so someone who has only just joined has no socket yet
+ * and must not be swept. Entries stored in the old bare-string format have no
+ * join time at all and sweep on first contact, which is the intent — they
+ * predate any socket this process knows about.
+ */
+const OCCUPANT_GRACE_MS = 60 * 1000;
+
+async function reconcileOccupants(theater) {
+    const stored = theater.usersInsideTheater ?? [];
+    const live = await liveOccupants(theater._id.toString());
+    if (live === null) {
+        return stored;
+    }
+
+    const joinedSince = Date.now() - OCCUPANT_GRACE_MS;
+    const present = stored.filter(
+        (occupant) =>
+            live.has(occupant?.userID) || new Date(occupant?.joinedAt ?? 0).getTime() > joinedSince
+    );
+
+    if (present.length !== stored.length) {
+        await db.theaters.updateOne(
+            { _id: theater._id },
+            { $set: { usersInsideTheater: present } }
+        );
+    }
+    return present;
+}
+
 async function removeExpiredTheaters() {
     try {
         await db.theaters.deleteMany({ timeToClose: { $lt: new Date() } });
@@ -57,6 +97,10 @@ router.get("/theaters", async (req, res) => {
     const theaters = await db.theaters
         .find({}, { projection: { password: 0, ownerID: 0 } })
         .toArray();
+
+    for (const theater of theaters) {
+        theater.usersInsideTheater = await reconcileOccupants(theater);
+    }
     res.status(200).send({ data: theaters });
 });
 
@@ -273,18 +317,19 @@ router.patch("/theaters/:id", async (req, res) => {
                 return;
             }
         }
-        if (theater.usersInsideTheater.length >= theater.amountOfSpaces) {
+        const occupants = await reconcileOccupants(theater);
+        if (occupants.length >= theater.amountOfSpaces) {
             res.status(400).send({ message: "Theater is full" });
             return;
         }
-        if (theater.usersInsideTheater.some((user) => user.toString() === sessionUserId)) {
+        if (occupants.some((occupant) => occupant.userID === sessionUserId)) {
             res.status(400).send({ message: "You are already inside the theater" });
             return;
         }
 
         await db.theaters.updateOne(
-            { _id: new ObjectId(id) },
-            { $addToSet: { usersInsideTheater: sessionUserId } }
+            { _id: new ObjectId(id), "usersInsideTheater.userID": { $ne: sessionUserId } },
+            { $push: { usersInsideTheater: { userID: sessionUserId, joinedAt: new Date() } } }
         );
         req.session.theater = theater._id.toString();
         return res.status(200).send({ message: "Successfully joined lobby" });
@@ -316,10 +361,8 @@ router.delete("/theaters/:id", async (req, res) => {
         res.status(400).send({ message: "Only the owner can delete the theater" });
         return;
     }
-    if (
-        theater.usersInsideTheater.length > 1 ||
-        !theater.usersInsideTheater.some((user) => user.toString() === sessionUserId)
-    ) {
+    const occupants = await reconcileOccupants(theater);
+    if (occupants.length > 1 || !occupants.some((occupant) => occupant.userID === sessionUserId)) {
         res.status(400).send({ message: "Owner must be the only one inside the theater" });
         return;
     }

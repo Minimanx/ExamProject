@@ -18,6 +18,9 @@ const socket = (io) => {
                 if (!ObjectId.isValid(sessionTheaterId) || sessionTheaterId !== theaterId) return;
 
                 socket.data.theaterId = sessionTheaterId;
+                // Recorded on the socket so presence.liveOccupants can map a
+                // room's connections back to users. See defect C5.
+                socket.data.userID = socket.request.session.userID?.toString();
                 socket.join(sessionTheaterId);
                 io.to(sessionTheaterId).emit("newMessage", {
                     text: socket.request.session.username + " joined the theater",
@@ -71,7 +74,9 @@ async function leaveTheater(socket, io) {
     delete socket.data.theaterId;
     await db.theaters.updateOne(
         { _id: new ObjectId(theaterId) },
-        { $pull: { usersInsideTheater: sessionUserId } }
+        // Occupants carry a join time now, so the pull matches on the id field
+        // rather than the whole entry. See defect C5.
+        { $pull: { usersInsideTheater: { userID: sessionUserId } } }
     );
     io.to(theaterId).emit("newMessage", {
         text: socket.request.session.username + " left the theater",
