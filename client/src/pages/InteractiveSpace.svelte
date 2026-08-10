@@ -329,7 +329,7 @@
 {#if theatersLoaded}
   {#if $user.loggedIn === false}
     <LoginScreen {socket} />
-    <div class="container blackedout" />
+    <div class="container blackedout"></div>
   {/if}
 
   <div class="container">

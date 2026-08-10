@@ -158,7 +158,7 @@
                 {/each}
             </div>
             <div class="messageDiv">
-                <form onsubmit="return false">
+                <form on:submit={(event) => event.preventDefault()}>
                     <input class="messageInput" type="text" maxlength="200" bind:this={sendMessageButton} bind:value={sendMessage}>
                     <button class="messageButton menuButton" on:click={emitMessage}>></button>
                 </form>
