@@ -9,6 +9,7 @@ import MongoStore from "connect-mongo";
 import { mongoClientPromise } from "./database/createConnection.js";
 import { validateConfig } from "./config.js";
 import { checkMongoHealth } from "./health.js";
+import { logger, httpLogger } from "./logger.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -23,7 +24,7 @@ const allowedOrigins = (configuredOrigins || "http://localhost:5000,http://local
 // than surfacing at whichever request first needs the missing setting.
 const { warnings } = validateConfig();
 for (const warning of warnings) {
-    console.warn("Configuration warning:", warning);
+    logger.warn({ warning }, "Configuration warning");
 }
 
 function isOriginAllowed(origin) {
@@ -41,6 +42,9 @@ const io = new Server(server, {
 });
 
 app.set("trust proxy", 1);
+// First in the chain so every later line, including rejections from middleware,
+// carries a request id. See defect O3.
+app.use(httpLogger);
 // contentSecurityPolicy is off: the API serves JSON only. The CSP that matters
 // belongs with the client, which Vercel deploys and serves separately.
 app.use(helmet({ contentSecurityPolicy: false }));
@@ -190,12 +194,7 @@ app.use((req, res) => {
 });
 
 app.use((err, req, res, next) => {
-    console.error("Unhandled request error", {
-        method: req.method,
-        path: req.path,
-        message: err.message,
-        stack: err.stack,
-    });
+    req.log.error({ err }, "Unhandled request error");
 
     if (res.headersSent) {
         return next(err);

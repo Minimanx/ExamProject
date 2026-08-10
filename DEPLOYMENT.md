@@ -304,6 +304,29 @@ restored into the Coolify MongoDB resource.
 - Changes to backend environment variables require a Coolify redeploy.
 - Keep MongoDB private; there is no normal reason to expose port `27017`.
 
+## Reading the logs
+
+The backend writes one JSON object per line. Every line carries a `level`
+(30 info, 40 warn, 50 error), a `time`, and — for anything that happened while
+serving a request — a `requestId`. Filter on that field to see one request's
+lines together instead of interleaved with every other request in flight:
+
+```bash
+grep '"requestId":"<id>"' backend.log
+```
+
+The id is also returned to the caller in the `x-request-id` response header, so
+a user reporting a failure can quote it. If a proxy or client sends that header,
+its value is used instead of a new one, keeping a single id across the hop.
+
+Request bodies, headers and cookies are deliberately not logged: these requests
+carry session cookies, passwords and reset tokens.
+
+Set `LOG_LEVEL` to change verbosity; it defaults to `info` in production.
+`/health` is logged at `debug` so a health check every few seconds does not
+become the bulk of the log — its failures still surface, because a 503 is logged
+at `error`.
+
 ## Troubleshooting
 
 | Symptom | Check |

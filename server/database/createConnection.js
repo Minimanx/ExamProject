@@ -1,5 +1,6 @@
 import { MongoClient, ServerApiVersion } from "mongodb";
 import "dotenv/config";
+import { logger } from "../logger.js";
 
 export const mongoUrl = process.env.MONGODB_URI;
 
@@ -64,7 +65,7 @@ export const indexesReady = Promise.all([
     // Logged rather than thrown so a boot is not blocked, but a unique index
     // that failed to build means its guarantee is silently absent — most likely
     // because the data already violates it. See DEPLOYMENT.md.
-    console.error("Failed to create indexes", { message: error.message });
+    logger.error({ err: error }, "Failed to create indexes");
 });
 
 export default collections;

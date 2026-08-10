@@ -1,5 +1,6 @@
 import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
+import { logger } from "../logger.js";
 
 const MAX_MESSAGE_LENGTH = 200;
 const MESSAGE_WINDOW_MS = 10000;
@@ -10,7 +11,7 @@ const socket = (io) => {
         socket.on("enteredTheater", ({ theaterId } = {}) => {
             socket.request.session.reload((err) => {
                 if (err) {
-                    console.error("Failed to refresh socket session", err);
+                    logger.error({ err, socketId: socket.id }, "Failed to refresh socket session");
                     return;
                 }
 
@@ -61,7 +62,7 @@ const socket = (io) => {
 
 function handleLeaveTheater(socket, io) {
     leaveTheater(socket, io).catch((err) => {
-        console.error("Failed to leave theater", err);
+        logger.error({ err, socketId: socket.id }, "Failed to leave theater");
     });
 }
 

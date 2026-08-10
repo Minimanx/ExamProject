@@ -1,10 +1,11 @@
 import { server } from "./app.js";
 import { mongoClientPromise } from "./database/createConnection.js";
+import { logger } from "./logger.js";
 
 const PORT = process.env.PORT || 5000;
 
 server.listen(PORT, () => {
-    console.log("Server running on port: ", PORT);
+    logger.info({ port: PORT }, "Server listening");
 });
 
 /**
@@ -17,10 +18,10 @@ let shuttingDown = false;
 async function shutdown(signal) {
     if (shuttingDown) return;
     shuttingDown = true;
-    console.log(`Received ${signal}, shutting down`);
+    logger.info({ signal }, "Shutting down");
 
     const forced = setTimeout(() => {
-        console.error("Shutdown timed out, exiting anyway");
+        logger.error("Shutdown timed out, exiting anyway");
         process.exit(1);
     }, 10000);
     forced.unref();
@@ -29,10 +30,10 @@ async function shutdown(signal) {
         await new Promise((resolve) => server.close(resolve));
         const client = await mongoClientPromise;
         await client.close();
-        console.log("Shutdown complete");
+        logger.info("Shutdown complete");
         process.exit(0);
     } catch (error) {
-        console.error("Shutdown failed", { message: error.message });
+        logger.error({ err: error }, "Shutdown failed");
         process.exit(1);
     }
 }

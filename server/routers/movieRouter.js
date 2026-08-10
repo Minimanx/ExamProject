@@ -9,7 +9,7 @@ router.get("/movies", async (req, res) => {
         return res.status(400).send({ message: "A movie title is required" });
     }
     if (!process.env.OMDB_API_KEY) {
-        console.error("Movie API request failed: OMDB_API_KEY is not configured");
+        req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
         return res.status(503).send({ message: "Movie search is not configured" });
     }
 
@@ -27,10 +27,10 @@ router.get("/movies", async (req, res) => {
 
         if (!response.ok || (!Array.isArray(result.Search) && result.Response !== "False")) {
             const providerMessage = result.message || result.Error || `HTTP ${response.status}`;
-            console.error("Movie API request failed", {
-                status: response.status,
-                message: providerMessage,
-            });
+            req.log.error(
+                { status: response.status, reason: providerMessage },
+                "Movie API request failed"
+            );
             return res.status(502).send({
                 message: `Movie provider error: ${providerMessage}`,
             });
@@ -38,10 +38,10 @@ router.get("/movies", async (req, res) => {
 
         return res.status(200).send({ data: result });
     } catch (error) {
-        console.error("Movie API request failed", {
-            name: error.name,
-            code: error.code || error.cause?.code,
-        });
+        req.log.error(
+            { name: error.name, code: error.code || error.cause?.code },
+            "Movie API request failed"
+        );
         return res.status(502).send({ message: "Movie search is temporarily unavailable" });
     }
 });

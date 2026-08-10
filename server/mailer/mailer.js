@@ -1,5 +1,6 @@
 import nodemailer from "nodemailer";
 import "dotenv/config";
+import { logger } from "../logger.js";
 
 const transporter = nodemailer.createTransport({
     host: "smtp.gmail.com",
@@ -24,14 +25,13 @@ export default async function sendEmail(title, htmlContent, emailAddress) {
             html: htmlContent,
         });
 
-        console.log("Message sent: %s", info.messageId);
+        logger.info({ messageId: info.messageId }, "Email sent");
         return true;
     } catch (error) {
-        console.error("Email delivery failed", {
-            code: error.code,
-            command: error.command,
-            message: error.message,
-        });
+        logger.error(
+            { code: error.code, command: error.command, reason: error.message },
+            "Email delivery failed"
+        );
         return false;
     }
 }

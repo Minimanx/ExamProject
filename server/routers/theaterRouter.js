@@ -79,17 +79,17 @@ async function reconcileOccupants(theater) {
     return present;
 }
 
-async function removeExpiredTheaters() {
+async function removeExpiredTheaters(log) {
     try {
         await db.theaters.deleteMany({ timeToClose: { $lt: new Date() } });
     } catch (error) {
         // A failed sweep must not fail the request it was riding on.
-        console.error("Failed to remove expired theaters", { message: error.message });
+        log.error({ err: error }, "Failed to remove expired theaters");
     }
 }
 
 router.get("/theaters", async (req, res) => {
-    await removeExpiredTheaters();
+    await removeExpiredTheaters(req.log);
 
     // The listing is public so events can be browsed before signing up, but
     // ownerID is not needed by any client view and should not be exposed.
@@ -122,7 +122,7 @@ router.get("/theaters/:id", async (req, res) => {
         }
         return res.status(200).send({ data: theater });
     } catch (error) {
-        console.error("Failed to load theater", { message: error.message });
+        req.log.error({ err: error }, "Failed to load theater");
         return res.status(500).send({ message: "Failed to load theater" });
     }
 });
@@ -173,7 +173,7 @@ router.post("/theaters", async (req, res) => {
         res.status(400).send({ message: "Time must be within 24 hours" });
         return;
     }
-    await removeExpiredTheaters();
+    await removeExpiredTheaters(req.log);
 
     const theaters = await db.theaters.find().toArray();
 
@@ -184,7 +184,7 @@ router.post("/theaters", async (req, res) => {
     }
 
     if (!process.env.OMDB_API_KEY) {
-        console.error("Movie API request failed: OMDB_API_KEY is not configured");
+        req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
         return res.status(503).send({ message: "Movie search is not configured" });
     }
 
@@ -202,18 +202,18 @@ router.post("/theaters", async (req, res) => {
         });
         result = await response.json();
     } catch (error) {
-        console.error("Movie API request failed", {
-            name: error.name,
-            code: error.code || error.cause?.code,
-        });
+        req.log.error(
+            { name: error.name, code: error.code || error.cause?.code },
+            "Movie API request failed"
+        );
         return res.status(502).send({ message: "Movie details are temporarily unavailable" });
     }
 
     if (!response.ok) {
-        console.error("Movie API request failed", {
-            status: response.status,
-            message: result.Error || `HTTP ${response.status}`,
-        });
+        req.log.error(
+            { status: response.status, reason: result.Error || `HTTP ${response.status}` },
+            "Movie API request failed"
+        );
         return res.status(502).send({ message: "Movie details are temporarily unavailable" });
     }
 
@@ -276,7 +276,7 @@ router.post("/theaters", async (req, res) => {
         }
     }
 
-    console.error("Gave up allocating a theater slot", { attempts: MAX_SLOT_ATTEMPTS });
+    req.log.error({ attempts: MAX_SLOT_ATTEMPTS }, "Gave up allocating a theater slot");
     res.status(503).send({ message: "The strip is busy right now, try again" });
 });
 
@@ -292,7 +292,7 @@ router.patch("/theaters/:id", async (req, res) => {
     try {
         theater = await db.theaters.findOne({ _id: new ObjectId(id) });
     } catch (error) {
-        console.error("Failed to load theater for update", { message: error.message });
+        req.log.error({ err: error }, "Failed to load theater for update");
         return res.status(500).send({ message: "Failed to join theater" });
     }
 
@@ -349,7 +349,7 @@ router.delete("/theaters/:id", async (req, res) => {
     try {
         theater = await db.theaters.findOne({ _id: new ObjectId(id) });
     } catch (error) {
-        console.error("Failed to load theater for deletion", { message: error.message });
+        req.log.error({ err: error }, "Failed to load theater for deletion");
         return res.status(500).send({ message: "Failed to delete theater" });
     }
     if (theater === null) {
