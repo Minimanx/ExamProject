@@ -136,9 +136,9 @@ nobody can review at 5–10 h/week.
 |---|---|
 | 0.1 | Supertest characterization tests over the 12 existing endpoints. Framework-agnostic — survives every change below |
 | 0.2 | Express 5, rate-limit 8, mongodb 7, delete `node-fetch`. Verified by 0.1 |
-| 0.3 | Extract inline SVG art into components (`car`, `theater`, `empty-lot`, `street-sign`, `skyline`) |
-| 0.4 | Replace svelte-navigator with a ~40-line in-repo router; bump toast and spinners. Stays on Svelte 3 + Rollup |
-| 0.5 | Svelte 3 → 5 runes, still on Rollup (`rollup-plugin-svelte` peer is `svelte: >=3.5.0`) |
+| 0.3 | ✅ Extracted inline SVG art into components; 1,086 → 570 lines |
+| 0.4 | ✅ Replaced svelte-navigator with a ~40-line in-repo router; bumped toast and spinners |
+| 0.5 | ✅ Svelte 3 → 5 runes on Rollup. Also added the client's first automated tests — 21 Playwright e2e specs — because the migration breaks reactivity silently |
 | 0.6 | Rollup → SvelteKit, which brings Vite 8 and `adapter-vercel`; the in-repo router is deleted |
 
 Step 0.3 sits before the runes migration deliberately: `InteractiveSpace.svelte` is 1,086
