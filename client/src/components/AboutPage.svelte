@@ -15,7 +15,7 @@
     <p>The purpose of this webapp, is for users to be able to watch movies together, with other people, while chatting. You could set up events for your friends, film clubs, communities or for anyone who wants to watch!</p>
     <p>You're only able to create one event at the time, per user. Events can only be created 24 hours in advance.</p>
     <p>Hope you enjoy!</p>
-    <button class="menuButton" id="backButton" on:click={back}>Back</button>
+    <button class="menuButton" id="backButton" onclick={back}>Back</button>
 </div>
 
 <style>

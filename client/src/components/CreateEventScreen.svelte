@@ -97,12 +97,12 @@
 <div class="container">
     <div>
         <label for="eventName">Event name</label>
-        <input name="eventName" type="text" bind:value={eventName} on:focus={() => $playerMovement = false} on:blur={() => $playerMovement = true} maxlength="18" placeholder="Max 18 chars...">
+        <input name="eventName" type="text" bind:value={eventName} onfocus={() => $playerMovement = false} onblur={() => $playerMovement = true} maxlength="18" placeholder="Max 18 chars...">
     </div>
     
     <div>
         <label for="searchMovie">Search for a movie</label>
-        <input name="searchMovie" type="text" bind:value={searchMovieName} on:change={searchMovie} on:focus={() => $playerMovement = false} on:blur={() => $playerMovement = true} placeholder="Type movie here...">
+        <input name="searchMovie" type="text" bind:value={searchMovieName} onchange={searchMovie} onfocus={() => $playerMovement = false} onblur={() => $playerMovement = true} placeholder="Type movie here...">
     </div>
 
     <div class="movieSearchContainer">
@@ -112,7 +112,7 @@
             </div>
         {/if}
         {#each movies as movie}
-            <ul on:click={() => chosenMovieID = movie.imdbID} class="{movie.imdbID === chosenMovieID ? "selectedMovie" : ""}">
+            <ul onclick={() => chosenMovieID = movie.imdbID} class="{movie.imdbID === chosenMovieID ? "selectedMovie" : ""}">
                 <li id="imageItem">
                     <img src="{movie.Poster !== "N/A" ? movie.Poster : "https://www.tradeinn.com/f/13772/137720122/jibbitz-question-mark.jpg"}" alt="poster">
                 </li>
@@ -137,15 +137,15 @@
     
     <div class="passwordInputs">
         {#if passwordBool}
-            <input name="password" type="password" bind:value={password} on:focus={() => $playerMovement = false} on:blur={() => $playerMovement = true} maxlength="24" placeholder="Type password here...">
+            <input name="password" type="password" bind:value={password} onfocus={() => $playerMovement = false} onblur={() => $playerMovement = true} maxlength="24" placeholder="Type password here...">
         {:else}
             <label for="searchMovie">Private event?</label>
         {/if}
         <input id="passwordCheckbox" name="searchMovie" type="checkbox" bind:checked={passwordBool}>
     </div>
     
-    <button class="menuButton" id="addTheaterButton" on:click={createEvent}>Create Event</button>
-    <button class="menuButton" id="backButton" on:click={back}>Back</button>
+    <button class="menuButton" id="addTheaterButton" onclick={createEvent}>Create Event</button>
+    <button class="menuButton" id="backButton" onclick={back}>Back</button>
 </div>
 
 <style>

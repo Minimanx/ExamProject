@@ -332,7 +332,7 @@
 
 </script>
 
-<svelte:window on:keydown={handleKeydown} on:keyup={handleKeyUp} />
+<svelte:window onkeydown={handleKeydown} onkeyup={handleKeyUp} />
 
 {#if theatersLoaded}
   {#if $user.loggedIn === false}
@@ -390,9 +390,9 @@
         id="colorInput"
         type="color"
         value={$user.playerColor}
-        on:change={changeColor}
+        onchange={changeColor}
       />
-      <button class="menuButton" id="logoutButton" on:click={logout}>
+      <button class="menuButton" id="logoutButton" onclick={logout}>
           <LogoutIcon />
       </button>
       <TheatersListView {theaters} {teleportToTheater} />
@@ -405,13 +405,13 @@
       {#if aboutPageBool === true}
         <AboutPage bind:aboutPageBool />
       {/if}
-      <button class="menuButton" id="addTheaterButton" on:click={createEvent}
+      <button class="menuButton" id="addTheaterButton" onclick={createEvent}
         >Create Event</button
       >
       <button
         class="menuButton"
         id="addSomethingElseButton"
-        on:click={aboutPage}>About</button
+        onclick={aboutPage}>About</button
       >
     </div>
   </div>

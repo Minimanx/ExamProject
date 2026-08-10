@@ -212,10 +212,10 @@
         <input name="email" type="email" bind:value={email} placeholder="Type email here...">
         <label for="password">Password</label>
         <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
-        <button id="mainbutton" on:click={login}>Login</button>
+        <button id="mainbutton" onclick={login}>Login</button>
         <div class="otherOptions">
-            <button on:click={changeToSignUp}>Sign Up</button>
-            <button on:click={changeToForgot}>Forgot Password</button>
+            <button onclick={changeToSignUp}>Sign Up</button>
+            <button onclick={changeToForgot}>Forgot Password</button>
         </div>
     </div>
 {/if}
@@ -229,9 +229,9 @@
         <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
         <label for="passwordRepeat">Repeat Password</label>
         <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">
-        <button id="mainbutton" on:click={signUp}>Create Account</button>
+        <button id="mainbutton" onclick={signUp}>Create Account</button>
         <div class="otherOptions">
-            <button on:click={changeToLogin}>Back</button>
+            <button onclick={changeToLogin}>Back</button>
         </div>
     </div>
 {/if}
@@ -239,9 +239,9 @@
     <div class="container">
         <label for="email">Email</label>
         <input name="email" type="email" bind:value={email} placeholder="Type email here...">
-        <button id="mainbutton" on:click={forgotPass}>Click here to reset password</button>
+        <button id="mainbutton" onclick={forgotPass}>Click here to reset password</button>
         <div class="otherOptions">
-            <button on:click={changeToLogin}>Back</button>
+            <button onclick={changeToLogin}>Back</button>
         </div>
     </div>
 {/if}
@@ -249,9 +249,9 @@
     <div class="container">
         <label for="token">Email Code</label>
         <input name="token" type="text" bind:value={token} placeholder="Type code from email here...">
-        <button id="mainbutton" on:click={confirmToken}>Click here to confirm</button>
+        <button id="mainbutton" onclick={confirmToken}>Click here to confirm</button>
         <div class="otherOptions">
-            <button on:click={changeToLogin}>Back</button>
+            <button onclick={changeToLogin}>Back</button>
         </div>
     </div>
 {/if}
@@ -261,9 +261,9 @@
         <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
         <label for="passwordRepeat">Repeat Password</label>
         <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">
-        <button id="mainbutton" on:click={changePass}>Change Password</button>
+        <button id="mainbutton" onclick={changePass}>Change Password</button>
         <div class="otherOptions">
-            <button on:click={changeToLogin}>Back</button>
+            <button onclick={changeToLogin}>Back</button>
         </div>
     </div>
 {/if}
