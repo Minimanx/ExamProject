@@ -4,10 +4,16 @@ import bcrypt from "bcrypt";
 import mailer from "../mailer/mailer.js";
 const router = Router();
 
+// Signup fields must be strings before anything reads them. mongo-sanitize
+// turns an operator into `{}`, which is truthy and therefore sails past a
+// bare falsiness check — that is how `username: {"$ne": null}` ended up
+// stored as `{}` and put into the session. See defect N2.
+const SIGNUP_FIELDS = ["email", "username", "password", "passwordRepeat"];
+
 router.post("/users", async (req, res) => {
     const clientUser = req.body;
 
-    if(!clientUser.email || !clientUser.username || !clientUser.password || !clientUser.passwordRepeat) {
+    if(SIGNUP_FIELDS.some((field) => typeof clientUser[field] !== "string" || clientUser[field].length === 0)) {
         res.status(400).send({ message: "All fields must be filled" });
         return;
     }

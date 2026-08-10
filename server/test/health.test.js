@@ -56,3 +56,39 @@ describe("rate limiting", () => {
         expect(response.status).toBe(429);
     });
 });
+
+// DEFECT N1 (roadmap spec §5): mongo-sanitize recurses without a depth limit,
+// so a deeply nested body — 20 kB, well under body-parser's 100 kB default —
+// overflowed the stack. Express 5 caught the synchronous throw, so the process
+// survived, but an unauthenticated request that should be a 400 became a 500.
+// Introduced by moving the sanitizer after express.json(), which made it live.
+// Measured: depth 2,000 was fine; depth 10,000 produced the 500.
+describe("deeply nested request bodies", () => {
+    it("rejects a body nested past the sanitizer's depth limit", async () => {
+        const depth = 10000;
+        const body = "[".repeat(depth) + "1" + "]".repeat(depth);
+
+        const response = await request(app)
+            .post("/login")
+            .set("X-Forwarded-For", "10.254.0.1")
+            .set("Content-Type", "application/json")
+            .send(body);
+
+        expect(response.status).toBe(400);
+    });
+
+    it("still accepts a normally nested body", async () => {
+        const depth = 20;
+        const body = "[".repeat(depth) + "1" + "]".repeat(depth);
+
+        const response = await request(app)
+            .post("/login")
+            .set("X-Forwarded-For", "10.254.0.2")
+            .set("Content-Type", "application/json")
+            .send(body);
+
+        // Reaches the route and is rejected on its merits, not by the guard.
+        expect(response.status).toBe(400);
+        expect(response.body.message).toBe("All fields must be filled");
+    });
+});

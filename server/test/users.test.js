@@ -93,4 +93,28 @@ describe("POST /users", () => {
 
         expect(response.status).toBe(200);
     });
+
+    // DEFECT N2 (roadmap spec §5): mongo-sanitize neutralises an operator into
+    // `{}` rather than rejecting it, so once the sanitizer went live a
+    // `username: {"$ne": null}` stopped being caught by the duplicate check and
+    // instead created a user with `username: {}`, which then went into the
+    // session. Scrubbing is the wrong control; the fields must be typed.
+    it("rejects a non-string username instead of storing an empty object", async () => {
+        const response = await request(app)
+            .post("/users")
+            .send({ ...validSignup, username: { $ne: null } });
+
+        expect(response.status).toBe(400);
+
+        const stored = await db.users.findOne({ email: validSignup.email });
+        expect(stored).toBeNull();
+    });
+
+    it("rejects a non-string email", async () => {
+        const response = await request(app)
+            .post("/users")
+            .send({ ...validSignup, email: { $ne: null } });
+
+        expect(response.status).toBe(400);
+    });
 });

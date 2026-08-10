@@ -89,7 +89,30 @@ app.use(express.json())
 // below — it is also a getter returning a fresh object per access, so
 // mutating it in place would be a no-op anyway.
 app.set("query parser", "simple");
+
+// mongo-sanitize recurses without a depth limit, so a deeply nested body well
+// inside body-parser's 100 kB cap can overflow the stack. Reject those before
+// sanitizing. The walk is iterative for the same reason.
+const MAX_BODY_DEPTH = 32;
+
+function isTooDeep(root, limit) {
+    const stack = [[root, 0]];
+    while (stack.length > 0) {
+        const [value, depth] = stack.pop();
+        if (value === null || typeof value !== "object") continue;
+        if (depth >= limit) return true;
+        for (const child of Object.values(value)) {
+            stack.push([child, depth + 1]);
+        }
+    }
+    return false;
+}
+
 function sanitizeRequest(req, res, next) {
+    if (isTooDeep(req.body, MAX_BODY_DEPTH)) {
+        res.status(400).send({ message: "Request body is nested too deeply" });
+        return;
+    }
     sanitize(req.body);
     next();
 }
