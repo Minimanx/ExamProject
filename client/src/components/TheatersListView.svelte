@@ -1,11 +1,10 @@
 <script>
-    export let theaters;
-	export let teleportToTheater = () => {};
+    let { theaters, teleportToTheater = () => {} } = $props();
 
-    let sortBySpacesPicker = 0;
-    let sortByNamePicker = 0;
-    let sortByTimePicker = 0;
-    let sortByDatePicker = 0;
+    let sortBySpacesPicker = $state(0);
+    let sortByNamePicker = $state(0);
+    let sortByTimePicker = $state(0);
+    let sortByDatePicker = $state(0);
     const colors = ["color: black;", "color: red;", "color: green;"]
 
     function sortByName() {
@@ -34,7 +33,6 @@
 			});
             sortByNamePicker = 1;
 		}
-        theaters = theaters;
     }
     function sortBySpaces() {
         sortByNamePicker = 0;
@@ -52,7 +50,6 @@
             });
             sortBySpacesPicker = 1;
         }
-        theaters = theaters;
     }
     function sortByTime() {
         sortBySpacesPicker = 0;
@@ -70,7 +67,6 @@
             });
             sortByTimePicker = 1;
         }
-        theaters = theaters;
     }
     function sortByDate() {
         sortBySpacesPicker = 0;
@@ -88,7 +84,6 @@
             });
             sortByDatePicker = 1;
         }
-        theaters = theaters;
     }
 </script>
 

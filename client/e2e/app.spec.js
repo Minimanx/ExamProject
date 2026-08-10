@@ -32,6 +32,19 @@ const SIGNUP_USER = {
 
 test.describe.configure({ mode: "serial" });
 
+// loginLimiter allows 10 requests per 15 minutes per IP, and nearly every test
+// logs in. From one browser they all share 127.0.0.1, so the suite silently
+// accumulates toward the cap and starts failing at login as it grows. The app
+// sets `trust proxy`, so a distinct X-Forwarded-For per test gives each its own
+// bucket — the same fix the server suite needed for exactly the same reason.
+let ipCounter = 0;
+test.beforeEach(async ({ page }) => {
+    ipCounter += 1;
+    await page.setExtraHTTPHeaders({
+        "X-Forwarded-For": `10.1.${Math.floor(ipCounter / 256) % 256}.${ipCounter % 256}`,
+    });
+});
+
 test.beforeAll(async ({ request }) => {
     await request.post(`${API}/users`, {
         data: { ...USER, passwordRepeat: USER.password },
@@ -203,6 +216,29 @@ test("sending a chat message shows it and clears the input", async ({ page }) =>
 
     await expect(page.locator(".liveChat")).toContainText("hello from the suite");
     await expect(page.locator(".messageInput")).toHaveValue("");
+});
+
+// TheatersListView sorts the theaters array in place. Its four sort controls
+// are the only thing driving its own state, and nothing covered them before it
+// was converted — which matters because it sorts a array owned by its parent.
+test("the list view sorts by name and reverses on a second click", async ({ page }) => {
+    await logIn(page);
+
+    const names = () =>
+        page.locator(".containerListView .names").allTextContents();
+
+    const initial = await names();
+    expect(initial.length).toBeGreaterThan(1);
+
+    const sortByName = page.locator(".containerListView li").filter({ hasText: /^Name\/Movie$/ }).first();
+    await sortByName.click();
+    const ascending = await names();
+    expect(ascending).not.toEqual(initial);
+    expect([...ascending].sort()).toEqual(ascending);
+
+    await sortByName.click();
+    const descending = await names();
+    expect(descending).toEqual([...ascending].reverse());
 });
 
 test("the about panel opens and closes again", async ({ page }) => {
