@@ -90,6 +90,27 @@ for (const [w, h, label] of [
     });
 }
 
+// The viewport tests above each load fresh at their size, so the initial
+// stageLayout value alone satisfies them. Resizing an already-loaded page is
+// the path that needs stageLayout to stay reactive — the one that breaks if it
+// is not $state after the runes conversion.
+test("the stage re-fits when an already-loaded page is resized", async ({ page }) => {
+    await page.setViewportSize({ width: 1500, height: 800 });
+    await page.goto("/");
+    await expect(page.locator(".containerInteractiveSpace")).toBeVisible();
+
+    const widthAt = async () =>
+        page.evaluate(() => document.querySelector("main").getBoundingClientRect().width);
+
+    expect(await widthAt()).toBeCloseTo(1500, 0);
+
+    await page.setViewportSize({ width: 2400, height: 900 });
+    await expect.poll(widthAt, { timeout: 5000 }).toBeCloseTo(2400, 0);
+
+    await page.setViewportSize({ width: 1800, height: 1000 });
+    await expect.poll(widthAt, { timeout: 5000 }).toBeCloseTo(1800, 0);
+});
+
 // Phase 0.4: the world is highestPosition * 400px and each slot draws its own
 // ground. Widening the scene past the hard-coded 1200px floor ran the ground
 // out and showed bare water.
@@ -152,6 +173,21 @@ test("parking at a theater opens its info panel, and joining enters the theater"
     await expect(page).toHaveURL(/\/theaters\/[a-f0-9]{24}$/);
     await expect(page.locator(".liveChatContainer")).toBeVisible();
     await expect(page.locator(".timeOfMovie h1").first()).toContainText(/Starts in|Ongoing|Closing|Closed/);
+});
+
+// The countdown is driven by an interval updating currentTime and the derived
+// hour/minute/second values. Nothing else exercises that they keep updating.
+test("the theater countdown keeps ticking", async ({ page }) => {
+    await logIn(page);
+    await page.keyboard.down("w");
+    await page.waitForTimeout(700);
+    await page.keyboard.up("w");
+    await page.getByRole("button", { name: /^join$/i }).click();
+    await expect(page.locator(".liveChatContainer")).toBeVisible();
+
+    const clock = page.locator(".timeOfMovie h1").last();
+    const first = await clock.textContent();
+    await expect.poll(async () => clock.textContent(), { timeout: 8000 }).not.toBe(first);
 });
 
 test("sending a chat message shows it and clears the input", async ({ page }) => {

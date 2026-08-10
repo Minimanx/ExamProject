@@ -7,17 +7,19 @@
 
     const socket = createSocket();
 
-    export let id;
-    let theater;
-    let messages = [];
-    let sendMessage;
-    let sendMessageButton;
-    let scrollContainer;
-    let timeLeftInMovie;
-    let hoursLeft;
-    let minutesLeft;
-    let secondsLeft;
-    let currentTime = new Date();
+    let { id } = $props();
+    let theater = $state();
+    let messages = $state([]);
+    let sendMessage = $state();
+    // bind:this targets must be state in runes mode.
+    let sendMessageButton = $state();
+    let scrollContainer = $state();
+    let timeLeftInMovie = $state();
+    let hoursLeft = $state();
+    let minutesLeft = $state();
+    let secondsLeft = $state();
+    let currentTime = $state(new Date());
+    // Animation-frame handle only, never read in the template.
     let scrollFrameId;
 
     function handleNewMessage({ text, username, color }) {

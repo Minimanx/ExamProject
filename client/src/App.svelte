@@ -31,7 +31,10 @@
 		};
 	}
 
-	let stageLayout = getStageLayout();
+	// Must be $state: it is reassigned on every resize and feeds the CSS custom
+	// properties the edge-to-edge fix depends on. Without it the stage stops
+	// re-fitting and the black bars come back.
+	let stageLayout = $state(getStageLayout());
 
 	onMount(() => {
 		function updateStageLayout() {
