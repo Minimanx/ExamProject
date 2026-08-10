@@ -233,6 +233,7 @@
             type="text"
             bind:value={username}
             placeholder="Type username here..."
+            minlength="3"
             maxlength="16"
         />
         <label for="password">Password</label>

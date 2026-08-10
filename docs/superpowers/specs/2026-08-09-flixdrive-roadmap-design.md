@@ -407,7 +407,7 @@ Every item below was read in the source, not inferred.
 
 | # | Location | Issue |
 |---|---|---|
-| C1 | `userRouter.js:26` | `clientUser.username < 3 \|\| clientUser.username > 16` compares a **string to a number**. Both comparisons are always false — username length is never validated. |
+| ~~C1~~ | `userRouter.js:26` | **FIXED 2026-08-10.** `clientUser.username < 3 \|\| clientUser.username > 16` compared a **string to a number**, so both comparisons were always false and username length was never validated — a one-character username was accepted. Now compares `.length`. The signup form already carried `maxlength="16"` but no `minlength`, so the client mirrored half the server rule; it now mirrors both. Regression tests cover every boundary (1, 2, 3, 16, 17) rather than one case, because the fix reintroduces a comparison that was silently absent rather than merely wrong. |
 | C2 | `InsideTheater.svelte` (throughout) | Hardcoded `3600000` offsets assume UTC+1. Breaks outside CET and across DST. |
 | C3 | `theaterRouter.js:155–166` | Slot allocation: the `else` branch reassigns `theater.position` without breaking, and `if(!theater.position)` treats slot 0 as unset. |
 | C4 | `theaterRouter.js:40` | `req.session.creatingEvent` used as a mutex. Does not hold across multiple instances. |

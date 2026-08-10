@@ -33,7 +33,7 @@ router.post("/users", async (req, res) => {
         res.status(400).send({ message: "Email must be valid" });
         return;
     }
-    if (clientUser.username < 3 || clientUser.username > 16) {
+    if (clientUser.username.length < 3 || clientUser.username.length > 16) {
         res.status(400).send({ message: "Username must be between 3 and 16 characters" });
         return;
     }

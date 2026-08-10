@@ -82,16 +82,32 @@ describe("POST /users", () => {
         expect(stored.password).not.toBe("password123");
     });
 
-    // DEFECT C1 (roadmap spec §5): userRouter.js:26 compares a string to a
-    // number, so `username < 3 || username > 16` is always false and the
-    // length rule never fires. A one-character username is accepted today.
-    // Phase 2 fixes this and flips this assertion to 400.
-    it("accepts a one-character username because length validation is broken", async () => {
-        const response = await request(app)
-            .post("/users")
-            .send({ ...validSignup, username: "x" });
+    // DEFECT C1 (roadmap spec §5): userRouter.js compared a string to a number,
+    // so `username < 3 || username > 16` was always false and the length rule
+    // never fired. Every boundary is asserted because the fix reintroduces the
+    // comparison that was silently absent.
+    describe("username length", () => {
+        it.each([
+            ["x", 400],
+            ["ab", 400],
+            ["abc", 200],
+            ["a".repeat(16), 200],
+            ["a".repeat(17), 400],
+        ])("username %s is answered with %i", async (username, expected) => {
+            const response = await request(app)
+                .post("/users")
+                .send({ ...validSignup, username });
 
-        expect(response.status).toBe(200);
+            expect(response.status).toBe(expected);
+        });
+
+        it("explains the rule when the username is too short", async () => {
+            const response = await request(app)
+                .post("/users")
+                .send({ ...validSignup, username: "ab" });
+
+            expect(response.body.message).toBe("Username must be between 3 and 16 characters");
+        });
     });
 
     // DEFECT N2 (roadmap spec §5): mongo-sanitize neutralises an operator into
