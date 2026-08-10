@@ -57,3 +57,54 @@ jobs:
         working-directory: client
         env:
           PUBLIC_API_URL: http://localhost:5000
+
+  e2e:
+    name: Client e2e
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+        working-directory: client
+      # The suite boots the real server against an in-memory MongoDB, so the
+      # server's dependencies are needed too.
+      - run: npm ci
+        working-directory: server
+      - name: Cache Playwright browsers
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('client/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+      - run: npx playwright install --with-deps chromium
+        working-directory: client
+      # mongodb-memory-server's postinstall is disabled repo-wide, so fetch the
+      # binary explicitly rather than letting it download inside a test.
+      - name: Cache mongodb-memory-server binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/mongodb-binaries
+          key: mongodb-binaries-${{ runner.os }}-${{ hashFiles('server/package-lock.json') }}
+          restore-keys: |
+            mongodb-binaries-${{ runner.os }}-
+      - name: Ensure the mongod binary is present
+        run: node --input-type=module -e "import {MongoMemoryServer} from 'mongodb-memory-server'; const s = await MongoMemoryServer.create(); await s.stop();"
+        working-directory: server
+        env:
+          MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
+      - run: npm run test:e2e
+        working-directory: client
+        env:
+          CI: "true"
+          MONGOMS_DOWNLOAD_DIR: /home/runner/.cache/mongodb-binaries
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: client/playwright-report/
+          retention-days: 7
