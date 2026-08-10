@@ -39,6 +39,11 @@
 </svg>
 
 <style>
+  svg {
+    width: 100%;
+    height: 100%;
+    display: block;
+  }
 .carName {
   alignment-baseline: after-edge;
   user-select: none;

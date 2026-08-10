@@ -553,12 +553,6 @@
     top: 0;
     will-change: transform;
   }
-  .remoteCar svg,
-  .playerCar svg {
-    width: 100%;
-    height: 100%;
-    display: block;
-  }
   .remoteCar {
     z-index: 1000;
     transition: transform 70ms linear;
