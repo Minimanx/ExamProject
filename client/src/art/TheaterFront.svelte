@@ -1,6 +1,5 @@
 <script>
-  export let theater;
-  export let currentTime;
+  let { theater, currentTime } = $props();
 </script>
 
 <svg
