@@ -1,6 +1,6 @@
 <script>
 	import { onMount } from "svelte";
-	import { Router, Route } from "svelte-navigator";
+	import { route } from "./lib/router.js";
 	import InteractiveSpace from "./pages/InteractiveSpace.svelte";
 	import { SvelteToast } from "@zerodevx/svelte-toast";
 	import InsideTheater from "./pages/InsideTheater.svelte";
@@ -52,18 +52,15 @@
 	<SvelteToast options={{ intro: { y: -500 } }} />
 </div>
 
-<Router>
-	<main
-		style="--stage-scale: {stageLayout.scale}; --stage-height: {stageLayout.height}px; --stage-width: {stageLayout.width}px; --scene-offset: {stageLayout.sceneOffset}px;"
-	>
-		<Route path="/" component={InteractiveSpace} />
-		{#if $user.loggedIn === true}
-			<Route path="/theaters/:id" component={InsideTheater} />
-		{/if}
-
-		<Route path="/*" component={InteractiveSpace} />
-	</main>
-</Router>
+<main
+	style="--stage-scale: {stageLayout.scale}; --stage-height: {stageLayout.height}px; --stage-width: {stageLayout.width}px; --scene-offset: {stageLayout.sceneOffset}px;"
+>
+	{#if $route.name === "theater" && $user.loggedIn === true}
+		<InsideTheater id={$route.params.id} />
+	{:else}
+		<InteractiveSpace />
+	{/if}
+</main>
 
 <style>
 	main {

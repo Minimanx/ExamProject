@@ -137,15 +137,22 @@ nobody can review at 5–10 h/week.
 | 0.1 | Supertest characterization tests over the 12 existing endpoints. Framework-agnostic — survives every change below |
 | 0.2 | Express 5, rate-limit 8, mongodb 7, delete `node-fetch`. Verified by 0.1 |
 | 0.3 | Extract inline SVG art into components (`car`, `theater`, `empty-lot`, `street-sign`, `skyline`) |
-| 0.4 | Rollup → Vite, plus a throwaway ~40-line history router replacing svelte-navigator |
-| 0.5 | Svelte 3 → 5 runes; toast 0.9.6; spinners 0.3.6 |
-| 0.6 | Vite SPA → SvelteKit; throwaway router deleted |
+| 0.4 | Replace svelte-navigator with a ~40-line in-repo router; bump toast and spinners. Stays on Svelte 3 + Rollup |
+| 0.5 | Svelte 3 → 5 runes, still on Rollup (`rollup-plugin-svelte` peer is `svelte: >=3.5.0`) |
+| 0.6 | Rollup → SvelteKit, which brings Vite 8 and `adapter-vercel`; the in-repo router is deleted |
 
 Step 0.3 sits before the runes migration deliberately: `InteractiveSpace.svelte` is 1,086
 lines, of which the inline SVG is 62% by bytes but only 44% by lines. Extracting it first
-took the file to 570 lines (measured, not estimated — the CSS moved too), so 0.5 migrates small files instead of one enormous one. Step 0.4's throwaway
-router is 40 lines of deliberate waste that buys the ability to land the runes migration
+took the file to 570 lines (measured, not estimated — the CSS moved too), so 0.5 migrates small files instead of one enormous one. Step 0.4's in-repo
+router is ~40 lines of deliberate waste that buys the ability to land the runes migration
 and the SvelteKit adoption as two separately reviewable changes.
+
+**The standalone Rollup → Vite step was dropped** once the compatibility matrix was
+checked: `@sveltejs/vite-plugin-svelte@7` requires Svelte 5, and the newest plugin
+supporting Svelte 3 pins Vite 4 — so "Vite while still on Svelte 3" means standing up a
+build tool that 0.6 immediately replaces. `rollup-plugin-svelte` declares
+`svelte: >=3.5.0`, so Rollup carries Svelte 5 through 0.5 instead, and SvelteKit brings
+Vite 8 with it in 0.6.
 
 **Known breakages to expect:**
 

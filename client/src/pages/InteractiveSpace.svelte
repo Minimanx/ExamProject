@@ -8,7 +8,7 @@
   import CreateEventScreen from "../components/CreateEventScreen.svelte";
   import { playerMovement } from "../stores/stateManagementStore.js";
   import AboutPage from "../components/AboutPage.svelte";
-  import { useLocation } from "svelte-navigator";
+  import { location } from "../lib/router.js";
   import { Pulse } from "svelte-loading-spinners";
   import Skyline from "../art/Skyline.svelte";
   import StreetSign from "../art/StreetSign.svelte";
@@ -18,7 +18,6 @@
   import TheaterFront from "../art/TheaterFront.svelte";
 
   const socket = createSocket();
-  const location = useLocation();
 
   function handleNewCarPosition({ id, coords, direction, screen }) {
     if (!$user.insideTheater) {

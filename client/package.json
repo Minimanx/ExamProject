@@ -13,7 +13,7 @@
   },
   "devDependencies": {
     "@rollup/plugin-commonjs": "^17.0.0",
-    "@rollup/plugin-node-resolve": "^11.0.0",
+    "@rollup/plugin-node-resolve": "^16.0.3",
     "@rollup/plugin-replace": "^6.0.3",
     "@rollup/plugin-terser": "^1.0.0",
     "rollup": "^2.3.4",
@@ -21,12 +21,11 @@
     "rollup-plugin-livereload": "^2.0.0",
     "rollup-plugin-svelte": "^7.0.0",
     "svelte": "^3.0.0",
-    "svelte-loading-spinners": "^0.1.7"
+    "svelte-loading-spinners": "^0.3.6"
   },
   "dependencies": {
-    "@zerodevx/svelte-toast": "^0.7.2",
+    "@zerodevx/svelte-toast": "^0.9.6",
     "sirv-cli": "^2.0.0",
-    "socket.io-client": "^4.8.3",
-    "svelte-navigator": "^3.1.6"
+    "socket.io-client": "^4.8.3"
   }
 }

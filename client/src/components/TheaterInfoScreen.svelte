@@ -1,5 +1,5 @@
 <script>
-    import { navigate } from "svelte-navigator";
+    import { navigate } from "../lib/router.js";
     import { apiFetch, createSocket } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { error, success } from "./toasts/toastThemes.js";

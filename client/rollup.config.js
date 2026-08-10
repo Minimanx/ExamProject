@@ -61,7 +61,11 @@ export default {
 		// https://github.com/rollup/plugins/tree/master/packages/commonjs
 		resolve({
 			browser: true,
-			dedupe: ['svelte']
+			dedupe: ['svelte'],
+			// svelte-toast (and most Svelte packages) expose their source only
+			// under a "svelte" export condition. Without this the package is
+			// silently treated as external and dropped from the bundle.
+			exportConditions: ['svelte']
 		}),
 		commonjs(),
 
