@@ -67,6 +67,20 @@ describe("PATCH /theaters/:id", () => {
         expect(stored.usersInsideTheater.map((occupant) => occupant.userID)).toEqual([userID]);
     });
 
+    // A well-formed id that matches nothing is a 404, the same as it always was
+    // on GET and DELETE. It used to be a 400 "Invalid theater" here, so the same
+    // condition answered differently depending on the verb.
+    it("answers 404 for a well-formed id that matches no theater", async () => {
+        const { agent, userID } = await loggedInUser();
+
+        const response = await agent
+            .patch("/theaters/000000000000000000000009")
+            .send({ joining: true, userID });
+
+        expect(response.status).toBe(404);
+        expect(response.body.code).toBe("NOT_FOUND");
+    });
+
     it("rejects a wrong lobby password", async () => {
         const { agent, userID } = await loggedInUser();
         const theater = await seedTheater({

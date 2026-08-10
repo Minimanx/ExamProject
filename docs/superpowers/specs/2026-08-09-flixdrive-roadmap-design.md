@@ -239,8 +239,17 @@ after each.
   was unreachable, because the combined presence check answered first, and joining a
   password-protected theater with no `password` field at all reached `bcrypt.compare`, which
   throws on a non-string — a malformed request was a 500.
-- Introduce a domain layer (theater service, user service) between routers and Mongo, and
-  make it the single owner of `usersInsideTheater`.
+- ~~Introduce a domain layer (theater service, user service) between routers and Mongo, and
+  make it the single owner of `usersInsideTheater`.~~ **DONE 2026-08-10.** `services/theaterService.js`
+  is the only file that touches `db.theaters` or names `usersInsideTheater`, and a test asserts
+  exactly that — ownership was the part that was actually broken, since the field was written by
+  the HTTP join and cleared by the socket's disconnect handler with nothing responsible for the
+  pair. That split is what C5 cost. The socket layer now calls `removeOccupant` instead of
+  issuing its own `$pull`. Slot allocation, the expiry sweep and the OMDB fetch moved out of the
+  route bodies too, and `loadTheater` replaced three copies of validate-id-then-load-then-404 —
+  which is why a PATCH to a well-formed but unknown id was a 400 while the same condition was a
+  404 on GET. No user service: `userRouter` is one route and `loginRouter`'s queries are all
+  session and reset-token work, so extracting one would be structure without a reader.
 - ~~Rewrite date handling: store UTC, render in the viewer's locale, delete the hardcoded
   `3600000` offsets.~~ **DONE 2026-08-10.** Storage was already right — Mongo holds `Date`
   objects, which are UTC. The offsets went with C2. Rendering was the remaining half: three

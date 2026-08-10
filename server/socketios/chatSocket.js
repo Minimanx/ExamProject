@@ -1,5 +1,5 @@
-import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
+import { removeOccupant } from "../services/theaterService.js";
 import { logger } from "../logger.js";
 
 const MAX_MESSAGE_LENGTH = 200;
@@ -73,12 +73,7 @@ async function leaveTheater(socket, io) {
 
     socket.leave(theaterId);
     delete socket.data.theaterId;
-    await db.theaters.updateOne(
-        { _id: new ObjectId(theaterId) },
-        // Occupants carry a join time now, so the pull matches on the id field
-        // rather than the whole entry. See defect C5.
-        { $pull: { usersInsideTheater: { userID: sessionUserId } } }
-    );
+    await removeOccupant(theaterId, sessionUserId);
     io.to(theaterId).emit("newMessage", {
         text: socket.request.session.username + " left the theater",
         username: "System",
