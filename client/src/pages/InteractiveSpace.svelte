@@ -524,6 +524,13 @@
     bottom: 0;
     width: 401px;
   }
+  /* The art svgs were blockified by their own position:absolute before that
+     moved here. Without this they render inline, sit on a text baseline, and
+     the font strut's descent lifts them off the ground. Direct child only, so
+     the nested icon svg inside TheaterFront keeps its own layout. */
+  .lotSlot > :global(svg) {
+    display: block;
+  }
   .container2 {
     height: var(--stage-height);
     position: relative;

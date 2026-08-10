@@ -1,7 +1,10 @@
 <script>
-  export let name = "";
-  export let color = "";
-  export let facingLeft = false;
+  // No defaults: a Svelte prop default fires on `undefined`, and a remote car
+  // has no `direction` until it first moves. Defaulting facingLeft to false
+  // would mirror every car on join.
+  export let name;
+  export let color;
+  export let facingLeft;
 </script>
 
 <svg
