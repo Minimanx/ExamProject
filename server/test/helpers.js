@@ -4,6 +4,12 @@ import { app } from "../app.js";
 import db from "../database/createConnection.js";
 
 let counter = 0;
+let ipCounter = 0;
+
+export function uniqueIp() {
+    ipCounter += 1;
+    return `10.0.${Math.floor(ipCounter / 256) % 256}.${ipCounter % 256}`;
+}
 
 export async function registerUser(overrides = {}) {
     counter += 1;
@@ -27,6 +33,7 @@ export async function loginAgent(user) {
     const agent = request.agent(app);
     const response = await agent
         .post("/login")
+        .set("X-Forwarded-For", uniqueIp())
         .send({ email: user.email, password: user.password });
 
     if (response.status !== 200) {
