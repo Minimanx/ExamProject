@@ -142,8 +142,8 @@ nobody can review at 5–10 h/week.
 | 0.6 | Vite SPA → SvelteKit; throwaway router deleted |
 
 Step 0.3 sits before the runes migration deliberately: `InteractiveSpace.svelte` is 1,086
-lines of which roughly 85% is inline SVG path data. Extracting it first takes the file to
-~250 lines, so 0.5 migrates small files instead of one enormous one. Step 0.4's throwaway
+lines, of which the inline SVG is 62% by bytes but only 44% by lines. Extracting it first
+took the file to 569 lines (measured, not estimated — the CSS moved too), so 0.5 migrates small files instead of one enormous one. Step 0.4's throwaway
 router is 40 lines of deliberate waste that buys the ability to land the runes migration
 and the SvelteKit adoption as two separately reviewable changes.
 

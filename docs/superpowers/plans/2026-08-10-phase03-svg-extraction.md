@@ -14,7 +14,7 @@
 - **Do not touch `<script>` (lines 1–318) or `<style>` (lines 875–1086)** of `InteractiveSpace.svelte`, except to add `import` statements and to delete CSS rules that are provably orphaned by the move (see Task 7).
 - **Do not touch anything under `server/`.** The 75-test server suite is unrelated and must stay green.
 - **The path-data invariant is the safety net.** There are no client tests yet (Phase 1 adds them). Every task therefore verifies that the multiset of `d="…"` attribute values across the page plus its art components is unchanged, except for the one deliberate car de-duplication in Task 4. This is what catches a truncated or corrupted 46 KB copy-paste.
-- Target file after extraction: roughly **626 lines** (from 1,086). Path data is 62% of the file by bytes but only 44% by lines — the remainder is the script block Phase 0.5 will migrate.
+- Target file after extraction: **569 lines** (from 1,086) — measured after Tasks 1–7. The initial estimate of ~626 assumed only markup would move; the orphaned CSS moved too. Path data is 62% of the file by bytes but only 44% by lines — the remainder is the script block Phase 0.5 will migrate.
 - **Every line number in this plan refers to the ORIGINAL 1,086-line file.** They stop being accurate the moment Task 1 lands. From Task 2 onward, locate each block by its distinguishing attribute — `viewBox`, `class`, or the surrounding `{#each}` — and use the line numbers only as a rough guide to where in the file to look. A task that blindly deletes a stale line range will destroy unrelated markup.
 - All client commands run from `client/`.
 
@@ -462,7 +462,14 @@ git commit -m "refactor: rehome CSS orphaned by the art extraction"
 
 ## Task 8: Correct the roadmap's own numbers
 
-The roadmap spec and the Phase 0 plan both claim `InteractiveSpace.svelte` is "1,086 lines of which roughly 85% is inline SVG path data" and that extraction takes it to "~250 lines". Measured: path data is **62% of the file by bytes** and **44% by lines** (475 of 1,086), so the realistic post-extraction size is around **626 lines**.
+The roadmap spec claimed `InteractiveSpace.svelte` was "1,086 lines of which roughly 85% is
+inline SVG path data" and that extraction would take it to "~250 lines". Both figures were
+wrong, in opposite directions.
+
+**Measured:** the inline SVG is **62% of the file by bytes but only 44% by lines** (475 of
+1,086) — the byte figure was mistaken for a line figure, which is where ~250 came from.
+Markup extraction alone would have left ~626 lines. The actual result is **569**, because
+Task 7 moved the orphaned CSS out as well.
 
 - [ ] **Step 1: Correct both documents**
 
