@@ -49,7 +49,6 @@
 | `client/package.json` | `engines` → 24.x. |
 | `server/routers/movieRouter.js` | Task 13: drop `node-fetch` import. |
 | `server/routers/theaterRouter.js` | Task 13: drop `node-fetch` import. |
-| `DEPLOYMENT.md` | Task 1: start command is now `node server.js`. |
 
 ---
 
@@ -59,7 +58,7 @@ Supertest needs the Express `app` object without a bound port. Right now importi
 
 **Files:**
 - Create: `server/server.js`
-- Modify: `server/app.js:124-127`, `server/package.json`, `client/package.json`, `DEPLOYMENT.md`
+- Modify: `server/app.js:124-127`, `server/package.json`, `client/package.json`
 
 **Interfaces:**
 - Consumes: nothing.
@@ -118,13 +117,9 @@ In `client/package.json`, change only the engines block:
   },
 ```
 
-- [ ] **Step 4: Update the deployment doc**
+- [ ] **Step 4: Confirm the deployment doc needs no change**
 
-In `DEPLOYMENT.md`, replace every occurrence of `node app.js` with `node server.js`. Run this to find them:
-
-```bash
-grep -n "app.js" DEPLOYMENT.md
-```
+**Correction (final review):** this step originally assumed `DEPLOYMENT.md` hardcoded `node app.js` as the start command and needed a find-and-replace to `node server.js`. It never did — the documented start command has always been `npm start`, which resolves through `server/package.json`'s `scripts.start`, already repointed at `server.js` in Step 3 above. No edit to `DEPLOYMENT.md` was needed for this task.
 
 - [ ] **Step 5: Verify the server still boots**
 
@@ -145,7 +140,7 @@ Expected: `{"status":"ok"}`. Stop the server with Ctrl-C.
 - [ ] **Step 6: Commit**
 
 ```bash
-git add server/app.js server/server.js server/package.json client/package.json DEPLOYMENT.md
+git add server/app.js server/server.js server/package.json client/package.json
 git commit -m "refactor: split server listener from app for testability
 
 Targets Node 24 LTS. app.js now exports the configured app; server.js
@@ -491,7 +486,7 @@ git commit -m "test: characterize login and logout"
 - Consumes: `registerUser` from `./helpers.js`.
 - Produces: nothing later tasks depend on.
 
-Signup sends a welcome email via `mailer/mailer.js`. The mailer already swallows its own errors and returns `false`, and `userRouter.js:42` calls it with `void`, so it cannot fail the request — no mocking needed. It will log a delivery failure during the run; that is expected.
+Signup sends a welcome email via `mailer/mailer.js`. The mailer already swallows its own errors and returns `false`, and `userRouter.js:43` calls it with `void`, so it cannot fail the request — no mocking needed. It will log a delivery failure during the run; that is expected.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -836,7 +831,7 @@ describe("PATCH /resetpassword", () => {
 npx vitest run test/passwordReset.test.js
 ```
 
-Expected: `9 passed`. The last test passing is the proof that S1 is real.
+Expected: `10 passed`. (**Correction, final review:** originally documented as 9; the file as written has 10 `it()` blocks.) The last test passing is the proof that S1 is real.
 
 - [ ] **Step 3: Commit**
 
@@ -1481,7 +1476,7 @@ describe("DELETE /theaters/:id", () => {
 npm test
 ```
 
-Expected: all files pass, 61 tests total.
+Expected: all files pass, 62 tests total. (**Correction, final review:** originally documented as 61; `passwordReset.test.js` has 10 tests, not 9, so the running total from Task 5 onward was off by one.)
 
 - [ ] **Step 3: Commit**
 
@@ -1899,6 +1894,8 @@ npx vitest run test/movies.test.js test/theatersCreate.test.js
 
 Expected: **failures.** The routers still import `node-fetch`, so the global stub is not what they call. This is the correct red state.
 
+**Note (final review):** at this exact step, `vi.stubGlobal("fetch", fetchMock)` stubs `globalThis.fetch`, but the routers still call the real `node-fetch` package, which is unmocked here (its own `vi.mock("node-fetch", ...)` was deleted in Step 1/2 above). Running this command therefore dispatches real HTTP requests to the live OMDB API using the fake `test-omdb-key`, for the few seconds this step takes. This is a knowing, deliberate exception to this plan's own "no network calls in tests" global constraint, scoped to a single red-state verification step that is never run again once Step 4 lands. The same shape — a real external call made once, on purpose, to prove a red state before the fix that makes it unnecessary — will recur in later phases.
+
 - [ ] **Step 4: Drop the import from both routers**
 
 In `server/routers/movieRouter.js`, delete line 2:
@@ -1951,12 +1948,12 @@ git commit -m "refactor: use Node's global fetch instead of node-fetch"
 
 ## Done criteria
 
-- `npm test` in `server/` runs 63 tests green.
+- `npm test` in `server/` runs 67 tests green. (**Correction, final review:** originally documented as 63. The correct count at the end of Task 13 was 64 — `passwordReset.test.js` has 10 tests, not 9, the same off-by-one that affected the Task 9 checkpoint above. The number is 67, not 64, because it also reflects the final whole-branch review's fix wave — outside this plan's own tasks — which added a malformed-JSON-body test, a rate-limiter 429 test, and a characterization test for defect S9. Verified by running `npm test` after that fix wave.)
 - CI is green on a PR and both checks are required on `main`.
 - `server/package.json` has no dependency more than one major version behind: `express@5`, `mongodb@7`, `express-rate-limit@8`, no `node-fetch`.
 - Both `package.json` files declare `engines.node: "24.x"`.
 - The server boots with `npm start` and serves the SPA fallback when `SERVE_CLIENT=true`.
-- Defects S1, S2, S8 and C1 are each pinned by a test carrying its defect ID in a comment, so Phase 2 has an executable definition of "fixed".
+- Defects S1, S2, S8 and C1 are each pinned by a test carrying its defect ID in a comment, so Phase 2 has an executable definition of "fixed". (S9 is also now pinned, added by the final review's fix wave.)
 
 ## Deviations from the spec
 
