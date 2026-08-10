@@ -24,20 +24,46 @@ const collections = {
     users: db.collection("users"),
 };
 
+/**
+ * Create an index, replacing one that exists on the same keys with different
+ * options.
+ *
+ * Mongo answers a createIndex whose options differ from the live index with
+ * IndexOptionsConflict (85) rather than changing it, so tightening an index —
+ * as `theaters.ownerID` and `theaters.position` were tightened to unique for
+ * defect C4 — is a no-op on any database that already ran the old version.
+ */
+async function ensureIndex(collection, keys, options = {}) {
+    try {
+        return await collection.createIndex(keys, options);
+    } catch (error) {
+        if (error.code !== 85) {
+            throw error;
+        }
+        await collection.dropIndex(await collection.createIndex(keys));
+        return collection.createIndex(keys, options);
+    }
+}
+
 // Every login and signup looked users up by email or username, and both were
-// full collection scans. The unique constraints also move the duplicate check
-// from application code — where two concurrent signups can both pass it — into
-// the database. See defect O1.
+// full collection scans. The unique constraints also move duplicate and
+// concurrency checks out of application code — where two overlapping requests
+// can both pass them — and into the database, which is the only place that can
+// decide atomically. See defects O1 and C4.
 export const indexesReady = Promise.all([
-    collections.users.createIndex({ email: 1 }, { unique: true }),
-    collections.users.createIndex(
+    ensureIndex(collections.users, { email: 1 }, { unique: true }),
+    ensureIndex(
+        collections.users,
         { username: 1 },
         { unique: true, collation: { locale: "en", strength: 1 } }
     ),
-    collections.theaters.createIndex({ position: 1 }),
-    collections.theaters.createIndex({ ownerID: 1 }),
-    collections.theaters.createIndex({ timeToClose: 1 }),
+    ensureIndex(collections.theaters, { position: 1 }, { unique: true }),
+    ensureIndex(collections.theaters, { ownerID: 1 }, { unique: true }),
+    ensureIndex(collections.theaters, { timeToClose: 1 }),
 ]).catch((error) => {
+    // Logged rather than thrown so a boot is not blocked, but a unique index
+    // that failed to build means its guarantee is silently absent — most likely
+    // because the data already violates it. See DEPLOYMENT.md.
     console.error("Failed to create indexes", { message: error.message });
 });
 

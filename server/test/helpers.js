@@ -43,14 +43,20 @@ export async function loginAgent(user) {
     return agent;
 }
 
+// ownerID and position both carry unique indexes — one live event per owner,
+// one theater per slot — so fixtures that shared a default collided the moment
+// a test seeded two of them. See defect C4.
+let theaterCounter = 0;
+
 export async function seedTheater(overrides = {}) {
+    theaterCounter += 1;
     const theater = {
         eventName: "Movie Night",
         startTime: new Date(Date.now() + 3600000),
         timeToClose: new Date(Date.now() + 10800000),
         amountOfSpaces: 10,
-        position: 0,
-        ownerID: "000000000000000000000001",
+        position: theaterCounter,
+        ownerID: `${theaterCounter}`.padStart(24, "0"),
         usersInsideTheater: [],
         passwordBool: false,
         password: "",

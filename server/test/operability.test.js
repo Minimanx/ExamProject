@@ -37,7 +37,6 @@ describe("expired theater cleanup (defect C6)", () => {
         await seedTheater({ eventName: "Still Open", timeToClose: new Date(Date.now() + 3600000) });
         await seedTheater({
             eventName: "Long Closed",
-            position: 1,
             timeToClose: new Date(Date.now() - 3600000),
         });
 

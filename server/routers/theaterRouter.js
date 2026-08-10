@@ -17,6 +17,28 @@ const router = Router();
  * page load, which is a good enough trigger for an app this size and avoids
  * standing up a scheduler. The field is indexed.
  */
+/**
+ * The lowest slot number no live theater occupies.
+ *
+ * The old walk reassigned the candidate on every mismatch without breaking and
+ * then fell back on `if (!theater.position)`, which cannot tell slot 0 from an
+ * unset slot. See defect C3.
+ */
+// A slot conflict means another request won the gap between reading the list
+// and inserting. Retrying recomputes against the new state; the cap is there so
+// a genuinely full strip fails rather than spins.
+const MAX_SLOT_ATTEMPTS = 10;
+const DUPLICATE_KEY = 11000;
+
+function firstFreeSlot(theaters) {
+    const taken = new Set(theaters.map((theater) => theater.position));
+    let slot = 0;
+    while (taken.has(slot)) {
+        slot++;
+    }
+    return slot;
+}
+
 async function removeExpiredTheaters() {
     try {
         await db.theaters.deleteMany({ timeToClose: { $lt: new Date() } });
@@ -66,151 +88,152 @@ router.post("/theaters", async (req, res) => {
         res.status(400).send({ message: "Must be logged in to create a new event" });
         return;
     }
-    if (!req.session.creatingEvent) {
-        req.session.creatingEvent = true;
+    const theater = req.body.data ?? {};
 
-        let theater = req.body.data;
-
-        if (!theater.eventName || !theater.startTime || !theater.amountOfSpaces) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "All fields must be filled" });
+    if (!theater.eventName || !theater.startTime || !theater.amountOfSpaces) {
+        res.status(400).send({ message: "All fields must be filled" });
+        return;
+    }
+    if (theater.passwordBool) {
+        if (theater.password.length < 8 || theater.password.length > 24) {
+            res.status(400).send({ message: "Password must be between 8 and 24 characters" });
             return;
         }
-        if (theater.passwordBool) {
-            if (theater.password.length < 8 || theater.password.length > 24) {
-                req.session.creatingEvent = false;
-                res.status(400).send({ message: "Password must be between 8 and 24 characters" });
-                return;
-            }
-        } else {
-            theater.password = "";
-        }
-        if (theater.eventName.length > 18 || theater.eventName.length < 3) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "Event name must be between 3 and 18 characters" });
-            return;
-        }
-        if (!theater.imdbID) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "Must choose a movie" });
-            return;
-        }
-        if (!theater.startTime) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "Must choose a time" });
-            return;
-        }
-        if (theater.amountOfSpaces > 99 || theater.amountOfSpaces < 1) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "Amount of spaces must be between 1 and 99" });
-            return;
-        }
-        let startTime = new Date(theater.startTime);
-        if (startTime.getTime() < new Date().getTime()) {
-            startTime = new Date(startTime.getTime() + 86400000);
-        }
-        if (
-            startTime.getTime() > new Date().getTime() + 86400000 ||
-            startTime.getTime() < new Date().getTime()
-        ) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "Time must be within 24 hours" });
-            return;
-        }
-        theater.startTime = startTime;
+    } else {
+        theater.password = "";
+    }
+    if (theater.eventName.length > 18 || theater.eventName.length < 3) {
+        res.status(400).send({ message: "Event name must be between 3 and 18 characters" });
+        return;
+    }
+    if (!theater.imdbID) {
+        res.status(400).send({ message: "Must choose a movie" });
+        return;
+    }
+    if (!theater.startTime) {
+        res.status(400).send({ message: "Must choose a time" });
+        return;
+    }
+    if (theater.amountOfSpaces > 99 || theater.amountOfSpaces < 1) {
+        res.status(400).send({ message: "Amount of spaces must be between 1 and 99" });
+        return;
+    }
+    let startTime = new Date(theater.startTime);
+    if (startTime.getTime() < new Date().getTime()) {
+        startTime = new Date(startTime.getTime() + 86400000);
+    }
+    if (
+        startTime.getTime() > new Date().getTime() + 86400000 ||
+        startTime.getTime() < new Date().getTime()
+    ) {
+        res.status(400).send({ message: "Time must be within 24 hours" });
+        return;
+    }
+    await removeExpiredTheaters();
 
-        await removeExpiredTheaters();
+    const theaters = await db.theaters.find().toArray();
 
-        const theaters = await db.theaters.find().toArray();
+    const sessionUserId = req.session.userID.toString();
+    if (theaters.some((theater) => theater.ownerID.toString() === sessionUserId)) {
+        res.status(400).send({ message: "You already have an ongoing event" });
+        return;
+    }
 
-        const sessionUserId = req.session.userID.toString();
-        if (theaters.some((theater) => theater.ownerID.toString() === sessionUserId)) {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: "You already have an ongoing event" });
-            return;
-        }
+    if (!process.env.OMDB_API_KEY) {
+        console.error("Movie API request failed: OMDB_API_KEY is not configured");
+        return res.status(503).send({ message: "Movie search is not configured" });
+    }
 
-        if (!process.env.OMDB_API_KEY) {
-            req.session.creatingEvent = false;
-            console.error("Movie API request failed: OMDB_API_KEY is not configured");
-            return res.status(503).send({ message: "Movie search is not configured" });
-        }
+    const movieApiUrl = new URL("https://www.omdbapi.com/");
+    movieApiUrl.searchParams.set("apikey", process.env.OMDB_API_KEY);
+    movieApiUrl.searchParams.set("r", "json");
+    movieApiUrl.searchParams.set("i", theater.imdbID);
 
-        const movieApiUrl = new URL("https://www.omdbapi.com/");
-        movieApiUrl.searchParams.set("apikey", process.env.OMDB_API_KEY);
-        movieApiUrl.searchParams.set("r", "json");
-        movieApiUrl.searchParams.set("i", theater.imdbID);
+    let response;
+    let result;
 
-        let response;
-        let result;
+    try {
+        response = await fetch(movieApiUrl, {
+            signal: AbortSignal.timeout(10000),
+        });
+        result = await response.json();
+    } catch (error) {
+        console.error("Movie API request failed", {
+            name: error.name,
+            code: error.code || error.cause?.code,
+        });
+        return res.status(502).send({ message: "Movie details are temporarily unavailable" });
+    }
+
+    if (!response.ok) {
+        console.error("Movie API request failed", {
+            status: response.status,
+            message: result.Error || `HTTP ${response.status}`,
+        });
+        return res.status(502).send({ message: "Movie details are temporarily unavailable" });
+    }
+
+    if (result.Response === "False") {
+        res.status(400).send({ message: result.Error });
+        return;
+    }
+
+    const movieRuntime = Number(result.Runtime.split(" ")[0]);
+
+    // Built field by field rather than from req.body.data. The old code
+    // stored the request body itself and overwrote the fields it cared
+    // about, so anything the client invented — a slot, an imdbRating, an
+    // _id — was persisted verbatim wherever the handler happened not to
+    // write over it. See defect C3.
+    const document = {
+        eventName: theater.eventName,
+        startTime,
+        amountOfSpaces: theater.amountOfSpaces,
+        imdbID: theater.imdbID,
+        passwordBool: Boolean(theater.passwordBool),
+        password: theater.passwordBool ? await bcrypt.hash(theater.password, 12) : "",
+        ownerID: sessionUserId,
+        usersInsideTheater: [],
+        movieName: result.Title,
+        // Spread rather than set to undefined: the driver stores undefined
+        // as null, and the field was previously absent for short titles.
+        ...(result.Title.length > 18 && {
+            movieNameCutToFit: `${result.Title.slice(0, 17)}...`,
+        }),
+        movieReleaseYear: result.Year,
+        movieRuntime: movieRuntime,
+        imdbRating: result.imdbRating,
+        hrefPoster: result.Poster,
+        moviePlot: result.Plot,
+        movieGenres: result.Genre,
+        timeToClose: new Date(startTime.getTime() + movieRuntime * 60000 + 900000),
+    };
+
+    // Both uniqueness rules — one live event per owner, one theater per slot —
+    // are now enforced by unique indexes, because two overlapping requests read
+    // the same list and reach the same conclusion. The owner conflict is final;
+    // a slot conflict just means someone else took the gap first, so recompute
+    // and try the next one. See defect C4.
+    for (let attempt = 0; attempt < MAX_SLOT_ATTEMPTS; attempt++) {
+        const occupied = await db.theaters.find({}, { projection: { position: 1 } }).toArray();
 
         try {
-            response = await fetch(movieApiUrl, {
-                signal: AbortSignal.timeout(10000),
-            });
-            result = await response.json();
-        } catch (error) {
-            req.session.creatingEvent = false;
-            console.error("Movie API request failed", {
-                name: error.name,
-                code: error.code || error.cause?.code,
-            });
-            return res.status(502).send({ message: "Movie details are temporarily unavailable" });
-        }
-
-        if (!response.ok) {
-            req.session.creatingEvent = false;
-            console.error("Movie API request failed", {
-                status: response.status,
-                message: result.Error || `HTTP ${response.status}`,
-            });
-            return res.status(502).send({ message: "Movie details are temporarily unavailable" });
-        }
-
-        if (result.Response === "False") {
-            req.session.creatingEvent = false;
-            res.status(400).send({ message: result.Error });
+            await db.theaters.insertOne({ ...document, position: firstFreeSlot(occupied) });
+            res.status(200).send({ message: "Event Created" });
             return;
-        }
-
-        theater.movieName = result.Title;
-        if (theater.movieName.length > 18) {
-            theater.movieNameCutToFit = theater.movieName.slice(0, 17);
-            theater.movieNameCutToFit += "...";
-        }
-        theater.movieReleaseYear = result.Year;
-        theater.movieRuntime = Number(result.Runtime.split(" ")[0]);
-        theater.imdbRating = result.imdbRating;
-        theater.hrefPoster = result.Poster;
-        theater.moviePlot = result.Plot;
-        theater.movieGenres = result.Genre;
-        theater.timeToClose = new Date(startTime.getTime() + theater.movieRuntime * 60000 + 900000);
-
-        let count = 0;
-        theaters.sort((a, b) => a.position - b.position);
-        for (let i = 0; i < theaters.length; i++) {
-            if (theaters[i].position === count) {
-                count++;
-            } else {
-                theater.position = count;
+        } catch (error) {
+            if (error.code !== DUPLICATE_KEY) {
+                throw error;
+            }
+            if (error.keyPattern?.ownerID) {
+                res.status(400).send({ message: "You already have an ongoing event" });
+                return;
             }
         }
-        if (!theater.position) {
-            theater.position = count;
-        }
-
-        theater.ownerID = sessionUserId;
-        theater.usersInsideTheater = [];
-        if (theater.passwordBool) {
-            theater.password = await bcrypt.hash(theater.password, 12);
-        }
-
-        await db.theaters.insertOne(theater);
-        req.session.creatingEvent = false;
-        res.status(200).send({ message: "Event Created" });
-    } else {
-        res.status(400).send({ message: "Already creating an event" });
     }
+
+    console.error("Gave up allocating a theater slot", { attempts: MAX_SLOT_ATTEMPTS });
+    res.status(503).send({ message: "The strip is busy right now, try again" });
 });
 
 router.patch("/theaters/:id", async (req, res) => {
