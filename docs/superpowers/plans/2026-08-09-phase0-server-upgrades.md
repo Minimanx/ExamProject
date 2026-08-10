@@ -619,10 +619,58 @@ This is where the two security defects live. Pin them precisely so Phase 2 can p
 
 **Files:**
 - Create: `server/test/passwordReset.test.js`
+- Modify: `server/test/helpers.js`
 
 **Interfaces:**
 - Consumes: `registerUser` from `./helpers.js`.
-- Produces: nothing later tasks depend on.
+- Produces: `helpers.js` gains `uniqueIp()`, returning a distinct dotted-quad string on every call. `loginAgent` uses it internally. Tasks 8 and 9 inherit the benefit through `loginAgent` and need no changes of their own.
+
+### The rate limiter, and why this task needs an extra step
+
+`app.js:107` registers `loginLimiter` between `userRouter` and `loginRouter`, so **every `loginRouter` endpoint** — `/login`, `/logout`, `/forgotpassword`, `/resetpassword` — is capped at 10 requests per 15 minutes per IP. This file makes 11 such requests and would otherwise fail three tests with HTTP 429, including the S1 test that demonstrates the account-takeover path.
+
+`app.js:43` already sets `app.set("trust proxy", 1)`, and `express-rate-limit`'s default key generator uses `req.ip`, which Express derives from `X-Forwarded-For` when trust proxy is enabled. Giving each request its own `X-Forwarded-For` therefore gives it its own rate-limit bucket — **with no change to application code**, which this phase forbids.
+
+Each test file runs in its own worker with its own module registry, so the limiter's in-memory store resets per file. Only within-file request counts matter.
+
+- [ ] **Step 0: Add `uniqueIp` to the helpers and route `loginAgent` through it**
+
+Append to `server/test/helpers.js`:
+
+```javascript
+let ipCounter = 0;
+
+export function uniqueIp() {
+    ipCounter += 1;
+    return `10.0.${Math.floor(ipCounter / 256) % 256}.${ipCounter % 256}`;
+}
+```
+
+Then change `loginAgent` so its login request carries one:
+
+```javascript
+export async function loginAgent(user) {
+    const agent = request.agent(app);
+    const response = await agent
+        .post("/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: user.email, password: user.password });
+
+    if (response.status !== 200) {
+        throw new Error(`loginAgent failed: ${response.status} ${JSON.stringify(response.body)}`);
+    }
+
+    return agent;
+}
+```
+
+Only `/login` needs the header here — the theater endpoints Tasks 8 and 9 call afterwards run under `baseLimiter`, which allows 1000 requests per window.
+
+- [ ] **Step 0b: Prove the premise before writing any tests**
+
+Do not skip this. If the assumption is wrong, everything below fails confusingly.
+
+Write a scratch test that fires 15 requests at `POST /login` with a distinct `X-Forwarded-For` on each, and assert none returns 429. Run it, confirm it passes, then delete the scratch file — it is a premise check, not a deliverable. Then repeat it with a *fixed* `X-Forwarded-For` and confirm you DO get 429s after the tenth. Report both outputs.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -634,25 +682,29 @@ import request from "supertest";
 import bcrypt from "bcrypt";
 import { app } from "../app.js";
 import db from "../database/createConnection.js";
-import { registerUser } from "./helpers.js";
+import { registerUser, uniqueIp } from "./helpers.js";
+
+// Every request in this file hits loginRouter, which is capped at 10 per
+// 15 minutes per IP. Each call gets its own IP, and therefore its own bucket.
+const post = (url) => request(app).post(url).set("X-Forwarded-For", uniqueIp());
+const patch = (url) => request(app).patch(url).set("X-Forwarded-For", uniqueIp());
 
 async function requestResetToken(user) {
-    await request(app).post("/forgotpassword").send({ email: user.email });
+    await post("/forgotpassword").send({ email: user.email });
     const stored = await db.users.findOne({ email: user.email.toLowerCase() });
     return stored.passwordToken;
 }
 
 describe("POST /forgotpassword", () => {
     it("rejects a missing email", async () => {
-        const response = await request(app).post("/forgotpassword").send({});
+        const response = await post("/forgotpassword").send({});
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("All fields must be filled");
     });
 
     it("rejects a malformed email", async () => {
-        const response = await request(app)
-            .post("/forgotpassword")
+        const response = await post("/forgotpassword")
             .send({ email: "not-an-email" });
 
         expect(response.status).toBe(400);
@@ -660,8 +712,7 @@ describe("POST /forgotpassword", () => {
     });
 
     it("does not reveal whether an unknown email exists", async () => {
-        const response = await request(app)
-            .post("/forgotpassword")
+        const response = await post("/forgotpassword")
             .send({ email: "nobody@example.com" });
 
         expect(response.status).toBe(200);
@@ -686,8 +737,7 @@ describe("POST /forgotpassword", () => {
 
 describe("POST /resetpassword", () => {
     it("rejects a missing token", async () => {
-        const response = await request(app)
-            .post("/resetpassword")
+        const response = await post("/resetpassword")
             .send({ email: "someone@example.com" });
 
         expect(response.status).toBe(400);
@@ -698,8 +748,7 @@ describe("POST /resetpassword", () => {
         const user = await registerUser();
         await requestResetToken(user);
 
-        const response = await request(app)
-            .post("/resetpassword")
+        const response = await post("/resetpassword")
             .send({ email: user.email, token: "aaaaaa" });
 
         expect(response.status).toBe(400);
@@ -710,8 +759,7 @@ describe("POST /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await request(app)
-            .post("/resetpassword")
+        const response = await post("/resetpassword")
             .send({ email: user.email, token });
 
         expect(response.status).toBe(200);
@@ -723,8 +771,7 @@ describe("PATCH /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await request(app)
-            .patch("/resetpassword")
+        const response = await patch("/resetpassword")
             .send({ email: user.email, token, password: "newpass123", passwordRepeat: "other123" });
 
         expect(response.status).toBe(400);
@@ -735,8 +782,7 @@ describe("PATCH /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await request(app)
-            .patch("/resetpassword")
+        const response = await patch("/resetpassword")
             .send({
                 email: user.email,
                 token,
@@ -760,7 +806,7 @@ describe("PATCH /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        await request(app).patch("/resetpassword").send({
+        await patch("/resetpassword").send({
             email: user.email,
             token,
             password: "newpassword123",
@@ -771,8 +817,7 @@ describe("PATCH /resetpassword", () => {
         expect(stored.passwordToken).toBe(token);
 
         // And it can be used a second time.
-        const reuse = await request(app)
-            .patch("/resetpassword")
+        const reuse = await patch("/resetpassword")
             .send({
                 email: user.email,
                 token,
