@@ -6,9 +6,9 @@
     import { playerMovement } from "../stores/stateManagementStore.js";
 
     const socket = createSocket();
-    export let theater;
-    let password = "";
-    let joining = false;
+    let { theater } = $props();
+    let password = $state("");
+    let joining = $state(false);
 
     async function joinTheater() {
         if(joining) return;

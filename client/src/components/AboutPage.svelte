@@ -1,5 +1,7 @@
 <script>
-    export let aboutPageBool;
+    // Two-way: InteractiveSpace passes this with bind:, and back() writes to it
+    // to close the panel. In runes mode that requires $bindable().
+    let { aboutPageBool = $bindable() } = $props();
 
     function back() {
         aboutPageBool = false;

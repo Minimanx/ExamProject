@@ -150,10 +150,16 @@ test("sending a chat message shows it and clears the input", async ({ page }) =>
     await expect(page.locator(".messageInput")).toHaveValue("");
 });
 
-test("the about panel opens", async ({ page }) => {
+test("the about panel opens and closes again", async ({ page }) => {
     await logIn(page);
-    await page.getByRole("button", { name: /about/i }).click();
-    await expect(page.locator(".containerListView")).toContainText(/about|flixdrive|drive/i);
+    await page.getByRole("button", { name: "About" }).click();
+    await expect(page.locator(".containerListView")).toContainText(/passion project|semester/i);
+
+    // Closing is driven by the child writing back through a two-way bound prop,
+    // which is what $bindable() governs in runes mode.
+    await page.getByRole("button", { name: "Back" }).click();
+    await expect(page.locator(".containerListView")).not.toContainText(/passion project/i);
+    await expect(page.getByRole("button", { name: "About" })).toBeVisible();
 });
 
 test("unknown paths fall back to the scene", async ({ page }) => {
