@@ -59,10 +59,18 @@ router.post("/forgotpassword", async (req, res) => {
         return;
     }
 
-    const token = crypto.randomBytes(3).toString("hex");
+    const token = crypto.randomBytes(RESET_TOKEN_BYTES).toString("hex");
     await db.users.updateOne(
         { email: serverUser.email.toLowerCase() },
-        { $set: { passwordToken: token } }
+        {
+            $set: {
+                passwordToken: token,
+                passwordTokenExpiresAt: new Date(Date.now() + RESET_TOKEN_TTL_MS),
+            },
+            // A fresh token starts with a fresh budget, or the attempts spent
+            // against the previous one would carry over and burn it early.
+            $unset: { passwordTokenAttempts: "" },
+        }
     );
 
     void mailer(
@@ -75,7 +83,17 @@ router.post("/forgotpassword", async (req, res) => {
     });
 });
 
-// The reset token and email must be non-empty strings before they reach a
+// Three controls bound a reset token, and each covers a different failure the
+// others cannot. Single-use (S1) bounds the reward for one guess; the TTL
+// bounds how long a leaked or intercepted token is worth anything; the attempt
+// cap bounds how many guesses one issued token will tolerate. Entropy is what
+// makes the search hopeless in the first place: 6 hex characters is 16.7M
+// values, which a distributed attacker exhausts in days. See defect S2.
+const RESET_TOKEN_BYTES = 8;
+const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
+const MAX_RESET_TOKEN_ATTEMPTS = 5;
+
+// The token and email must be non-empty strings before they reach a
 // query filter. This is the load-bearing control, not mongo-sanitize: an
 // absent or null token serializes to BSON null, and `{ passwordToken: null }`
 // matches every document where the field is null or absent — no sanitizer can
@@ -89,6 +107,39 @@ function hasValidResetCredentials(clientUser) {
     );
 }
 
+const clearedResetFields = {
+    passwordToken: "",
+    passwordTokenExpiresAt: "",
+    passwordTokenAttempts: "",
+};
+
+// Returns the user the token belongs to, or null. A wrong guess spends one of
+// the token's five attempts and the fifth burns it, so a token under attack
+// dies rather than waiting to be found. The counter is per account, keyed on
+// email, so guessing at one account cannot burn another's token.
+async function findUserByActiveResetToken(clientUser) {
+    const email = clientUser.email.toLowerCase();
+    const serverUser = await db.users.findOne({
+        email,
+        passwordToken: clientUser.token,
+        passwordTokenExpiresAt: { $gt: new Date() },
+    });
+
+    if (serverUser !== null) {
+        return serverUser;
+    }
+
+    const afterAttempt = await db.users.findOneAndUpdate(
+        { email, passwordToken: { $exists: true } },
+        { $inc: { passwordTokenAttempts: 1 } },
+        { returnDocument: "after" }
+    );
+    if (afterAttempt !== null && afterAttempt.passwordTokenAttempts >= MAX_RESET_TOKEN_ATTEMPTS) {
+        await db.users.updateOne({ email }, { $unset: clearedResetFields });
+    }
+    return null;
+}
+
 router.post("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
@@ -97,10 +148,7 @@ router.post("/resetpassword", async (req, res) => {
         return;
     }
 
-    const serverUser = await db.users.findOne({
-        passwordToken: clientUser.token,
-        email: clientUser.email.toLowerCase(),
-    });
+    const serverUser = await findUserByActiveResetToken(clientUser);
 
     if (serverUser === null) {
         res.status(400).send({ message: "Code is invalid" });
@@ -130,10 +178,7 @@ router.patch("/resetpassword", async (req, res) => {
         return;
     }
 
-    const serverUser = await db.users.findOne({
-        passwordToken: clientUser.token,
-        email: clientUser.email.toLowerCase(),
-    });
+    const serverUser = await findUserByActiveResetToken(clientUser);
 
     if (serverUser === null) {
         res.status(400).send({ message: "Something went wrong, try to start over" });
@@ -143,7 +188,7 @@ router.patch("/resetpassword", async (req, res) => {
     const newPassword = await bcrypt.hash(clientUser.password, 12);
     await db.users.updateOne(
         { email: clientUser.email.toLowerCase(), passwordToken: clientUser.token },
-        { $set: { password: newPassword }, $unset: { passwordToken: "" } }
+        { $set: { password: newPassword }, $unset: clearedResetFields }
     );
     void mailer(
         "Password changed successfully",

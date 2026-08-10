@@ -40,17 +40,139 @@ describe("POST /forgotpassword", () => {
         );
     });
 
-    // DEFECT S2 (roadmap spec §5): loginRouter.js:60 generates only
-    // crypto.randomBytes(3) — 6 hex characters — with no expiry and no
-    // attempt cap. Phase 2 raises the entropy and adds a TTL.
-    it("stores a 6-character hex token with no expiry field", async () => {
+    // DEFECT S2 (roadmap spec §5): the token was crypto.randomBytes(3) — 6 hex
+    // characters, 16.7M values — with no expiry and no attempt cap. Single-use
+    // (S1) bounded one token's life but not the search space: a distributed
+    // attacker with ten thousand IPs exhausts 16.7M in a few days.
+    it("issues a token with enough entropy to survive a distributed search", async () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        expect(token).toMatch(/^[0-9a-f]{6}$/);
+        expect(token).toMatch(/^[0-9a-f]{16}$/);
+    });
+
+    it("issues a different token each time", async () => {
+        const user = await registerUser();
+        const first = await requestResetToken(user);
+        const second = await requestResetToken(user);
+
+        expect(second).not.toBe(first);
+    });
+
+    it("gives the token a 15 minute expiry", async () => {
+        const user = await registerUser();
+        await requestResetToken(user);
 
         const stored = await db.users.findOne({ email: user.email.toLowerCase() });
-        expect(stored.passwordTokenExpiresAt).toBeUndefined();
+        const millisecondsAhead = stored.passwordTokenExpiresAt.getTime() - Date.now();
+
+        expect(millisecondsAhead).toBeGreaterThan(14 * 60 * 1000);
+        expect(millisecondsAhead).toBeLessThanOrEqual(15 * 60 * 1000);
+    });
+
+    it("clears any attempt count left over from an earlier token", async () => {
+        const user = await registerUser();
+        await requestResetToken(user);
+        await db.users.updateOne(
+            { email: user.email.toLowerCase() },
+            { $set: { passwordTokenAttempts: 4 } }
+        );
+
+        await requestResetToken(user);
+
+        const stored = await db.users.findOne({ email: user.email.toLowerCase() });
+        expect(stored.passwordTokenAttempts ?? 0).toBe(0);
+    });
+});
+
+// DEFECT S2 (roadmap spec §5), continued. A token that never expires and can
+// be guessed without limit is a standing invitation; these are the two controls
+// that bound the search, with single-use (S1) bounding the reward.
+describe("reset token lifetime and attempt cap", () => {
+    async function expireToken(user) {
+        await db.users.updateOne(
+            { email: user.email.toLowerCase() },
+            { $set: { passwordTokenExpiresAt: new Date(Date.now() - 1000) } }
+        );
+    }
+
+    it("rejects an expired token on POST", async () => {
+        const user = await registerUser();
+        const token = await requestResetToken(user);
+        await expireToken(user);
+
+        const response = await post("/resetpassword").send({ email: user.email, token });
+
+        expect(response.status).toBe(400);
+    });
+
+    it("rejects an expired token on PATCH, leaving the password untouched", async () => {
+        const user = await registerUser();
+        const token = await requestResetToken(user);
+        await expireToken(user);
+
+        const response = await patch("/resetpassword").send({
+            email: user.email,
+            token,
+            password: "brandnewpassword",
+            passwordRepeat: "brandnewpassword",
+        });
+
+        expect(response.status).toBe(400);
+
+        const stored = await db.users.findOne({ email: user.email.toLowerCase() });
+        expect(await bcrypt.compare("brandnewpassword", stored.password)).toBe(false);
+    });
+
+    it("burns the token after five wrong guesses, so the sixth fails even if correct", async () => {
+        const user = await registerUser();
+        const token = await requestResetToken(user);
+
+        for (let i = 0; i < 5; i++) {
+            const wrong = await post("/resetpassword").send({
+                email: user.email,
+                token: `deadbeefdeadbee${i}`,
+            });
+            expect(wrong.status).toBe(400);
+        }
+
+        const response = await post("/resetpassword").send({ email: user.email, token });
+
+        expect(response.status).toBe(400);
+    });
+
+    it("accepts the correct token on the fifth attempt, one short of the cap", async () => {
+        const user = await registerUser();
+        const token = await requestResetToken(user);
+
+        for (let i = 0; i < 4; i++) {
+            await post("/resetpassword").send({ email: user.email, token: `deadbeefdeadbee${i}` });
+        }
+
+        const response = await post("/resetpassword").send({ email: user.email, token });
+
+        expect(response.status).toBe(200);
+    });
+
+    it("does not let a wrong guess for one account burn another account's token", async () => {
+        const victim = await registerUser();
+        const attacker = await registerUser();
+        const victimToken = await requestResetToken(victim);
+        await requestResetToken(attacker);
+
+        for (let i = 0; i < 5; i++) {
+            await post("/resetpassword").send({
+                email: attacker.email,
+                token: `deadbeefdeadbee${i}`,
+            });
+        }
+
+        const response = await post("/resetpassword").send({
+            email: victim.email,
+            token: victimToken,
+        });
+
+        expect(response.status).toBe(200);
     });
 });
 
