@@ -125,26 +125,34 @@
     });
   }
 
-  let cars = [];
-  let theaters = [];
+  let cars = $state([]);
+  let theaters = $state([]);
+  // keys, keyDown and lastPositionBroadcast are read only by the animation
+  // loop and the key handlers, never by the template, so they stay plain lets
+  // rather than paying for a proxy on a 60fps path.
   let keys = { w: false, s: false, a: false, d: false };
   let keyDown = false;
-  let playerCoords = { x: 60, y: 600 };
+  // Mutated in place by the loop (playerCoords.x = ...). $state makes it a
+  // proxy, so deep mutation stays reactive — do not rewrite it to reassign.
+  let playerCoords = $state({ x: 60, y: 600 });
   const playerSpeed = 250;
   const positionBroadcastInterval = 1000 / 15;
   let lastPositionBroadcast = 0;
-  let insideTheaterBool = false;
-  let currentTheater = null;
-  let playerDirection = false;
-  $: playerName = $user.username || "";
-  let screenScrollAmount = 0;
+  let insideTheaterBool = $state(false);
+  let currentTheater = $state(null);
+  let playerDirection = $state(false);
+  let playerName = $derived($user.username || "");
+  let screenScrollAmount = $state(0);
   // Measured from the scene container rather than assumed, so the scroll maths
   // follow the real viewport width instead of a hard-coded 1000px.
-  let canvasLength = 1000;
-  let createEventBool = false;
-  let aboutPageBool = false;
-  let occupiedSlots = 0;
-  let theatersLoaded = false;
+  let canvasLength = $state(1000);
+  let createEventBool = $state(false);
+  let aboutPageBool = $state(false);
+  // Not read by the template, but highestPosition derives from it — a $derived
+  // only recomputes when its reactive dependencies change, so this must be
+  // $state or the world would never grow past its initial size.
+  let occupiedSlots = $state(0);
+  let theatersLoaded = $state(false);
   // The world is highestPosition * 400px wide and every slot draws its own
   // stretch of beach, road and rocks, so it must span at least the visible
   // scene or the ground runs out and bare water shows through. Derived rather
@@ -152,8 +160,8 @@
   // exists once the scene renders — computing it once during load would read
   // the pre-measurement default. The old floor of 3 (1200px) happened to work
   // only while the scene was always 1000px wide.
-  $: highestPosition = Math.max(3, Math.ceil(canvasLength / 400), occupiedSlots);
-  let currentTime = new Date();
+  let highestPosition = $derived(Math.max(3, Math.ceil(canvasLength / 400), occupiedSlots));
+  let currentTime = $state(new Date());
 
   onMount(() => {
     const socketHandlers = [
