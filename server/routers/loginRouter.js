@@ -64,10 +64,20 @@ router.post("/forgotpassword", async (req, res) => {
     res.status(200).send({ message: "If this email is tied to a user, an email has been sent to it." });
 });
 
+// The reset token and email must be non-empty strings before they reach a
+// query filter. This is the load-bearing control, not mongo-sanitize: an
+// absent or null token serializes to BSON null, and `{ passwordToken: null }`
+// matches every document where the field is null or absent — no sanitizer can
+// prevent that, because null is not an operator. See defect S10.
+function hasValidResetCredentials(clientUser) {
+    return typeof clientUser.token === "string" && clientUser.token.length > 0
+        && typeof clientUser.email === "string" && clientUser.email.length > 0;
+}
+
 router.post("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
-    if(!clientUser.token) {
+    if(!hasValidResetCredentials(clientUser)) {
         res.status(400).send({ message: "Code must be filled"});
         return;
     }
@@ -85,6 +95,10 @@ router.post("/resetpassword", async (req, res) => {
 router.patch("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
+    if(!hasValidResetCredentials(clientUser)) {
+        res.status(400).send({ message: "Code must be filled"});
+        return;
+    }
     if(!clientUser.password || !clientUser.passwordRepeat) {
         res.status(400).send({ message: "All fields must be filled" });
         return;

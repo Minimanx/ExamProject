@@ -186,15 +186,86 @@ describe("defect S9: operator injection through the request body (roadmap spec �
         expect(loginResponse.status).toBe(400);
     });
 
-    it("leaves a legitimate string token working after sanitizing", async () => {
+    it("still lets a legitimate token change the password", async () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await post("/resetpassword").send({
+        const response = await patch("/resetpassword").send({
             email: user.email,
             token,
+            password: "legitimate-new-password",
+            passwordRepeat: "legitimate-new-password",
         });
 
         expect(response.status).toBe(200);
+
+        const login = await request(app)
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: user.email, password: "legitimate-new-password" });
+        expect(login.status).toBe(200);
+    });
+});
+
+// DEFECT S10 (roadmap spec §5): `PATCH /resetpassword` never checked that a
+// token was supplied at all — `POST` did, `PATCH` did not. With `token`
+// absent, `clientUser.token` is `undefined`, the driver serializes it to BSON
+// `null`, and `{ passwordToken: null }` matches every document where the field
+// is null *or absent*. So an attacker knowing only a victim's email could
+// replace their password in one unauthenticated request. No sanitizer can stop
+// this — `null` is not an operator — which is why the control is a type guard,
+// not `mongo-sanitize`.
+describe("defect S10: missing-token password reset (roadmap spec §5, fixed)", () => {
+    it("rejects a password reset with no token at all", async () => {
+        const victim = await registerUser();
+
+        const response = await patch("/resetpassword").send({
+            email: victim.email,
+            password: "attacker-chosen-password",
+            passwordRepeat: "attacker-chosen-password",
+        });
+
+        expect(response.status).toBe(400);
+
+        const login = await request(app)
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: victim.email, password: "attacker-chosen-password" });
+        expect(login.status).toBe(400);
+    });
+
+    it("rejects a null token", async () => {
+        const victim = await registerUser();
+
+        const response = await patch("/resetpassword").send({
+            email: victim.email,
+            token: null,
+            password: "attacker-chosen-password",
+            passwordRepeat: "attacker-chosen-password",
+        });
+
+        expect(response.status).toBe(400);
+    });
+
+    // Correcting S1 removed the leftover passwordToken string that had been
+    // accidentally shielding this population from the null match, so they went
+    // from safe to exploitable. This pins that they are safe for a real reason.
+    it("rejects a missing token against a victim who already completed a reset", async () => {
+        const victim = await registerUser();
+        const token = await requestResetToken(victim);
+        await patch("/resetpassword").send({
+            email: victim.email,
+            token,
+            password: "victims-own-new-password",
+            passwordRepeat: "victims-own-new-password",
+        });
+
+        const response = await patch("/resetpassword").send({
+            email: victim.email,
+            password: "attacker-chosen-password",
+            passwordRepeat: "attacker-chosen-password",
+        });
+
+        expect(response.status).toBe(400);
     });
 });
