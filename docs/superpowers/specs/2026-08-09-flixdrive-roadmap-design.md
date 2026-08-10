@@ -365,7 +365,7 @@ Every item below was read in the source, not inferred.
 
 | # | Location | Issue |
 |---|---|---|
-| S1 | `loginRouter.js:109` | `$unset: { passwordtoken: "" }` — lowercase `t`, but the field is written as `passwordToken` at line 61. **Reset tokens are never invalidated after use.** |
+| S1 | `loginRouter.js:109` | `$unset: { passwordtoken: "" }` — lowercase `t`, but the field is written as `passwordToken` at line 61. **Reset tokens are never invalidated after use.** Combined with S9, the takeover is unauthenticated and token-free: an attacker who knows only a victim's email, and that the victim has ever requested a reset, can pass the MongoDB operator `{ $ne: null }` as `token` instead of the real value and pass both `/resetpassword` checks, with zero knowledge of the actual token. |
 | S2 | `loginRouter.js:60` | Reset token is `crypto.randomBytes(3)` — 6 hex characters, no expiry, no attempt cap. Combined with S1 this is a standing account-takeover path. |
 | S3 | `carSocket.js:5,11` | `carPosition` and `carJoined` trust a client-supplied `id` instead of `socket.id`. Position and identity are spoofable. |
 | S4 | `carSocket.js` (all handlers) | No `session.loggedIn` check. Unauthenticated sockets can join the world and emit. |
@@ -373,6 +373,7 @@ Every item below was read in the source, not inferred.
 | S6 | `app.js` | No `helmet`; no security headers set. |
 | S7 | `chatSocket.js:21` | No server-side message length or rate validation. The client's `maxlength="200"` is the only limit. |
 | S8 | `theaterRouter.js:9` | `GET /theaters` is unauthenticated and returns every theater including `ownerID`. |
+| S9 | `app.js:85` | `sanitizeRequest` is registered before `express.json()` and before routing. `req.body` is `undefined` when it runs, so `sanitize(req.body)` is a no-op; `req.params` is always `{}` at this point in the stack, before routing populates it; and in Express 5, `req.query` is a getter that returns a fresh object on every access, so mutating the returned object changes nothing. All three `sanitize()` calls are therefore dead code, and `mongo-sanitize` is effectively an unused dependency. Verified exploit: see the S1 row above. |
 
 ### Correctness
 
@@ -392,10 +393,11 @@ Every item below was read in the source, not inferred.
 | # | Location | Issue |
 |---|---|---|
 | O1 | `createConnection.js` | No indexes on any collection. Every signup does a full collection scan with a collation query. |
-| O2 | `theaterRouter.js:9` | No `try`/`catch`; an unhandled rejection escapes the route. |
+| O2 | `theaterRouter.js:9` | ~~No `try`/`catch`; an unhandled rejection escapes the route.~~ **Resolved as of this branch.** Express 5 forwards a rejected promise returned from a route handler to the error-handling middleware automatically, and `app.js` now registers one (added for Task 11). `GET /theaters` throwing now produces a JSON 500 instead of an unhandled rejection. No code change was needed in `theaterRouter.js` itself. |
 | O3 | Everywhere | `console.log`/`console.error` only. No structured logging, no correlation IDs. |
 | O4 | `app.js` | No graceful shutdown; no readiness check on Mongo behind `/health`. |
 | O5 | Both packages | No tests, lint, formatter, types or CI. |
+| O6 | `app.js:107` | `app.use(loginLimiter)` is registered ahead of `express.static` (line 120) and the SPA fallback (line 121), and ahead of the `SERVE_CLIENT=false` 404 handler. Every request that falls through theater/movie/user routing to that point consumes the 10-per-15-minutes login bucket — including every static asset and client-side route in `SERVE_CLIENT=true` mode (the client becomes unusable after ten requests), and, live today regardless of `SERVE_CLIENT`, every 404. Ten stray 404s from one NAT'd IP (a bot probing paths, a client typo) lock every user behind that IP out of `/login` for 15 minutes. The static-asset consequence is currently dormant because `DEPLOYMENT.md` sets `SERVE_CLIENT=false`. |
 
 ### Corrected
 
