@@ -82,6 +82,23 @@ describe("PATCH /theaters/:id", () => {
         expect(response.body.message).toBe("Password doesn't match");
     });
 
+    // bcrypt.compare throws on a non-string, so a join that simply omits the
+    // password reached it and turned a malformed request into a 500.
+    it("rejects joining a locked theater with no password at all", async () => {
+        const { agent, userID } = await loggedInUser();
+        const theater = await seedTheater({
+            passwordBool: true,
+            password: await bcrypt.hash("correct-password", 4),
+        });
+
+        const response = await agent
+            .patch(`/theaters/${theater._id}`)
+            .send({ joining: true, userID });
+
+        expect(response.status).toBe(403);
+        expect(response.body.message).toBe("Password doesn't match");
+    });
+
     it("accepts the correct lobby password", async () => {
         const { agent, userID } = await loggedInUser();
         const theater = await seedTheater({

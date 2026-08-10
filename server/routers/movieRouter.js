@@ -1,14 +1,13 @@
 import { Router } from "express";
 import "dotenv/config";
 import { sendError } from "../errors.js";
+import { validateQuery } from "../validate.js";
+import { movieSearchSchema } from "../schemas.js";
 const router = Router();
 
-router.get("/movies", async (req, res) => {
-    const searchTerm = typeof req.query.s === "string" ? req.query.s.trim() : "";
+router.get("/movies", validateQuery(movieSearchSchema), async (req, res) => {
+    const searchTerm = req.validatedQuery.s;
 
-    if (!searchTerm) {
-        return sendError(res, "VALIDATION_FAILED", "A movie title is required");
-    }
     if (!process.env.OMDB_API_KEY) {
         req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
         return sendError(res, "UNAVAILABLE", "Movie search is not configured");

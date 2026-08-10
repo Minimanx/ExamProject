@@ -123,3 +123,37 @@ describe("error envelope", () => {
         expect(response.body.code).toBe("VALIDATION_FAILED");
     });
 });
+
+// Schema libraries produce messages for developers — "Invalid input: expected
+// object, received array". These go straight into a toast, so every node that
+// can raise an issue needs a message written for the person reading it. This
+// asserts the class rather than the instances: a new schema with a forgotten
+// message fails here instead of in front of a user.
+describe("validation messages are written for users", () => {
+    const zodDefaults =
+        /Invalid input|Invalid option|expected \w+, received|Too big|Too small|Required/;
+
+    const malformed = [
+        ["post", "/users", []],
+        ["post", "/users", "a string"],
+        ["post", "/users", { email: 1, username: true, password: [], passwordRepeat: {} }],
+        ["post", "/login", []],
+        ["post", "/login", { email: { $ne: null }, password: 7 }],
+        ["post", "/forgotpassword", { email: [] }],
+        ["post", "/resetpassword", { email: 1, token: 2 }],
+        ["patch", "/resetpassword", { email: "a@b.co", token: "x", password: 5 }],
+        ["post", "/theaters", { data: [] }],
+        ["post", "/theaters", { data: { eventName: 1, amountOfSpaces: "ten" } }],
+        ["patch", "/theaters/000000000000000000000001", { joining: "yes" }],
+    ];
+
+    it.each(malformed)("%s %s with %j", async (method, path, body) => {
+        const response = await request(app)[method](path).send(body);
+
+        expect(response.status).toBeGreaterThanOrEqual(400);
+        expect(response.body.message).not.toMatch(zodDefaults);
+        for (const field of response.body.fields ?? []) {
+            expect(field.message).not.toMatch(zodDefaults);
+        }
+    });
+});

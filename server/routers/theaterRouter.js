@@ -5,6 +5,8 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { liveOccupants } from "../socketios/presence.js";
 import { sendError } from "../errors.js";
+import { validateBody } from "../validate.js";
+import { createTheaterSchema, joinTheaterSchema } from "../schemas.js";
 const router = Router();
 
 /**
@@ -19,6 +21,17 @@ const router = Router();
  * page load, which is a good enough trigger for an app this size and avoids
  * standing up a scheduler. The field is indexed.
  */
+// Every route that needs a session used to open with the same three lines, and
+// the message differed by route, which is why one of them said "Must be logged
+// in" and another "Must be logged in to create a new event".
+const requireSession = (message) => (req, res, next) => {
+    if (!req.session.loggedIn) {
+        sendError(res, "UNAUTHENTICATED", message);
+        return;
+    }
+    next();
+};
+
 /**
  * The lowest slot number no live theater occupies.
  *
@@ -128,160 +141,141 @@ router.get("/theaters/:id", async (req, res) => {
     }
 });
 
-router.post("/theaters", async (req, res) => {
-    if (!req.session.loggedIn) {
-        sendError(res, "UNAUTHENTICATED", "Must be logged in to create a new event");
-        return;
-    }
-    const theater = req.body.data ?? {};
+router.post(
+    "/theaters",
+    requireSession("Must be logged in to create a new event"),
+    validateBody(createTheaterSchema),
+    async (req, res) => {
+        const theater = req.body.data;
 
-    if (!theater.eventName || !theater.startTime || !theater.amountOfSpaces) {
-        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
-        return;
-    }
-    if (theater.passwordBool) {
-        if (theater.password.length < 8 || theater.password.length > 24) {
-            sendError(res, "VALIDATION_FAILED", "Password must be between 8 and 24 characters");
+        let startTime = new Date(theater.startTime);
+        if (startTime.getTime() < new Date().getTime()) {
+            startTime = new Date(startTime.getTime() + 86400000);
+        }
+        if (
+            startTime.getTime() > new Date().getTime() + 86400000 ||
+            startTime.getTime() < new Date().getTime()
+        ) {
+            sendError(res, "VALIDATION_FAILED", "Time must be within 24 hours");
             return;
         }
-    } else {
-        theater.password = "";
-    }
-    if (theater.eventName.length > 18 || theater.eventName.length < 3) {
-        sendError(res, "VALIDATION_FAILED", "Event name must be between 3 and 18 characters");
-        return;
-    }
-    if (!theater.imdbID) {
-        sendError(res, "VALIDATION_FAILED", "Must choose a movie");
-        return;
-    }
-    if (!theater.startTime) {
-        sendError(res, "VALIDATION_FAILED", "Must choose a time");
-        return;
-    }
-    if (theater.amountOfSpaces > 99 || theater.amountOfSpaces < 1) {
-        sendError(res, "VALIDATION_FAILED", "Amount of spaces must be between 1 and 99");
-        return;
-    }
-    let startTime = new Date(theater.startTime);
-    if (startTime.getTime() < new Date().getTime()) {
-        startTime = new Date(startTime.getTime() + 86400000);
-    }
-    if (
-        startTime.getTime() > new Date().getTime() + 86400000 ||
-        startTime.getTime() < new Date().getTime()
-    ) {
-        sendError(res, "VALIDATION_FAILED", "Time must be within 24 hours");
-        return;
-    }
-    await removeExpiredTheaters(req.log);
+        await removeExpiredTheaters(req.log);
 
-    const theaters = await db.theaters.find().toArray();
+        const theaters = await db.theaters.find().toArray();
 
-    const sessionUserId = req.session.userID.toString();
-    if (theaters.some((theater) => theater.ownerID.toString() === sessionUserId)) {
-        sendError(res, "CONFLICT", "You already have an ongoing event");
-        return;
-    }
+        const sessionUserId = req.session.userID.toString();
+        if (theaters.some((theater) => theater.ownerID.toString() === sessionUserId)) {
+            sendError(res, "CONFLICT", "You already have an ongoing event");
+            return;
+        }
 
-    if (!process.env.OMDB_API_KEY) {
-        req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
-        return sendError(res, "UNAVAILABLE", "Movie search is not configured");
-    }
+        if (!process.env.OMDB_API_KEY) {
+            req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
+            return sendError(res, "UNAVAILABLE", "Movie search is not configured");
+        }
 
-    const movieApiUrl = new URL("https://www.omdbapi.com/");
-    movieApiUrl.searchParams.set("apikey", process.env.OMDB_API_KEY);
-    movieApiUrl.searchParams.set("r", "json");
-    movieApiUrl.searchParams.set("i", theater.imdbID);
+        const movieApiUrl = new URL("https://www.omdbapi.com/");
+        movieApiUrl.searchParams.set("apikey", process.env.OMDB_API_KEY);
+        movieApiUrl.searchParams.set("r", "json");
+        movieApiUrl.searchParams.set("i", theater.imdbID);
 
-    let response;
-    let result;
-
-    try {
-        response = await fetch(movieApiUrl, {
-            signal: AbortSignal.timeout(10000),
-        });
-        result = await response.json();
-    } catch (error) {
-        req.log.error(
-            { name: error.name, code: error.code || error.cause?.code },
-            "Movie API request failed"
-        );
-        return sendError(res, "UPSTREAM_UNAVAILABLE", "Movie details are temporarily unavailable");
-    }
-
-    if (!response.ok) {
-        req.log.error(
-            { status: response.status, reason: result.Error || `HTTP ${response.status}` },
-            "Movie API request failed"
-        );
-        return sendError(res, "UPSTREAM_UNAVAILABLE", "Movie details are temporarily unavailable");
-    }
-
-    if (result.Response === "False") {
-        sendError(res, "VALIDATION_FAILED", result.Error);
-        return;
-    }
-
-    const movieRuntime = Number(result.Runtime.split(" ")[0]);
-
-    // Built field by field rather than from req.body.data. The old code
-    // stored the request body itself and overwrote the fields it cared
-    // about, so anything the client invented — a slot, an imdbRating, an
-    // _id — was persisted verbatim wherever the handler happened not to
-    // write over it. See defect C3.
-    const document = {
-        eventName: theater.eventName,
-        startTime,
-        amountOfSpaces: theater.amountOfSpaces,
-        imdbID: theater.imdbID,
-        passwordBool: Boolean(theater.passwordBool),
-        password: theater.passwordBool ? await bcrypt.hash(theater.password, 12) : "",
-        ownerID: sessionUserId,
-        usersInsideTheater: [],
-        movieName: result.Title,
-        // Spread rather than set to undefined: the driver stores undefined
-        // as null, and the field was previously absent for short titles.
-        ...(result.Title.length > 18 && {
-            movieNameCutToFit: `${result.Title.slice(0, 17)}...`,
-        }),
-        movieReleaseYear: result.Year,
-        movieRuntime: movieRuntime,
-        imdbRating: result.imdbRating,
-        hrefPoster: result.Poster,
-        moviePlot: result.Plot,
-        movieGenres: result.Genre,
-        timeToClose: new Date(startTime.getTime() + movieRuntime * 60000 + 900000),
-    };
-
-    // Both uniqueness rules — one live event per owner, one theater per slot —
-    // are now enforced by unique indexes, because two overlapping requests read
-    // the same list and reach the same conclusion. The owner conflict is final;
-    // a slot conflict just means someone else took the gap first, so recompute
-    // and try the next one. See defect C4.
-    for (let attempt = 0; attempt < MAX_SLOT_ATTEMPTS; attempt++) {
-        const occupied = await db.theaters.find({}, { projection: { position: 1 } }).toArray();
+        let response;
+        let result;
 
         try {
-            await db.theaters.insertOne({ ...document, position: firstFreeSlot(occupied) });
-            res.status(200).send({ message: "Event Created" });
-            return;
+            response = await fetch(movieApiUrl, {
+                signal: AbortSignal.timeout(10000),
+            });
+            result = await response.json();
         } catch (error) {
-            if (error.code !== DUPLICATE_KEY) {
-                throw error;
-            }
-            if (error.keyPattern?.ownerID) {
-                sendError(res, "CONFLICT", "You already have an ongoing event");
+            req.log.error(
+                { name: error.name, code: error.code || error.cause?.code },
+                "Movie API request failed"
+            );
+            return sendError(
+                res,
+                "UPSTREAM_UNAVAILABLE",
+                "Movie details are temporarily unavailable"
+            );
+        }
+
+        if (!response.ok) {
+            req.log.error(
+                { status: response.status, reason: result.Error || `HTTP ${response.status}` },
+                "Movie API request failed"
+            );
+            return sendError(
+                res,
+                "UPSTREAM_UNAVAILABLE",
+                "Movie details are temporarily unavailable"
+            );
+        }
+
+        if (result.Response === "False") {
+            sendError(res, "VALIDATION_FAILED", result.Error);
+            return;
+        }
+
+        const movieRuntime = Number(result.Runtime.split(" ")[0]);
+
+        // Built field by field rather than from req.body.data. The old code
+        // stored the request body itself and overwrote the fields it cared
+        // about, so anything the client invented — a slot, an imdbRating, an
+        // _id — was persisted verbatim wherever the handler happened not to
+        // write over it. See defect C3.
+        const document = {
+            eventName: theater.eventName,
+            startTime,
+            amountOfSpaces: theater.amountOfSpaces,
+            imdbID: theater.imdbID,
+            passwordBool: Boolean(theater.passwordBool),
+            password: theater.passwordBool ? await bcrypt.hash(theater.password, 12) : "",
+            ownerID: sessionUserId,
+            usersInsideTheater: [],
+            movieName: result.Title,
+            // Spread rather than set to undefined: the driver stores undefined
+            // as null, and the field was previously absent for short titles.
+            ...(result.Title.length > 18 && {
+                movieNameCutToFit: `${result.Title.slice(0, 17)}...`,
+            }),
+            movieReleaseYear: result.Year,
+            movieRuntime: movieRuntime,
+            imdbRating: result.imdbRating,
+            hrefPoster: result.Poster,
+            moviePlot: result.Plot,
+            movieGenres: result.Genre,
+            timeToClose: new Date(startTime.getTime() + movieRuntime * 60000 + 900000),
+        };
+
+        // Both uniqueness rules — one live event per owner, one theater per slot —
+        // are now enforced by unique indexes, because two overlapping requests read
+        // the same list and reach the same conclusion. The owner conflict is final;
+        // a slot conflict just means someone else took the gap first, so recompute
+        // and try the next one. See defect C4.
+        for (let attempt = 0; attempt < MAX_SLOT_ATTEMPTS; attempt++) {
+            const occupied = await db.theaters.find({}, { projection: { position: 1 } }).toArray();
+
+            try {
+                await db.theaters.insertOne({ ...document, position: firstFreeSlot(occupied) });
+                res.status(200).send({ message: "Event Created" });
                 return;
+            } catch (error) {
+                if (error.code !== DUPLICATE_KEY) {
+                    throw error;
+                }
+                if (error.keyPattern?.ownerID) {
+                    sendError(res, "CONFLICT", "You already have an ongoing event");
+                    return;
+                }
             }
         }
+
+        req.log.error({ attempts: MAX_SLOT_ATTEMPTS }, "Gave up allocating a theater slot");
+        sendError(res, "UNAVAILABLE", "The strip is busy right now, try again");
     }
+);
 
-    req.log.error({ attempts: MAX_SLOT_ATTEMPTS }, "Gave up allocating a theater slot");
-    sendError(res, "UNAVAILABLE", "The strip is busy right now, try again");
-});
-
-router.patch("/theaters/:id", async (req, res) => {
+router.patch("/theaters/:id", validateBody(joinTheaterSchema), async (req, res) => {
     const id = req.params.id;
     const clientUser = req.body;
     let theater;
@@ -313,6 +307,12 @@ router.patch("/theaters/:id", async (req, res) => {
             return;
         }
         if (theater.passwordBool) {
+            // bcrypt.compare throws on a non-string, so a join that omits the
+            // password entirely turned a malformed request into a 500.
+            if (typeof clientUser.password !== "string") {
+                sendError(res, "FORBIDDEN", "Password doesn't match");
+                return;
+            }
             if (!(await bcrypt.compare(clientUser.password, theater.password))) {
                 sendError(res, "FORBIDDEN", "Password doesn't match");
                 return;

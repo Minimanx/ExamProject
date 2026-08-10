@@ -4,6 +4,13 @@ import db from "../database/createConnection.js";
 import mailer from "../mailer/mailer.js";
 import crypto from "crypto";
 import { sendError } from "../errors.js";
+import { validateBody } from "../validate.js";
+import {
+    loginSchema,
+    forgotPasswordSchema,
+    checkResetTokenSchema,
+    resetPasswordSchema,
+} from "../schemas.js";
 const router = Router();
 
 router.get("/logout", (req, res) => {
@@ -11,13 +18,8 @@ router.get("/logout", (req, res) => {
     res.status(200).send({ message: "Successfully logged out" });
 });
 
-router.post("/login", async (req, res) => {
+router.post("/login", validateBody(loginSchema), async (req, res) => {
     const clientUser = req.body;
-
-    if (!clientUser.email || !clientUser.password) {
-        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
-        return;
-    }
 
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
@@ -39,17 +41,8 @@ router.post("/login", async (req, res) => {
     }
 });
 
-router.post("/forgotpassword", async (req, res) => {
+router.post("/forgotpassword", validateBody(forgotPasswordSchema), async (req, res) => {
     const clientUser = req.body;
-
-    if (!clientUser.email) {
-        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
-        return;
-    }
-    if (!/\S+@\S+\.\S+/.test(clientUser.email)) {
-        sendError(res, "VALIDATION_FAILED", "Email must be valid");
-        return;
-    }
 
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
@@ -94,20 +87,6 @@ const RESET_TOKEN_BYTES = 8;
 const RESET_TOKEN_TTL_MS = 15 * 60 * 1000;
 const MAX_RESET_TOKEN_ATTEMPTS = 5;
 
-// The token and email must be non-empty strings before they reach a
-// query filter. This is the load-bearing control, not mongo-sanitize: an
-// absent or null token serializes to BSON null, and `{ passwordToken: null }`
-// matches every document where the field is null or absent — no sanitizer can
-// prevent that, because null is not an operator. See defect S10.
-function hasValidResetCredentials(clientUser) {
-    return (
-        typeof clientUser.token === "string" &&
-        clientUser.token.length > 0 &&
-        typeof clientUser.email === "string" &&
-        clientUser.email.length > 0
-    );
-}
-
 const clearedResetFields = {
     passwordToken: "",
     passwordTokenExpiresAt: "",
@@ -141,13 +120,8 @@ async function findUserByActiveResetToken(clientUser) {
     return null;
 }
 
-router.post("/resetpassword", async (req, res) => {
+router.post("/resetpassword", validateBody(checkResetTokenSchema), async (req, res) => {
     const clientUser = req.body;
-
-    if (!hasValidResetCredentials(clientUser)) {
-        sendError(res, "VALIDATION_FAILED", "Code must be filled");
-        return;
-    }
 
     const serverUser = await findUserByActiveResetToken(clientUser);
 
@@ -159,25 +133,8 @@ router.post("/resetpassword", async (req, res) => {
     res.status(200).send({});
 });
 
-router.patch("/resetpassword", async (req, res) => {
+router.patch("/resetpassword", validateBody(resetPasswordSchema), async (req, res) => {
     const clientUser = req.body;
-
-    if (!hasValidResetCredentials(clientUser)) {
-        sendError(res, "VALIDATION_FAILED", "Code must be filled");
-        return;
-    }
-    if (!clientUser.password || !clientUser.passwordRepeat) {
-        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
-        return;
-    }
-    if (clientUser.password !== clientUser.passwordRepeat) {
-        sendError(res, "VALIDATION_FAILED", "Passwords must match");
-        return;
-    }
-    if (clientUser.password.length < 8) {
-        sendError(res, "VALIDATION_FAILED", "Password is too short");
-        return;
-    }
 
     const serverUser = await findUserByActiveResetToken(clientUser);
 

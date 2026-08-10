@@ -222,8 +222,16 @@ pass; no dependency in either `package.json` is a major version behind.
 
 **Code smells:**
 
-- Replace the ad-hoc `if`-chain validation with schema validation at the edges (`zod`).
-  This also gives agents a spec to code against.
+- ~~Replace the ad-hoc `if`-chain validation with schema validation at the edges (`zod`).~~
+  **DONE 2026-08-10.** Every route body and the movie query now parse through a schema in
+  `schemas.js` before the handler runs, and `req.body` is replaced by the parsed value — so a
+  handler cannot read a key the schema did not declare, which is the other half of C3. Messages
+  are written out rather than left to zod, because the UI shows them verbatim; a test asserts no
+  zod default ("Invalid input: expected object, received array") can reach a response, which is
+  the class rather than the instances. The conversion found two things: `"Must choose a time"`
+  was unreachable, because the combined presence check answered first, and joining a
+  password-protected theater with no `password` field at all reached `bcrypt.compare`, which
+  throws on a non-string — a malformed request was a 500.
 - Introduce a domain layer (theater service, user service) between routers and Mongo, and
   make it the single owner of `usersInsideTheater`.
 - Rewrite date handling: store UTC, render in the viewer's locale, delete the hardcoded
