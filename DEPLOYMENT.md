@@ -227,17 +227,17 @@ The body should begin with `0{` and the headers should allow
    Rollup/Svelte application correctly.
 5. The committed `client/vercel.json` supplies:
    - Build command: `npm run build`
-   - Output directory: `public`
+   - Output directory: `build`
    - SPA fallback: every client-side route loads `index.html`
 6. Add this Production environment variable:
 
 ```dotenv
-API_URL=https://flixdrive-api.minimanx.dev
+PUBLIC_API_URL=https://flixdrive-api.minimanx.dev
 ```
 
 7. Deploy the project.
 
-The `API_URL` value is embedded into the browser bundle at build time. Always
+The `PUBLIC_API_URL` value is embedded into the browser bundle at build time. Always
 redeploy the Vercel project after changing it.
 
 ## 7. Assign the frontend domain
@@ -297,7 +297,7 @@ restored into the Coolify MongoDB resource.
 - A push to `main` rebuilds the Vercel frontend and Coolify backend when auto
   deploy is enabled.
 - Backend redeployments do not recreate the MongoDB resource or its volume.
-- Changes to `API_URL` require a new Vercel deployment.
+- Changes to `PUBLIC_API_URL` require a new Vercel deployment.
 - Changes to backend environment variables require a Coolify redeploy.
 - Keep MongoDB private; there is no normal reason to expose port `27017`.
 

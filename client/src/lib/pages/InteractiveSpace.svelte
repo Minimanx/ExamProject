@@ -8,7 +8,7 @@
   import CreateEventScreen from "../components/CreateEventScreen.svelte";
   import { playerMovement } from "../stores/stateManagementStore.js";
   import AboutPage from "../components/AboutPage.svelte";
-  import { location } from "../lib/router.js";
+  import { page } from "$app/state";
   import { Pulse } from "svelte-loading-spinners";
   import Skyline from "../art/Skyline.svelte";
   import StreetSign from "../art/StreetSign.svelte";
@@ -185,8 +185,8 @@
 
       $playerMovement = true;
       $user.insideTheater = false;
-      if ($location.search.split("=")[0] === "?position") {
-        const queryPosition = Number($location.search.split("=")[1]);
+      if (page.url.searchParams.has("position")) {
+        const queryPosition = Number(page.url.searchParams.get("position"));
         teleportToTheater(queryPosition >= highestPosition ? highestPosition - 1 : queryPosition);
       }
     }

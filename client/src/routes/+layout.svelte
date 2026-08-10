@@ -1,10 +1,8 @@
 <script>
 	import { onMount } from "svelte";
-	import { route } from "./lib/router.js";
-	import InteractiveSpace from "./pages/InteractiveSpace.svelte";
 	import { SvelteToast } from "@zerodevx/svelte-toast";
-	import InsideTheater from "./pages/InsideTheater.svelte";
-	import { user } from "./stores/userStore.js";
+
+	let { children } = $props();
 
 	const stageWidth = 1500;
 	const stageHeight = 800;
@@ -58,11 +56,7 @@
 <main
 	style="--stage-scale: {stageLayout.scale}; --stage-height: {stageLayout.height}px; --stage-width: {stageLayout.width}px; --scene-offset: {stageLayout.sceneOffset}px;"
 >
-	{#if $route.name === "theater" && $user.loggedIn === true}
-		<InsideTheater id={$route.params.id} />
-	{:else}
-		<InteractiveSpace />
-	{/if}
+	{@render children()}
 </main>
 
 <style>

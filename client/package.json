@@ -6,28 +6,23 @@
     "node": "24.x"
   },
   "scripts": {
-    "build": "rollup -c",
-    "dev": "rollup -c -w",
-    "start": "sirv public --no-clear --single",
-    "heroku-postbuild": "npm run build",
-    "test:e2e": "API_URL=http://localhost:5055 npm run build && playwright test"
+    "dev": "vite dev",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@playwright/test": "^1.62.1",
-    "@rollup/plugin-commonjs": "^17.0.0",
-    "@rollup/plugin-node-resolve": "^16.0.3",
-    "@rollup/plugin-replace": "^6.0.3",
-    "@rollup/plugin-terser": "^1.0.0",
-    "rollup": "^2.3.4",
-    "rollup-plugin-css-only": "^3.1.0",
-    "rollup-plugin-livereload": "^2.0.0",
-    "rollup-plugin-svelte": "^7.2.3",
+    "@sveltejs/adapter-static": "^3.0.10",
+    "@sveltejs/kit": "^2.70.2",
+    "@sveltejs/vite-plugin-svelte": "^7.3.0",
     "svelte": "^5.56.8",
-    "svelte-loading-spinners": "^0.3.6"
+    "svelte-loading-spinners": "^0.3.6",
+    "vite": "^8.2.1"
   },
   "dependencies": {
     "@zerodevx/svelte-toast": "^0.9.6",
-    "sirv-cli": "^2.0.0",
     "socket.io-client": "^4.8.3"
-  }
+  },
+  "type": "module"
 }

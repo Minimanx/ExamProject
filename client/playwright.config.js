@@ -26,13 +26,10 @@ export default defineConfig({
             timeout: 120000,
         },
         {
-            // Serving only. The build happens in the `test:e2e` script, NOT
-            // here: reuseExistingServer skips this command when a server is
-            // already running, so a build placed here is silently skipped and
-            // the suite tests a stale bundle.
-            // --dev disables sirv's caching; without it a half-written bundle
-            // gets served and presents as "Unexpected end of input".
-            command: `npx sirv public --single --dev --port ${CLIENT_PORT}`,
+            // Build then preview. `vite preview` serves the adapter-static
+            // output with the SPA fallback, replacing sirv.
+            command: `npm run build && npm run preview -- --port ${CLIENT_PORT} --strictPort`,
+            env: { PUBLIC_API_URL: `http://localhost:${API_PORT}` },
             url: `http://localhost:${CLIENT_PORT}`,
             reuseExistingServer: !process.env.CI,
             timeout: 120000,

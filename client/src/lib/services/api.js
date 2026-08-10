@@ -1,9 +1,11 @@
 import io from "socket.io-client";
 
-const configuredApiUrl = process.env.API_URL;
+import { PUBLIC_API_URL } from "$env/static/public";
+
+const configuredApiUrl = PUBLIC_API_URL;
 let sharedSocket;
 
-export const apiUrl = configuredApiUrl.replace(/\/$/, "");
+export const apiUrl = (configuredApiUrl || "").replace(/\/$/, "");
 
 export function apiFetch(path, options = {}) {
     return fetch(`${apiUrl}${path}`, {

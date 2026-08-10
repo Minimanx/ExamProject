@@ -139,13 +139,22 @@ nobody can review at 5–10 h/week.
 | 0.3 | ✅ Extracted inline SVG art into components; 1,086 → 570 lines |
 | 0.4 | ✅ Replaced svelte-navigator with a ~40-line in-repo router; bumped toast and spinners |
 | 0.5 | ✅ Svelte 3 → 5 runes on Rollup. Also added the client's first automated tests — 21 Playwright e2e specs — because the migration breaks reactivity silently |
-| 0.6 | Rollup → SvelteKit, which brings Vite 8 and `adapter-vercel`; the in-repo router is deleted |
+| 0.6 | ✅ Rollup → SvelteKit, bringing Vite 8. Uses `adapter-static` rather than `adapter-vercel` — see below |
 
 Step 0.3 sits before the runes migration deliberately: `InteractiveSpace.svelte` is 1,086
 lines, of which the inline SVG is 62% by bytes but only 44% by lines. Extracting it first
 took the file to 570 lines (measured, not estimated — the CSS moved too), so 0.5 migrates small files instead of one enormous one. Step 0.4's in-repo
 router is ~40 lines of deliberate waste that buys the ability to land the runes migration
 and the SvelteKit adoption as two separately reviewable changes.
+
+**`adapter-static`, not `adapter-vercel`.** The roadmap named `adapter-vercel` so that
+SvelteKit's SSR could serve future marketing and club pages. That reasoning still holds,
+but no route can server-render today: both pages call `createSocket()` at component-init
+scope and `userStore` reads `localStorage` at module scope, so `ssr = false` is set
+app-wide. `adapter-vercel` would deploy serverless functions rendering nothing on the
+server — strictly worse than the static hosting already in place. `adapter-static` with a
+SPA fallback reproduces the current deployment exactly, and swapping adapters is a
+one-line change the day a route genuinely wants SSR (Phase 5's club pages).
 
 **The standalone Rollup → Vite step was dropped** once the compatibility matrix was
 checked: `@sveltejs/vite-plugin-svelte@7` requires Svelte 5, and the newest plugin

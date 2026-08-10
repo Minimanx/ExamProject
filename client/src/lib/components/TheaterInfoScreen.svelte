@@ -1,5 +1,5 @@
 <script>
-    import { navigate } from "../lib/router.js";
+    import { goto } from "$app/navigation";
     import { apiFetch, createSocket } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { error, success } from "./toasts/toastThemes.js";
@@ -47,7 +47,7 @@
             success(result.message || "Successfully joined lobby");
             socket.emit("joinedTheater");
             $user.insideTheater = true;
-            navigate("/theaters/" + theater._id);
+            goto("/theaters/" + theater._id);
         } catch (requestError) {
             error("Unable to reach the server");
         } finally {
