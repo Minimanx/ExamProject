@@ -76,15 +76,24 @@ const loginLimiter = rateLimit({
 });
 app.use(baseLimiter);
 
+app.use(express.json())
+
+// Strips $-prefixed keys so a Mongo operator cannot be smuggled into a query.
+// Ordering is load-bearing: this MUST run after express.json(). Registered
+// before it, req.body is still undefined and the call silently does nothing —
+// that was defect S9, an unauthenticated account takeover via
+// `token: {"$ne": null}` on /resetpassword.
+//
+// Only the body needs sanitizing. req.params values are always strings, and
+// req.query cannot hold nested objects under the "simple" parser asserted
+// below — it is also a getter returning a fresh object per access, so
+// mutating it in place would be a no-op anyway.
+app.set("query parser", "simple");
 function sanitizeRequest(req, res, next) {
     sanitize(req.body);
-    sanitize(req.query);
-    sanitize(req.params);
     next();
 }
 app.use(sanitizeRequest)
-
-app.use(express.json())
 
 app.get("/health", (req, res) => {
     res.status(200).send({ status: "ok" });

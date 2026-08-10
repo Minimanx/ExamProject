@@ -106,7 +106,7 @@ router.patch("/resetpassword", async (req, res) => {
     }
 
     const newPassword = await bcrypt.hash(clientUser.password, 12);
-    await db.users.updateOne({ email: clientUser.email.toLowerCase(), passwordToken: clientUser.token }, { $set: { password: newPassword }, $unset: { passwordtoken: "" }});
+    await db.users.updateOne({ email: clientUser.email.toLowerCase(), passwordToken: clientUser.token }, { $set: { password: newPassword }, $unset: { passwordToken: "" }});
     void mailer("Password changed successfully", `<h2>Your password has been changed!</h2>`, clientUser.email);
     res.status(200).send({ message: "Password changed successfully" });
 });
