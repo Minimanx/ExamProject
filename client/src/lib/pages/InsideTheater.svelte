@@ -4,6 +4,7 @@
     import { user } from "../stores/userStore.js";
     import { error, success } from "../components/toasts/toastThemes.js";
     import { Pulse } from "svelte-loading-spinners";
+    import { formatDuration } from "../services/duration.js";
 
     const socket = createSocket();
 
@@ -14,10 +15,6 @@
     // bind:this targets must be state in runes mode.
     let sendMessageButton = $state();
     let scrollContainer = $state();
-    let timeLeftInMovie = $state();
-    let hoursLeft = $state();
-    let minutesLeft = $state();
-    let secondsLeft = $state();
     let currentTime = $state(new Date());
     // Animation-frame handle only, never read in the template.
     let scrollFrameId;
@@ -35,13 +32,18 @@
         if (!theater) return;
 
         currentTime = new Date();
-        timeLeftInMovie = new Date(
-            currentTime.getTime() - 3600000 - new Date(theater.startTime).getTime()
-        );
-        hoursLeft = timeLeftInMovie.getHours();
-        minutesLeft = timeLeftInMovie.getMinutes();
-        secondsLeft = timeLeftInMovie.getSeconds();
     }
+
+    // Each countdown is the gap between now and one of the theater's two
+    // timestamps. They were spelled out inline, three times, as a Date built
+    // from a duration and read through local-time accessors — see defect C2 and
+    // services/duration.js.
+    const startsAt = $derived(theater ? new Date(theater.startTime).getTime() : 0);
+    const closesAt = $derived(theater ? new Date(theater.timeToClose).getTime() : 0);
+    const endsAt = $derived(closesAt - 900000);
+    const untilStart = $derived(formatDuration(startsAt - currentTime.getTime()));
+    const sinceStart = $derived(formatDuration(currentTime.getTime() - startsAt));
+    const untilClose = $derived(formatDuration(closesAt - currentTime.getTime()));
 
     onMount(() => {
         let active = true;
@@ -104,79 +106,15 @@
     {#if theater}
         <div class="movieInfoContainer">
             <div class="timeOfMovie">
-                {#if currentTime.getTime() < new Date(theater.startTime).getTime()}
+                {#if currentTime.getTime() < startsAt}
                     <h1>Starts in:</h1>
-                    <h1>
-                        {(new Date(
-                            new Date(theater.startTime).getTime() - 3600000 - currentTime.getTime()
-                        ).getHours() < 10
-                            ? "0"
-                            : "") +
-                            String(
-                                new Date(
-                                    new Date(theater.startTime).getTime() -
-                                        3600000 -
-                                        currentTime.getTime()
-                                ).getHours()
-                            )}:{(new Date(
-                            new Date(theater.startTime).getTime() - currentTime.getTime()
-                        ).getMinutes() < 10
-                            ? "0"
-                            : "") +
-                            new Date(
-                                new Date(theater.startTime).getTime() - currentTime.getTime()
-                            ).getMinutes()}:{(new Date(
-                            new Date(theater.startTime).getTime() - currentTime.getTime()
-                        ).getSeconds() < 10
-                            ? "0"
-                            : "") +
-                            new Date(
-                                new Date(theater.startTime).getTime() - currentTime.getTime()
-                            ).getSeconds()}
-                    </h1>
-                {:else if currentTime.getTime() > new Date(theater.startTime).getTime() && currentTime.getTime() < new Date(theater.timeToClose).getTime() - 900000}
+                    <h1>{untilStart}</h1>
+                {:else if currentTime.getTime() < endsAt}
                     <h1>Ongoing:</h1>
-                    <h1>
-                        {hoursLeft < 10 ? "0" + hoursLeft : hoursLeft}:{minutesLeft < 10
-                            ? "0" + minutesLeft
-                            : minutesLeft}:{secondsLeft < 10 ? "0" + secondsLeft : secondsLeft}
-                    </h1>
-                {:else if currentTime.getTime() > new Date(theater.timeToClose).getTime() - 900000 && currentTime.getTime() < new Date(theater.timeToClose).getTime()}
+                    <h1>{sinceStart}</h1>
+                {:else if currentTime.getTime() < closesAt}
                     <h1>Closing in:</h1>
-                    <h1>
-                        {(new Date(
-                            new Date(theater.timeToClose).getTime() -
-                                3600000 -
-                                new Date(currentTime)
-                        ).getHours() < 10
-                            ? "0"
-                            : "") +
-                            String(
-                                new Date(
-                                    new Date(theater.timeToClose).getTime() -
-                                        3600000 -
-                                        new Date(currentTime)
-                                ).getHours()
-                            )}:{(new Date(
-                            new Date(theater.timeToClose).getTime() - new Date(currentTime)
-                        ).getMinutes() < 10
-                            ? "0"
-                            : "") +
-                            String(
-                                new Date(
-                                    new Date(theater.timeToClose).getTime() - new Date(currentTime)
-                                ).getMinutes()
-                            )}:{(new Date(
-                            new Date(theater.timeToClose).getTime() - new Date(currentTime)
-                        ).getSeconds() < 10
-                            ? "0"
-                            : "") +
-                            String(
-                                new Date(
-                                    new Date(theater.timeToClose).getTime() - new Date(currentTime)
-                                ).getSeconds()
-                            )}
-                    </h1>
+                    <h1>{untilClose}</h1>
                 {:else}
                     <h1>Closed</h1>
                 {/if}

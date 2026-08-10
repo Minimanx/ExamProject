@@ -1,3 +1,12 @@
+<script>
+    // Picked once per mount rather than inline in the markup. Under Svelte 3
+    // the whole update block re-ran and the marquee changed colour on every
+    // reactive update; runes only re-evaluate expressions that read reactive
+    // state, so the inline version stopped flickering by accident. This makes
+    // it deliberate. See defect C7.
+    const neonColor = "neoncolor" + Math.floor(Math.random() * 5);
+</script>
+
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 150 223" shape-rendering="crispEdges">
     <path
         stroke="#331b02"
@@ -70,7 +79,5 @@
         d="M81 213h3M99 213h2M83 214h2M135 214h1M146 214h2M94 215h2M118 215h3M131 215h5M147 215h2M6 216h1M8 216h5M36 216h4M69 216h1M92 216h3M115 216h4M142 216h2M2 217h5M28 217h1M39 217h2M53 217h3M66 217h3M25 218h3M55 218h2M63 218h1M48 219h1M82 219h1M97 219h2M48 220h1M82 220h1M97 220h1M116 220h1M130 220h1M0 221h1M36 221h1M48 221h2M67 221h1M97 221h1M114 221h1M116 221h2M130 221h1M145 221h1M0 222h11M23 222h14M49 222h7M67 222h15M85 222h13M107 222h8M117 222h11M130 222h16M147 222h3"
     />
     <path stroke="#615c58" d="M23 219h1" />
-    <text class="movieTitle {'neoncolor' + Math.floor(Math.random() * 5)}" y="78" x="52%"
-        >Empty</text
-    >
+    <text class="movieTitle {neonColor}" y="78" x="52%">Empty</text>
 </svg>

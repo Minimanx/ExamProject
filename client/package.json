@@ -9,6 +9,7 @@
         "dev": "vite dev",
         "build": "vite build",
         "preview": "vite preview",
+        "test:unit": "vitest run",
         "test:e2e": "playwright test",
         "lint": "eslint .",
         "format": "prettier --write .",
@@ -28,7 +29,8 @@
         "prettier-plugin-svelte": "^4.1.1",
         "svelte": "^5.56.8",
         "svelte-loading-spinners": "^0.3.6",
-        "vite": "^8.2.1"
+        "vite": "^8.2.1",
+        "vitest": "^4.1.10"
     },
     "dependencies": {
         "@zerodevx/svelte-toast": "^0.9.6",

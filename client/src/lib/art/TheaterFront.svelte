@@ -1,5 +1,12 @@
 <script>
     let { theater, currentTime } = $props();
+
+    // Picked once per mount rather than inline in the markup. Under Svelte 3
+    // the whole update block re-ran and the marquee changed colour on every
+    // reactive update; runes only re-evaluate expressions that read reactive
+    // state, so the inline version stopped flickering by accident. This makes
+    // it deliberate. See defect C7.
+    const neonColor = "neoncolor" + Math.floor(Math.random() * 5);
 </script>
 
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -0.5 150 223" shape-rendering="crispEdges">
@@ -103,7 +110,7 @@
     <text class="eventInfo" y="64" x="67%"
         >{theater.passwordBool ? "Private Event" : "Public Event"}</text
     >
-    <text class="movieTitle {'neoncolor' + Math.floor(Math.random() * 5)}" y="78" x="52%"
+    <text class="movieTitle {neonColor}" y="78" x="52%"
         >{theater.movieNameCutToFit || theater.movieName}</text
     >
     <image href={theater.hrefPoster} height="68" y="0.5" x="10%" />

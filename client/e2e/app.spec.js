@@ -351,6 +351,26 @@ test("a theater URL falls back to the scene when logged out", async ({ page }) =
 // The player's own direction is explicitly `false` at rest, and `false` means
 // "facing right", which mirrors the left-facing base art. So the two cars are
 // expected to differ at rest, and that asymmetry is exactly what the bug erased.
+// DEFECT C7 (roadmap spec §5): the neon colour class was computed with
+// `Math.floor(Math.random() * 5)` inline in the markup. In runes mode that
+// expression belongs to the template, so it is re-evaluated on every reactive
+// update — and TheaterFront takes `currentTime`, which ticks once a second.
+// The marquee changed colour every second on every theater on the strip.
+test("a theater's neon marquee colour holds still", async ({ page }) => {
+    await logIn(page);
+
+    const marquee = page.locator(".movieTitle").first();
+    await expect(marquee).toBeVisible();
+    // Must be a real theater, not an empty lot: only TheaterFront takes the
+    // ticking `currentTime` prop, so only it can re-render on the interval.
+    expect(await marquee.textContent()).not.toBe("Empty");
+
+    const first = await marquee.getAttribute("class");
+    await page.waitForTimeout(2500);
+
+    expect(await marquee.getAttribute("class")).toBe(first);
+});
+
 test("the player car is mirrored at rest, matching playerDirection === false", async ({ page }) => {
     await logIn(page);
     const transform = await page.locator(".playerCar svg").first().getAttribute("transform");

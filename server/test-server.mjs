@@ -56,7 +56,10 @@ await db.theaters.insertMany(
         timeToClose: new Date(now + 10800000),
         amountOfSpaces: 10,
         position: i,
-        ownerID: "000000000000000000000001",
+        // Distinct: theaters.ownerID carries a unique index — one live event
+        // per owner — so a shared value silently fails the index build and the
+        // fixture runs without the guarantee it is meant to exercise.
+        ownerID: `${i + 1}`.padStart(24, "0"),
         usersInsideTheater: [],
         passwordBool: false,
         password: "",
