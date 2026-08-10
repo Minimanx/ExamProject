@@ -41,4 +41,18 @@ describe("rate limiting", () => {
         expect(response.headers["ratelimit-limit"] ?? response.headers["ratelimit"]).toBeDefined();
         expect(response.headers["x-ratelimit-limit"]).toBeUndefined();
     });
+
+    // FIX 4 (final review): the only prior rate-limit test checked header
+    // presence, which cannot distinguish express-rate-limit v6 from v8 and
+    // never asserts a 429. This IP is well outside the 10.0.x.x range
+    // uniqueIp() (helpers.js) generates, so it cannot collide with it.
+    it("blocks the 11th login attempt from one IP", async () => {
+        const ip = "10.255.0.1";
+        for (let i = 0; i < 10; i++) {
+            await request(app).post("/login").set("X-Forwarded-For", ip).send({});
+        }
+        const response = await request(app).post("/login").set("X-Forwarded-For", ip).send({});
+
+        expect(response.status).toBe(429);
+    });
 });
