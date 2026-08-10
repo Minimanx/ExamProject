@@ -5,7 +5,30 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 const router = Router();
 
+/**
+ * Delete theaters whose closing time has passed.
+ *
+ * `timeToClose` was written when a theater was created and never read again, so
+ * closed events accumulated forever — holding their slot on the strip and, via
+ * the one-event-per-owner rule, permanently blocking their owner from creating
+ * another. See defect C6.
+ *
+ * This is a lazy sweep rather than a scheduled job: the listing is hit on every
+ * page load, which is a good enough trigger for an app this size and avoids
+ * standing up a scheduler. The field is indexed.
+ */
+async function removeExpiredTheaters() {
+    try {
+        await db.theaters.deleteMany({ timeToClose: { $lt: new Date() } });
+    } catch (error) {
+        // A failed sweep must not fail the request it was riding on.
+        console.error("Failed to remove expired theaters", { message: error.message });
+    }
+}
+
 router.get("/theaters", async (req, res) => {
+    await removeExpiredTheaters();
+
     // The listing is public so events can be browsed before signing up, but
     // ownerID is not needed by any client view and should not be exposed.
     // See defect S8.
@@ -95,6 +118,8 @@ router.post("/theaters", async (req, res) => {
             return;
         }
         theater.startTime = startTime;
+
+        await removeExpiredTheaters();
 
         const theaters = await db.theaters.find().toArray();
 

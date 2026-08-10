@@ -11,7 +11,13 @@ process.env.NODE_ENV = "test";
 vi.mock("../mailer/mailer.js", () => ({ default: vi.fn(async () => true) }));
 
 // Imported dynamically so the env vars above are set first.
-const { default: db, mongoClientPromise } = await import("../database/createConnection.js");
+const {
+    default: db,
+    mongoClientPromise,
+    indexesReady,
+} = await import("../database/createConnection.js");
+// Index creation is async; tests that assert on indexes must not race it.
+await indexesReady;
 
 beforeEach(async () => {
     await db.users.deleteMany({});

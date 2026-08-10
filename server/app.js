@@ -9,6 +9,7 @@ import cors from "cors";
 import helmet from "helmet";
 import MongoStore from "connect-mongo";
 import { mongoClientPromise } from "./database/createConnection.js";
+import { validateConfig } from "./config.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -19,12 +20,11 @@ const allowedOrigins = (configuredOrigins || "http://localhost:5000,http://local
     .map((origin) => origin.trim().replace(/\/$/, ""))
     .filter(Boolean);
 
-if (isProduction && !configuredOrigins) {
-    throw new Error("CLIENT_ORIGINS is required in production");
-}
-
-if (!process.env.SESSION_SECRET) {
-    throw new Error("SESSION_SECRET is required");
+// One place, one report: every configuration problem is named at boot rather
+// than surfacing at whichever request first needs the missing setting.
+const { warnings } = validateConfig();
+for (const warning of warnings) {
+    console.warn("Configuration warning:", warning);
 }
 
 function isOriginAllowed(origin) {

@@ -408,7 +408,7 @@ Every item below was read in the source, not inferred.
 | C3 | `theaterRouter.js:155–166` | Slot allocation: the `else` branch reassigns `theater.position` without breaking, and `if(!theater.position)` treats slot 0 as unset. |
 | C4 | `theaterRouter.js:40` | `req.session.creatingEvent` used as a mutex. Does not hold across multiple instances. |
 | C5 | `theaterRouter.js:225` vs `chatSocket.js:47` | `usersInsideTheater` is added by HTTP and removed by socket. A crash leaves ghost occupants permanently consuming seats. |
-| C6 | `theaterRouter.js:153` | `timeToClose` is written and never read server-side. Closed theaters are never cleaned up. |
+| ~~C6~~ | `theaterRouter.js` | **FIXED 2026-08-10.** `timeToClose` was written and never read, so closed theaters accumulated forever — holding a slot on the strip and, through the one-event-per-owner rule, permanently blocking their owner. A lazy sweep now deletes them on the listing and before the ownership check; the field is indexed. A scheduled job would be the alternative, but the listing is hit on every page load, which is trigger enough at this size. |
 | C7 | `InteractiveSpace.svelte:656,746` | `Math.random()` inline in markup re-randomizes the neon colour on every reactive update. |
 | C8 | `api.js:6` | `configuredApiUrl.replace(...)` throws if `API_URL` is unset at build time. |
 
@@ -416,10 +416,10 @@ Every item below was read in the source, not inferred.
 
 | # | Location | Issue |
 |---|---|---|
-| O1 | `createConnection.js` | No indexes on any collection. Every signup does a full collection scan with a collation query. |
+| ~~O1~~ | `createConnection.js` | **FIXED 2026-08-10.** No indexes on any collection; every signup ran two full scans, one a collation query. Now indexed on `users.email` (unique), `users.username` (unique, collated), `theaters.position`, `theaters.ownerID` and `theaters.timeToClose`. The unique constraints also move the duplicate check out of application code, where two concurrent signups could both pass it. |
 | O2 | `theaterRouter.js:9` | ~~No `try`/`catch`; an unhandled rejection escapes the route.~~ **Resolved as of this branch.** Express 5 forwards a rejected promise returned from a route handler to the error-handling middleware automatically, and `app.js` now registers one (added for Task 11). `GET /theaters` throwing now produces a JSON 500 instead of an unhandled rejection. No code change was needed in `theaterRouter.js` itself. |
 | O3 | Everywhere | `console.log`/`console.error` only. No structured logging, no correlation IDs. |
-| O4 | `app.js` | No graceful shutdown; no readiness check on Mongo behind `/health`. |
+| ~~O4~~ | `server.js` | **PARTLY FIXED 2026-08-10.** SIGTERM and SIGINT now drain the HTTP server and close the Mongo client, with a 10s forced-exit backstop; previously the process died instantly, cutting in-flight requests. `/health` still does not check Mongo readiness — that half remains open. |
 | O5 | Both packages | No tests, lint, formatter, types or CI. |
 | O6 | `app.js:107` | `app.use(loginLimiter)` is registered ahead of `express.static` (line 120) and the SPA fallback (line 121), and ahead of the `SERVE_CLIENT=false` 404 handler. Every request that falls through theater/movie/user routing to that point consumes the 10-per-15-minutes login bucket — including every static asset and client-side route in `SERVE_CLIENT=true` mode (the client becomes unusable after ten requests), and, live today regardless of `SERVE_CLIENT`, every 404. Ten stray 404s from one NAT'd IP (a bot probing paths, a client typo) lock every user behind that IP out of `/login` for 15 minutes. The static-asset consequence is currently dormant because `DEPLOYMENT.md` sets `SERVE_CLIENT=false`. |
 
