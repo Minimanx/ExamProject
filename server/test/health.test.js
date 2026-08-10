@@ -10,3 +10,12 @@ describe("GET /health", () => {
         expect(response.body).toEqual({ status: "ok" });
     });
 });
+
+describe("error handling", () => {
+    it("returns a JSON 500 rather than hanging when a handler rejects", async () => {
+        const response = await request(app).get("/__test_async_boom");
+
+        expect(response.status).toBe(500);
+        expect(response.body.message).toBe("Something went wrong");
+    });
+});

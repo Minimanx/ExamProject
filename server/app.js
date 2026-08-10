@@ -108,11 +108,17 @@ app.use(loginLimiter);
 import loginRouter from "./routers/loginRouter.js";
 app.use(loginRouter);
 
+if (process.env.NODE_ENV === "test") {
+    app.get("/__test_async_boom", async () => {
+        throw new Error("boom");
+    });
+}
+
 if (process.env.SERVE_CLIENT === "true") {
     const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
     const clientPublicDirectory = path.resolve(currentDirectory, "../client/public");
     app.use(express.static(clientPublicDirectory));
-    app.get("*", (req, res) => {
+    app.get("/{*splat}", (req, res) => {
         res.sendFile(path.join(clientPublicDirectory, "index.html"));
     });
 } else {
@@ -120,5 +126,19 @@ if (process.env.SERVE_CLIENT === "true") {
         res.status(404).send({ message: "Not found" });
     });
 }
+
+app.use((err, req, res, next) => {
+    console.error("Unhandled request error", {
+        method: req.method,
+        path: req.path,
+        message: err.message,
+    });
+
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(500).send({ message: "Something went wrong" });
+});
 
 export { app, server, io };
