@@ -205,19 +205,26 @@ pass; no dependency in either `package.json` is a major version behind.
 
 **Production readiness:**
 
-- Structured logging (`pino`) replacing `console.log`/`console.error`.
-- Express error-handling middleware. `GET /theaters` currently has no `try`/`catch` at all.
-- Graceful shutdown: SIGTERM → drain Socket.IO, close Mongo.
-- Boot-time config validation — fail fast on missing env rather than at first request.
-- `helmet` for security headers. Currently none are set.
-- **CSRF protection.** Production runs `sameSite: "none"` with `credentials: "include"`,
-  so the session cookie *is* sent cross-site. This is a genuine hole today.
-- **Socket authentication.** `io.use(wrap(sessionMiddleware))` attaches the session, but
-  `carSocket.js` never checks `session.loggedIn`. Any unauthenticated socket can join the
-  world and emit.
-- Expired-theater cleanup. `timeToClose` is written at `theaterRouter.js:153` and never
-  read anywhere on the server.
-- Mongo indexes on `users.email`, `users.username`, `theaters.position`.
+All of these shipped during Phase 0 and Phase 2; the detail is in the §5 entry named
+after each.
+
+- ~~Structured logging (`pino`) replacing `console.log`/`console.error`.~~ **DONE** — O3.
+- ~~Express error-handling middleware.~~ **DONE** — O2. Express 5 forwards a rejected
+  promise from a handler to the error middleware, so no `try`/`catch` was needed in
+  `GET /theaters` itself.
+- ~~Graceful shutdown: SIGTERM → drain Socket.IO, close Mongo.~~ **DONE** — O4.
+- ~~Boot-time config validation.~~ **DONE** — `config.js` reports every problem at once
+  rather than the first.
+- ~~`helmet` for security headers.~~ **DONE** — S6.
+- ~~**CSRF protection.**~~ **DONE** — S5. `sameSite` cannot be tightened, since client and
+  API are on different origins, so a state-changing request from a declared-but-unknown
+  origin is rejected instead.
+- ~~**Socket authentication.**~~ **DONE** — S4, and S3 alongside it: handlers trusted a
+  client-supplied id rather than `socket.id`.
+- ~~Expired-theater cleanup.~~ **DONE** — C6.
+- ~~Mongo indexes on `users.email`, `users.username`, `theaters.position`.~~ **DONE** — O1,
+  extended in C4 where `ownerID` and `position` became unique so two overlapping requests
+  cannot both win.
 - ~~Consistent error envelopes; use 401/403 for auth failures instead of the current 400.~~ **DONE 2026-08-10.** Every error now carries `{ message, code }`, with `code` stable and the status derived from it in `errors.js`. Authentication failures are 401, permission failures 403, and a theater that does not exist is 404 on every verb — it was 404 on `GET` and 400 on `PATCH`/`DELETE`. `CONFLICT` deliberately stays 400 rather than moving to 409: that is beyond what this phase asked for, and the distinct code means the status can move later without touching call sites. The client was checking `response.status === 400` and ignoring every other failure, so a 502 from OMDB already showed the user nothing; it now branches on `response.ok`.
 
 **Code smells:**
