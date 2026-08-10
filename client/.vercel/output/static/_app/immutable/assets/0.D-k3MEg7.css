@@ -1,0 +1,18 @@
+main.svelte-12qhfyh {
+    width: var(--stage-width);
+    height: var(--stage-height);
+    transform: translate(-50%, -50%) scale(var(--stage-scale));
+    transform-origin: 50%;
+    -webkit-user-select: none;
+    user-select: none;
+    will-change: transform;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+}
+:root {
+    --toastContainerTop: 8rem;
+    --toastContainerRight: auto;
+    --toastContainerBottom: auto;
+    --toastContainerLeft: calc(50vw - 8rem);
+}

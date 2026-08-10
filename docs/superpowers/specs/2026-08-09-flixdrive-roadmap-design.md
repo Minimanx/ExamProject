@@ -147,14 +147,18 @@ took the file to 570 lines (measured, not estimated — the CSS moved too), so 0
 router is ~40 lines of deliberate waste that buys the ability to land the runes migration
 and the SvelteKit adoption as two separately reviewable changes.
 
-**`adapter-static`, not `adapter-vercel`.** The roadmap named `adapter-vercel` so that
+**`adapter-vercel` after all.** The roadmap named `adapter-vercel` so that
 SvelteKit's SSR could serve future marketing and club pages. That reasoning still holds,
 but no route can server-render today: both pages call `createSocket()` at component-init
 scope and `userStore` reads `localStorage` at module scope, so `ssr = false` is set
 app-wide. `adapter-vercel` would deploy serverless functions rendering nothing on the
-server — strictly worse than the static hosting already in place. `adapter-static` with a
-SPA fallback reproduces the current deployment exactly, and swapping adapters is a
-one-line change the day a route genuinely wants SSR (Phase 5's club pages).
+server — strictly worse than the static hosting already in place. `adapter-static` shipped first on that
+reasoning, then was swapped back: Vercel's own SvelteKit preset expects
+`adapter-vercel`'s output shape, so `adapter-static` required extra dashboard
+configuration to deploy. Removing that friction was worth more than avoiding a
+serverless function that renders nothing. The runtime is pinned to `nodejs24.x`
+rather than inferred from the building Node version, which otherwise breaks on any
+version Vercel does not offer.
 
 **The standalone Rollup → Vite step was dropped** once the compatibility matrix was
 checked: `@sveltejs/vite-plugin-svelte@7` requires Svelte 5, and the newest plugin

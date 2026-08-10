@@ -222,20 +222,19 @@ The body should begin with `0{` and the headers should allow
 
 1. In Vercel, select **Add New**, then **Project**.
 2. Import `Minimanx/ExamProject`.
-3. Set **Root Directory** to `client`.
-4. Select the **Other** framework preset if Vercel does not detect the old
-   Rollup/Svelte application correctly.
-5. The committed `client/vercel.json` supplies:
-   - Build command: `npm run build`
-   - Output directory: `build`
-   - SPA fallback: every client-side route loads `index.html`
-6. Add this Production environment variable:
+3. Set **Root Directory** to `client`. The repository holds the client and the
+   server side by side, so Vercel has to be told which one is the site. This is
+   the only build setting that needs changing.
+4. Leave **Framework Preset**, **Build Command** and **Output Directory** alone.
+   Vercel detects SvelteKit, and `@sveltejs/adapter-vercel` writes Vercel's own
+   Build Output format, so the defaults are already correct.
+5. Add this Production environment variable:
 
 ```dotenv
 PUBLIC_API_URL=https://flixdrive-api.minimanx.dev
 ```
 
-7. Deploy the project.
+6. Deploy the project.
 
 The `PUBLIC_API_URL` value is embedded into the browser bundle at build time. Always
 redeploy the Vercel project after changing it.
@@ -323,7 +322,7 @@ restored into the Coolify MongoDB resource.
 - [Coolify database backups](https://coolify.io/docs/databases/backups)
 - [Coolify domains](https://coolify.io/docs/knowledge-base/domains)
 - [Vercel monorepos](https://vercel.com/docs/monorepos)
-- [Vercel project configuration](https://vercel.com/docs/project-configuration/vercel-json)
+- [SvelteKit Vercel adapter](https://svelte.dev/docs/kit/adapter-vercel)
 - [Socket.IO CORS](https://socket.io/docs/v4/handling-cors/)
 - [OMDb API](https://www.omdbapi.com/)
 - [OMDb API key registration](https://www.omdbapi.com/apikey.aspx)

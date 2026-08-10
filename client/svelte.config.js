@@ -1,9 +1,14 @@
-import adapter from "@sveltejs/adapter-static";
+import adapter from "@sveltejs/adapter-vercel";
 
 export default {
     kit: {
-        // SPA fallback: every path serves the same shell and the client router
-        // takes over — exactly what Rollup + `sirv --single` did before.
-        adapter: adapter({ fallback: "index.html", strict: false }),
+        // Vercel's own SvelteKit preset expects this adapter's output shape, so
+        // deploying needs no dashboard configuration beyond Root Directory.
+        //
+        // The runtime is pinned rather than inferred: the adapter otherwise
+        // derives it from whatever Node is doing the build, which fails on any
+        // version Vercel does not offer. Pinning matches engines.node and makes
+        // the build independent of who runs it.
+        adapter: adapter({ runtime: "nodejs24.x" }),
     },
 };
