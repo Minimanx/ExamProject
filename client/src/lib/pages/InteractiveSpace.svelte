@@ -322,7 +322,7 @@
     async function logout() {
         const response = await apiFetch("/logout");
 
-        if (response.status === 200) {
+        if (response.ok) {
             localStorage.clear();
             window.location.reload();
         }

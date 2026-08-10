@@ -36,7 +36,7 @@ describe("PATCH /theaters/:id", () => {
             .patch(`/theaters/${theater._id}`)
             .send({ joining: true, userID: "000000000000000000000001" });
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(401);
         expect(response.body.message).toBe("Must be logged in to join theater");
     });
 
@@ -48,7 +48,7 @@ describe("PATCH /theaters/:id", () => {
             .patch(`/theaters/${theater._id}`)
             .send({ joining: true, userID: "000000000000000000000002" });
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(401);
         expect(response.body.message).toBe("Must be logged in to join theater");
     });
 
@@ -78,7 +78,7 @@ describe("PATCH /theaters/:id", () => {
             .patch(`/theaters/${theater._id}`)
             .send({ joining: true, userID, password: "wrong-password" });
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(403);
         expect(response.body.message).toBe("Password doesn't match");
     });
 
@@ -144,7 +144,7 @@ describe("DELETE /theaters/:id", () => {
 
         const response = await agent.delete(`/theaters/${theater._id}`);
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(403);
         expect(response.body.message).toBe("Only the owner can delete the theater");
     });
 

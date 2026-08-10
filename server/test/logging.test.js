@@ -95,3 +95,31 @@ describe("structured logging", () => {
         expect(serialized).not.toContain("secret-session-value");
     });
 });
+
+// Every error response used to be a 400 carrying a bare { message }, whatever
+// had gone wrong. A client could not tell "fix your input and retry" from "log
+// in first" from "you are not allowed", and the same condition answered 404 on
+// GET and 400 on PATCH.
+describe("error envelope", () => {
+    it.each([
+        ["GET", "/theaters/000000000000000000000001", 401, "UNAUTHENTICATED"],
+        ["GET", "/no-such-path", 404, "NOT_FOUND"],
+        ["GET", "/movies", 400, "VALIDATION_FAILED"],
+    ])("%s %s answers %i %s", async (method, path, status, code) => {
+        const response = await request(app)[method.toLowerCase()](path).send({});
+
+        expect(response.status).toBe(status);
+        expect(response.body.code).toBe(code);
+        expect(response.body.message).toBeTypeOf("string");
+    });
+
+    it("carries a code on the body-parser errors it does not raise itself", async () => {
+        const response = await request(app)
+            .post("/login")
+            .set("Content-Type", "application/json")
+            .send('{"broken"');
+
+        expect(response.status).toBe(400);
+        expect(response.body.code).toBe("VALIDATION_FAILED");
+    });
+});

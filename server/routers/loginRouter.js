@@ -3,6 +3,7 @@ import bcrypt from "bcrypt";
 import db from "../database/createConnection.js";
 import mailer from "../mailer/mailer.js";
 import crypto from "crypto";
+import { sendError } from "../errors.js";
 const router = Router();
 
 router.get("/logout", (req, res) => {
@@ -14,14 +15,14 @@ router.post("/login", async (req, res) => {
     const clientUser = req.body;
 
     if (!clientUser.email || !clientUser.password) {
-        res.status(400).send({ message: "All fields must be filled" });
+        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
         return;
     }
 
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
     if (serverUser === null) {
-        res.status(400).send({ message: "Email or password incorrect" });
+        sendError(res, "UNAUTHENTICATED", "Email or password incorrect");
         return;
     }
 
@@ -34,7 +35,7 @@ router.post("/login", async (req, res) => {
 
         res.status(200).send({ data: responseUser, message: "Successfully logged in" });
     } else {
-        res.status(400).send({ message: "Email or password incorrect" });
+        sendError(res, "UNAUTHENTICATED", "Email or password incorrect");
     }
 });
 
@@ -42,11 +43,11 @@ router.post("/forgotpassword", async (req, res) => {
     const clientUser = req.body;
 
     if (!clientUser.email) {
-        res.status(400).send({ message: "All fields must be filled" });
+        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
         return;
     }
     if (!/\S+@\S+\.\S+/.test(clientUser.email)) {
-        res.status(400).send({ message: "Email must be valid" });
+        sendError(res, "VALIDATION_FAILED", "Email must be valid");
         return;
     }
 
@@ -144,14 +145,14 @@ router.post("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
     if (!hasValidResetCredentials(clientUser)) {
-        res.status(400).send({ message: "Code must be filled" });
+        sendError(res, "VALIDATION_FAILED", "Code must be filled");
         return;
     }
 
     const serverUser = await findUserByActiveResetToken(clientUser);
 
     if (serverUser === null) {
-        res.status(400).send({ message: "Code is invalid" });
+        sendError(res, "VALIDATION_FAILED", "Code is invalid");
         return;
     }
 
@@ -162,26 +163,26 @@ router.patch("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
     if (!hasValidResetCredentials(clientUser)) {
-        res.status(400).send({ message: "Code must be filled" });
+        sendError(res, "VALIDATION_FAILED", "Code must be filled");
         return;
     }
     if (!clientUser.password || !clientUser.passwordRepeat) {
-        res.status(400).send({ message: "All fields must be filled" });
+        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
         return;
     }
     if (clientUser.password !== clientUser.passwordRepeat) {
-        res.status(400).send({ message: "Passwords must match" });
+        sendError(res, "VALIDATION_FAILED", "Passwords must match");
         return;
     }
     if (clientUser.password.length < 8) {
-        res.status(400).send({ message: "Password is too short" });
+        sendError(res, "VALIDATION_FAILED", "Password is too short");
         return;
     }
 
     const serverUser = await findUserByActiveResetToken(clientUser);
 
     if (serverUser === null) {
-        res.status(400).send({ message: "Something went wrong, try to start over" });
+        sendError(res, "VALIDATION_FAILED", "Something went wrong, try to start over");
         return;
     }
 

@@ -4,6 +4,7 @@ import { ObjectId } from "mongodb";
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { liveOccupants } from "../socketios/presence.js";
+import { sendError } from "../errors.js";
 const router = Router();
 
 /**
@@ -106,10 +107,10 @@ router.get("/theaters", async (req, res) => {
 
 router.get("/theaters/:id", async (req, res) => {
     if (!req.session.loggedIn) {
-        return res.status(400).send({ message: "Must be logged in" });
+        return sendError(res, "UNAUTHENTICATED", "Must be logged in");
     }
     if (!ObjectId.isValid(req.params.id)) {
-        return res.status(400).send({ message: "Invalid theater" });
+        return sendError(res, "VALIDATION_FAILED", "Invalid theater");
     }
 
     try {
@@ -118,48 +119,48 @@ router.get("/theaters/:id", async (req, res) => {
             { projection: { password: 0 } }
         );
         if (theater === null) {
-            return res.status(404).send({ message: "Theater not found" });
+            return sendError(res, "NOT_FOUND", "Theater not found");
         }
         return res.status(200).send({ data: theater });
     } catch (error) {
         req.log.error({ err: error }, "Failed to load theater");
-        return res.status(500).send({ message: "Failed to load theater" });
+        return sendError(res, "INTERNAL", "Failed to load theater");
     }
 });
 
 router.post("/theaters", async (req, res) => {
     if (!req.session.loggedIn) {
-        res.status(400).send({ message: "Must be logged in to create a new event" });
+        sendError(res, "UNAUTHENTICATED", "Must be logged in to create a new event");
         return;
     }
     const theater = req.body.data ?? {};
 
     if (!theater.eventName || !theater.startTime || !theater.amountOfSpaces) {
-        res.status(400).send({ message: "All fields must be filled" });
+        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
         return;
     }
     if (theater.passwordBool) {
         if (theater.password.length < 8 || theater.password.length > 24) {
-            res.status(400).send({ message: "Password must be between 8 and 24 characters" });
+            sendError(res, "VALIDATION_FAILED", "Password must be between 8 and 24 characters");
             return;
         }
     } else {
         theater.password = "";
     }
     if (theater.eventName.length > 18 || theater.eventName.length < 3) {
-        res.status(400).send({ message: "Event name must be between 3 and 18 characters" });
+        sendError(res, "VALIDATION_FAILED", "Event name must be between 3 and 18 characters");
         return;
     }
     if (!theater.imdbID) {
-        res.status(400).send({ message: "Must choose a movie" });
+        sendError(res, "VALIDATION_FAILED", "Must choose a movie");
         return;
     }
     if (!theater.startTime) {
-        res.status(400).send({ message: "Must choose a time" });
+        sendError(res, "VALIDATION_FAILED", "Must choose a time");
         return;
     }
     if (theater.amountOfSpaces > 99 || theater.amountOfSpaces < 1) {
-        res.status(400).send({ message: "Amount of spaces must be between 1 and 99" });
+        sendError(res, "VALIDATION_FAILED", "Amount of spaces must be between 1 and 99");
         return;
     }
     let startTime = new Date(theater.startTime);
@@ -170,7 +171,7 @@ router.post("/theaters", async (req, res) => {
         startTime.getTime() > new Date().getTime() + 86400000 ||
         startTime.getTime() < new Date().getTime()
     ) {
-        res.status(400).send({ message: "Time must be within 24 hours" });
+        sendError(res, "VALIDATION_FAILED", "Time must be within 24 hours");
         return;
     }
     await removeExpiredTheaters(req.log);
@@ -179,13 +180,13 @@ router.post("/theaters", async (req, res) => {
 
     const sessionUserId = req.session.userID.toString();
     if (theaters.some((theater) => theater.ownerID.toString() === sessionUserId)) {
-        res.status(400).send({ message: "You already have an ongoing event" });
+        sendError(res, "CONFLICT", "You already have an ongoing event");
         return;
     }
 
     if (!process.env.OMDB_API_KEY) {
         req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
-        return res.status(503).send({ message: "Movie search is not configured" });
+        return sendError(res, "UNAVAILABLE", "Movie search is not configured");
     }
 
     const movieApiUrl = new URL("https://www.omdbapi.com/");
@@ -206,7 +207,7 @@ router.post("/theaters", async (req, res) => {
             { name: error.name, code: error.code || error.cause?.code },
             "Movie API request failed"
         );
-        return res.status(502).send({ message: "Movie details are temporarily unavailable" });
+        return sendError(res, "UPSTREAM_UNAVAILABLE", "Movie details are temporarily unavailable");
     }
 
     if (!response.ok) {
@@ -214,11 +215,11 @@ router.post("/theaters", async (req, res) => {
             { status: response.status, reason: result.Error || `HTTP ${response.status}` },
             "Movie API request failed"
         );
-        return res.status(502).send({ message: "Movie details are temporarily unavailable" });
+        return sendError(res, "UPSTREAM_UNAVAILABLE", "Movie details are temporarily unavailable");
     }
 
     if (result.Response === "False") {
-        res.status(400).send({ message: result.Error });
+        sendError(res, "VALIDATION_FAILED", result.Error);
         return;
     }
 
@@ -270,14 +271,14 @@ router.post("/theaters", async (req, res) => {
                 throw error;
             }
             if (error.keyPattern?.ownerID) {
-                res.status(400).send({ message: "You already have an ongoing event" });
+                sendError(res, "CONFLICT", "You already have an ongoing event");
                 return;
             }
         }
     }
 
     req.log.error({ attempts: MAX_SLOT_ATTEMPTS }, "Gave up allocating a theater slot");
-    res.status(503).send({ message: "The strip is busy right now, try again" });
+    sendError(res, "UNAVAILABLE", "The strip is busy right now, try again");
 });
 
 router.patch("/theaters/:id", async (req, res) => {
@@ -286,18 +287,18 @@ router.patch("/theaters/:id", async (req, res) => {
     let theater;
 
     if (!ObjectId.isValid(id)) {
-        return res.status(400).send({ message: "Invalid theater" });
+        return sendError(res, "VALIDATION_FAILED", "Invalid theater");
     }
 
     try {
         theater = await db.theaters.findOne({ _id: new ObjectId(id) });
     } catch (error) {
         req.log.error({ err: error }, "Failed to load theater for update");
-        return res.status(500).send({ message: "Failed to join theater" });
+        return sendError(res, "INTERNAL", "Failed to join theater");
     }
 
     if (theater === null) {
-        res.status(400).send({ message: "Invalid theater" });
+        sendError(res, "VALIDATION_FAILED", "Invalid theater");
         return;
     }
 
@@ -308,22 +309,22 @@ router.patch("/theaters/:id", async (req, res) => {
             !sessionUserId ||
             clientUser.userID.toString() !== sessionUserId
         ) {
-            res.status(400).send({ message: "Must be logged in to join theater" });
+            sendError(res, "UNAUTHENTICATED", "Must be logged in to join theater");
             return;
         }
         if (theater.passwordBool) {
             if (!(await bcrypt.compare(clientUser.password, theater.password))) {
-                res.status(400).send({ message: "Password doesn't match" });
+                sendError(res, "FORBIDDEN", "Password doesn't match");
                 return;
             }
         }
         const occupants = await reconcileOccupants(theater);
         if (occupants.length >= theater.amountOfSpaces) {
-            res.status(400).send({ message: "Theater is full" });
+            sendError(res, "CONFLICT", "Theater is full");
             return;
         }
         if (occupants.some((occupant) => occupant.userID === sessionUserId)) {
-            res.status(400).send({ message: "You are already inside the theater" });
+            sendError(res, "CONFLICT", "You are already inside the theater");
             return;
         }
 
@@ -335,7 +336,7 @@ router.patch("/theaters/:id", async (req, res) => {
         return res.status(200).send({ message: "Successfully joined lobby" });
     }
 
-    return res.status(400).send({ message: "Unsupported theater update" });
+    return sendError(res, "VALIDATION_FAILED", "Unsupported theater update");
 });
 
 router.delete("/theaters/:id", async (req, res) => {
@@ -343,27 +344,27 @@ router.delete("/theaters/:id", async (req, res) => {
     let theater;
 
     if (!ObjectId.isValid(id)) {
-        return res.status(400).send({ message: "Invalid theater" });
+        return sendError(res, "VALIDATION_FAILED", "Invalid theater");
     }
 
     try {
         theater = await db.theaters.findOne({ _id: new ObjectId(id) });
     } catch (error) {
         req.log.error({ err: error }, "Failed to load theater for deletion");
-        return res.status(500).send({ message: "Failed to delete theater" });
+        return sendError(res, "INTERNAL", "Failed to delete theater");
     }
     if (theater === null) {
-        res.status(400).send({ message: "No theater found" });
+        sendError(res, "NOT_FOUND", "No theater found");
         return;
     }
     const sessionUserId = req.session.userID?.toString();
     if (!sessionUserId || theater.ownerID.toString() !== sessionUserId) {
-        res.status(400).send({ message: "Only the owner can delete the theater" });
+        sendError(res, "FORBIDDEN", "Only the owner can delete the theater");
         return;
     }
     const occupants = await reconcileOccupants(theater);
     if (occupants.length > 1 || !occupants.some((occupant) => occupant.userID === sessionUserId)) {
-        res.status(400).send({ message: "Owner must be the only one inside the theater" });
+        sendError(res, "CONFLICT", "Owner must be the only one inside the theater");
         return;
     }
 

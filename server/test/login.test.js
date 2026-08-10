@@ -25,7 +25,7 @@ describe("POST /login", () => {
             password: "password123",
         });
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(401);
         expect(response.body.message).toBe("Email or password incorrect");
     });
 
@@ -37,7 +37,7 @@ describe("POST /login", () => {
             password: "wrong-password",
         });
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(401);
         expect(response.body.message).toBe("Email or password incorrect");
     });
 

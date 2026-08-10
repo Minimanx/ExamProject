@@ -1,16 +1,17 @@
 import { Router } from "express";
 import "dotenv/config";
+import { sendError } from "../errors.js";
 const router = Router();
 
 router.get("/movies", async (req, res) => {
     const searchTerm = typeof req.query.s === "string" ? req.query.s.trim() : "";
 
     if (!searchTerm) {
-        return res.status(400).send({ message: "A movie title is required" });
+        return sendError(res, "VALIDATION_FAILED", "A movie title is required");
     }
     if (!process.env.OMDB_API_KEY) {
         req.log.error("Movie API request failed: OMDB_API_KEY is not configured");
-        return res.status(503).send({ message: "Movie search is not configured" });
+        return sendError(res, "UNAVAILABLE", "Movie search is not configured");
     }
 
     const movieApiUrl = new URL("https://www.omdbapi.com/");
@@ -31,9 +32,11 @@ router.get("/movies", async (req, res) => {
                 { status: response.status, reason: providerMessage },
                 "Movie API request failed"
             );
-            return res.status(502).send({
-                message: `Movie provider error: ${providerMessage}`,
-            });
+            return sendError(
+                res,
+                "UPSTREAM_UNAVAILABLE",
+                `Movie provider error: ${providerMessage}`
+            );
         }
 
         return res.status(200).send({ data: result });
@@ -42,7 +45,7 @@ router.get("/movies", async (req, res) => {
             { name: error.name, code: error.code || error.cause?.code },
             "Movie API request failed"
         );
-        return res.status(502).send({ message: "Movie search is temporarily unavailable" });
+        return sendError(res, "UPSTREAM_UNAVAILABLE", "Movie search is temporarily unavailable");
     }
 });
 

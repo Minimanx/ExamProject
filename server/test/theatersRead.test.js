@@ -40,7 +40,7 @@ describe("GET /theaters/:id", () => {
 
         const response = await request(app).get(`/theaters/${theater._id}`);
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(401);
         expect(response.body.message).toBe("Must be logged in");
     });
 

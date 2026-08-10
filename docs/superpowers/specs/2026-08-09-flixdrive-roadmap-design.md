@@ -218,7 +218,7 @@ pass; no dependency in either `package.json` is a major version behind.
 - Expired-theater cleanup. `timeToClose` is written at `theaterRouter.js:153` and never
   read anywhere on the server.
 - Mongo indexes on `users.email`, `users.username`, `theaters.position`.
-- Consistent error envelopes; use 401/403 for auth failures instead of the current 400.
+- ~~Consistent error envelopes; use 401/403 for auth failures instead of the current 400.~~ **DONE 2026-08-10.** Every error now carries `{ message, code }`, with `code` stable and the status derived from it in `errors.js`. Authentication failures are 401, permission failures 403, and a theater that does not exist is 404 on every verb — it was 404 on `GET` and 400 on `PATCH`/`DELETE`. `CONFLICT` deliberately stays 400 rather than moving to 409: that is beyond what this phase asked for, and the distinct code means the status can move later without touching call sites. The client was checking `response.status === 400` and ignoring every other failure, so a 502 from OMDB already showed the user nothing; it now branches on `response.ok`.
 
 **Code smells:**
 

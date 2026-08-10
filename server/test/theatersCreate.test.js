@@ -42,7 +42,7 @@ describe("POST /theaters", () => {
     it("requires a session", async () => {
         const response = await request(app).post("/theaters").send({ data: validEvent() });
 
-        expect(response.status).toBe(400);
+        expect(response.status).toBe(401);
         expect(response.body.message).toBe("Must be logged in to create a new event");
     });
 

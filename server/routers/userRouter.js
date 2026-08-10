@@ -2,6 +2,7 @@ import { Router } from "express";
 import db from "../database/createConnection.js";
 import bcrypt from "bcrypt";
 import mailer from "../mailer/mailer.js";
+import { sendError } from "../errors.js";
 const router = Router();
 
 // Signup fields must be strings before anything reads them. mongo-sanitize
@@ -18,23 +19,23 @@ router.post("/users", async (req, res) => {
             (field) => typeof clientUser[field] !== "string" || clientUser[field].length === 0
         )
     ) {
-        res.status(400).send({ message: "All fields must be filled" });
+        sendError(res, "VALIDATION_FAILED", "All fields must be filled");
         return;
     }
     if (clientUser.password !== clientUser.passwordRepeat) {
-        res.status(400).send({ message: "Passwords must match" });
+        sendError(res, "VALIDATION_FAILED", "Passwords must match");
         return;
     }
     if (clientUser.password.length < 8 || clientUser.password.length > 24) {
-        res.status(400).send({ message: "Password must be between 8 and 24 characters" });
+        sendError(res, "VALIDATION_FAILED", "Password must be between 8 and 24 characters");
         return;
     }
     if (!/\S+@\S+\.\S+/.test(clientUser.email)) {
-        res.status(400).send({ message: "Email must be valid" });
+        sendError(res, "VALIDATION_FAILED", "Email must be valid");
         return;
     }
     if (clientUser.username.length < 3 || clientUser.username.length > 16) {
-        res.status(400).send({ message: "Username must be between 3 and 16 characters" });
+        sendError(res, "VALIDATION_FAILED", "Username must be between 3 and 16 characters");
         return;
     }
     const findUsername = await db.users
@@ -42,12 +43,12 @@ router.post("/users", async (req, res) => {
         .collation({ locale: "en", strength: 1 })
         .toArray();
     if (findUsername.length !== 0) {
-        res.status(400).send({ message: "Username already exists" });
+        sendError(res, "CONFLICT", "Username already exists");
         return;
     }
     const findEmail = await db.users.findOne({ email: clientUser.email.toLowerCase() });
     if (findEmail !== null) {
-        res.status(400).send({ message: "Email already exists" });
+        sendError(res, "CONFLICT", "Email already exists");
         return;
     }
 

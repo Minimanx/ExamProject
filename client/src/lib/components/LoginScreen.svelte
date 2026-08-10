@@ -34,11 +34,14 @@
 
         const result = await response.json();
 
-        if (response.status === 400) {
+        // Any failure, not just 400: the API answers 401 for a missing or bad
+        // session, 403 for a forbidden action, 404, 502 for an upstream. Only
+        // checking 400 meant those showed the user nothing at all.
+        if (!response.ok) {
             error(result.message);
             return;
         }
-        if (response.status === 200) {
+        if (response.ok) {
             $user.loggedIn = true;
             $user.username = result.data.username;
             $user.userID = result.data._id;
@@ -67,11 +70,11 @@
 
         const result = await response.json();
 
-        if (response.status === 400) {
+        if (!response.ok) {
             error(result.message);
             return;
         }
-        if (response.status === 200) {
+        if (response.ok) {
             success(result.message);
             changeToLogin();
         }
@@ -90,7 +93,7 @@
 
         const result = await response.json();
 
-        if (response.status === 400) {
+        if (!response.ok) {
             error(result.message);
             return;
         }
@@ -113,7 +116,7 @@
 
         const result = await response.json();
 
-        if (response.status === 400) {
+        if (!response.ok) {
             error(result.message);
             return;
         }
@@ -137,11 +140,11 @@
 
         const result = await response.json();
 
-        if (response.status === 400) {
+        if (!response.ok) {
             error(result.message);
             return;
         }
-        if (response.status === 200) {
+        if (response.ok) {
             success(result.message);
             changeToLogin();
         }

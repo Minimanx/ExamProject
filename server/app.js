@@ -10,6 +10,7 @@ import { mongoClientPromise } from "./database/createConnection.js";
 import { validateConfig } from "./config.js";
 import { checkMongoHealth } from "./health.js";
 import { logger, httpLogger } from "./logger.js";
+import { sendError } from "./errors.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -137,7 +138,7 @@ function isTooDeep(root, limit) {
 
 function sanitizeRequest(req, res, next) {
     if (isTooDeep(req.body, MAX_BODY_DEPTH)) {
-        res.status(400).send({ message: "Request body is nested too deeply" });
+        sendError(res, "VALIDATION_FAILED", "Request body is nested too deeply");
         return;
     }
     sanitize(req.body);
@@ -190,7 +191,7 @@ if (process.env.NODE_ENV === "test") {
 }
 
 app.use((req, res) => {
-    res.status(404).send({ message: "Not found" });
+    sendError(res, "NOT_FOUND", "Not found");
 });
 
 app.use((err, req, res, next) => {
@@ -200,9 +201,12 @@ app.use((err, req, res, next) => {
         return next(err);
     }
 
+    // body-parser sets err.status on a malformed or oversized body, so its own
+    // 400/413 must survive rather than being flattened to 500.
     const status = err.status || err.statusCode || 500;
     res.status(status).send({
         message: status >= 500 ? "Something went wrong" : err.message,
+        code: status >= 500 ? "INTERNAL" : "VALIDATION_FAILED",
     });
 });
 

@@ -153,6 +153,10 @@ test("signing up creates a user", async ({ page }) => {
     await expect(page.locator("._toastContainer")).toContainText("User created");
 });
 
+// Doubles as the guard on non-400 failures. The client used to check
+// `response.status === 400` and ignore everything else, so when the API started
+// answering 401 for bad credentials this test failed with an empty toast — the
+// user saw nothing at all. Any regression to status-equality checks lands here.
 test("logging in with a wrong password shows an error and keeps the form usable", async ({
     page,
 }) => {

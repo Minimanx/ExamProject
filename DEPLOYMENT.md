@@ -304,6 +304,31 @@ restored into the Coolify MongoDB resource.
 - Changes to backend environment variables require a Coolify redeploy.
 - Keep MongoDB private; there is no normal reason to expose port `27017`.
 
+## API error responses
+
+Every error carries the same shape:
+
+```json
+{ "message": "Must be logged in to join theater", "code": "UNAUTHENTICATED" }
+```
+
+`message` is what the UI shows. `code` is stable and safe to branch on; the HTTP
+status follows from it:
+
+| Code | Status | Meaning |
+| --- | --- | --- |
+| `VALIDATION_FAILED` | 400 | The request is malformed — fix it and retry |
+| `CONFLICT` | 400 | Well-formed, but conflicts with current state |
+| `UNAUTHENTICATED` | 401 | No usable session — log in first |
+| `FORBIDDEN` | 403 | Logged in, but not permitted |
+| `NOT_FOUND` | 404 | The thing addressed does not exist |
+| `UPSTREAM_UNAVAILABLE` | 502 | A service this API depends on failed |
+| `UNAVAILABLE` | 503 | A dependency is unconfigured or unreachable |
+| `INTERNAL` | 500 | Unexpected — check the logs for the request id |
+
+Clients must branch on `response.ok` or on `code`, never on an exact status:
+`CONFLICT` is a 400 today and is expected to become 409.
+
 ## Reading the logs
 
 The backend writes one JSON object per line. Every line carries a `level`
