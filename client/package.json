@@ -1,38 +1,38 @@
 {
-  "name": "svelte-app",
-  "version": "1.0.0",
-  "private": true,
-  "engines": {
-    "node": "24.x"
-  },
-  "scripts": {
-    "dev": "vite dev",
-    "build": "vite build",
-    "preview": "vite preview",
-    "test:e2e": "playwright test",
-    "lint": "eslint .",
-    "format": "prettier --write .",
-    "format:check": "prettier --check ."
-  },
-  "devDependencies": {
-    "@eslint/js": "^10.0.1",
-    "@playwright/test": "^1.62.1",
-    "@sveltejs/adapter-static": "^3.0.10",
-    "@sveltejs/kit": "^2.70.2",
-    "@sveltejs/vite-plugin-svelte": "^7.3.0",
-    "eslint": "^10.8.1",
-    "eslint-config-prettier": "^10.1.8",
-    "eslint-plugin-svelte": "^3.22.0",
-    "globals": "^17.9.0",
-    "prettier": "^3.9.6",
-    "prettier-plugin-svelte": "^4.1.1",
-    "svelte": "^5.56.8",
-    "svelte-loading-spinners": "^0.3.6",
-    "vite": "^8.2.1"
-  },
-  "dependencies": {
-    "@zerodevx/svelte-toast": "^0.9.6",
-    "socket.io-client": "^4.8.3"
-  },
-  "type": "module"
+    "name": "svelte-app",
+    "version": "1.0.0",
+    "private": true,
+    "engines": {
+        "node": "24.x"
+    },
+    "scripts": {
+        "dev": "vite dev",
+        "build": "vite build",
+        "preview": "vite preview",
+        "test:e2e": "playwright test",
+        "lint": "eslint .",
+        "format": "prettier --write .",
+        "format:check": "prettier --check ."
+    },
+    "devDependencies": {
+        "@eslint/js": "^10.0.1",
+        "@playwright/test": "^1.62.1",
+        "@sveltejs/adapter-static": "^3.0.10",
+        "@sveltejs/kit": "^2.70.2",
+        "@sveltejs/vite-plugin-svelte": "^7.3.0",
+        "eslint": "^10.8.1",
+        "eslint-config-prettier": "^10.1.8",
+        "eslint-plugin-svelte": "^3.22.0",
+        "globals": "^17.9.0",
+        "prettier": "^3.9.6",
+        "prettier-plugin-svelte": "^4.1.1",
+        "svelte": "^5.56.8",
+        "svelte-loading-spinners": "^0.3.6",
+        "vite": "^8.2.1"
+    },
+    "dependencies": {
+        "@zerodevx/svelte-toast": "^0.9.6",
+        "socket.io-client": "^4.8.3"
+    },
+    "type": "module"
 }
