@@ -1,7 +1,6 @@
 import { Router } from "express";
 import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
-import fetch from "node-fetch";
 import "dotenv/config";
 import bcrypt from "bcrypt";
 const router = Router();

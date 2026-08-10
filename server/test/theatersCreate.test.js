@@ -1,11 +1,8 @@
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import request from "supertest";
-import fetch from "node-fetch";
 import { app } from "../app.js";
 import db from "../database/createConnection.js";
 import { registerUser, loginAgent, seedTheater, mockOmdb } from "./helpers.js";
-
-vi.mock("node-fetch", () => ({ default: vi.fn() }));
 
 const omdbMovie = {
     Response: "True",
@@ -29,10 +26,17 @@ function validEvent(overrides = {}) {
     };
 }
 
+const fetchMock = vi.fn();
+
 describe("POST /theaters", () => {
     beforeEach(() => {
-        vi.mocked(fetch).mockReset();
-        mockOmdb(vi.mocked(fetch), omdbMovie);
+        fetchMock.mockReset();
+        vi.stubGlobal("fetch", fetchMock);
+        mockOmdb(fetchMock, omdbMovie);
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
     });
 
     it("requires a session", async () => {
@@ -137,7 +141,7 @@ describe("POST /theaters", () => {
 
     it("returns 502 when OMDB is unreachable", async () => {
         const agent = await loginAgent(await registerUser());
-        vi.mocked(fetch).mockRejectedValue(new Error("ECONNREFUSED"));
+        fetchMock.mockRejectedValue(new Error("ECONNREFUSED"));
 
         const response = await agent.post("/theaters").send({ data: validEvent() });
 

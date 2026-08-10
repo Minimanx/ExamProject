@@ -1,5 +1,4 @@
 import { Router } from "express";
-import fetch from "node-fetch";
 import "dotenv/config";
 const router = Router();
 
