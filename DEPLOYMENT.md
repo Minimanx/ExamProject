@@ -78,11 +78,23 @@ new URL and trust the generated CA certificate.
 | Base directory | `/server` |
 | Static site | Disabled |
 | Port exposes | `5000` |
-| Install command | Leave empty; Nixpacks uses `npm ci` |
+| Install command | `npm ci --omit=dev` |
 | Build command | Leave empty |
 | Start command | `npm start` |
 | Health check path | `/health` |
 | Health check port | `5000` |
+
+`server/package.json` lists `mongodb-memory-server` as a devDependency for
+the test suite. It has a `postinstall` hook that downloads a full `mongod`
+binary (roughly 148 MB) on install. A plain `npm ci` installs
+devDependencies too, and `NODE_ENV=production` is only added as a runtime
+variable in step 4 below, so it is not necessarily set at build time either.
+Leaving the install command empty therefore downloads that binary into
+every deploy for no reason. Set the install command explicitly to
+`npm ci --omit=dev` as shown above so devDependencies are skipped
+entirely; if the build pack does not allow overriding the install command,
+set `MONGOMS_DISABLE_POSTINSTALL=1` as a build-time environment variable
+instead so the `postinstall` hook no-ops even when devDependencies install.
 
 5. Confirm that the application uses the same server and destination as
    `flixdrive-mongodb`.
