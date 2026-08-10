@@ -304,6 +304,31 @@ restored into the Coolify MongoDB resource.
 - Changes to backend environment variables require a Coolify redeploy.
 - Keep MongoDB private; there is no normal reason to expose port `27017`.
 
+## Closing registration
+
+`INVITE_ONLY=true` requires a valid, unused invite code to sign up. It is read
+per request, so flipping it takes effect without a redeploy — closing
+registration is the kind of thing wanted in a hurry.
+
+Create codes directly in MongoDB:
+
+```javascript
+db.invites.insertOne({
+    code: "GOLDENTICKET",
+    createdAt: new Date(),
+    usedAt: null,
+    usedBy: null,
+});
+```
+
+An invite is redeemed through a link, not a field on the signup form:
+`https://flixdrive.minimanx.dev/?invite=GOLDENTICKET`. Nothing extra appears on
+screen while registration is open, and the server ignores a code offered when
+`INVITE_ONLY` is unset.
+
+A code is spent only by a signup that succeeds, so a taken username does not
+burn it. Two people holding the same code race for it and exactly one wins.
+
 ## API error responses
 
 Every error carries the same shape:

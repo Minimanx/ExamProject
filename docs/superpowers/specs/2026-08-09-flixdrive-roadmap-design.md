@@ -239,10 +239,21 @@ pass; no dependency in either `package.json` is a major version behind.
 
 **The two hedges from §3 land here:**
 
-- **Invite-only registration behind a flag.** Signup requires an invite code until Phase 9
-  flips it off. One boolean plus an `invites` collection.
-- **Safety data models, unused.** Empty `reports` and `blocks` collections, plus a
-  `moderationState` field on users. Nothing reads them until Phase 9.
+- ~~**Invite-only registration behind a flag.**~~ **DONE 2026-08-10.** `INVITE_ONLY=true`
+  requires a valid unused code, read per request so it can be flipped without a redeploy. A code
+  is redeemed through a link (`/?invite=CODE`) rather than a field on the form, so nothing extra
+  appears while registration is open. It is claimed with a `findOneAndUpdate` filtered on
+  `usedAt: null` — a read-then-write loses the race between two people holding one code — and
+  claimed only once the signup is otherwise certain, so a taken username does not burn someone's
+  only invite. If the insert still loses a race on the unique username or email index, the claim
+  is released rather than consumed by an account that does not exist.
+- ~~**Safety data models, unused.**~~ **DONE 2026-08-10.** `reports` and `blocks` collections
+  with the indexes their eventual queries need — a queue drained oldest-first, everything ever
+  reported about one person, and the reverse block lookup a room filter needs. A block is unique
+  per pair, so a double-submit cannot create two. `moderationState` is written on every new
+  account and backfilled once at boot for accounts that predate it, so Phase 9 never has to treat
+  an absent field and `"active"` as the same thing. Nothing reads any of it yet; the tests exist
+  so the shape cannot drift or be quietly dropped.
 
 **Exit criteria:** §5 inventory closed; a `SIGTERM` drains cleanly; no unhandled promise
 rejection reachable from any route.

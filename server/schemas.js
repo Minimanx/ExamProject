@@ -53,6 +53,11 @@ export const signupSchema = body({
     username: required().min(3, USERNAME_LENGTH).max(16, USERNAME_LENGTH),
     password,
     passwordRepeat: required(),
+    // Only meaningful while INVITE_ONLY is set. Declared here regardless,
+    // because the schema strips what it does not declare and the route would
+    // never see it. Its absence is answered by the route, not by the schema:
+    // "Registration is invite only" reads better than a missing-field error.
+    inviteCode: z.string({ error: ALL_FIELDS }).optional(),
 }).refine((value) => value.password === value.passwordRepeat, passwordsMatch);
 
 export const loginSchema = body({

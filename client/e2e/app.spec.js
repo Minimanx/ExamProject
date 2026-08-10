@@ -153,6 +153,51 @@ test("signing up creates a user", async ({ page }) => {
     await expect(page.locator("._toastContainer")).toContainText("User created");
 });
 
+// Roadmap §3, hedge 1: registration can be closed behind INVITE_ONLY, and an
+// invite is redeemed by the link carrying ?invite=CODE rather than by an extra
+// field on screen. The server side has its own tests; what they cannot show is
+// that the client actually puts the code in the request, so this reads the body
+// the browser sends.
+test("an invite link puts its code in the signup request", async ({ page }) => {
+    let sentBody = null;
+    await page.route("**/users", async (route) => {
+        sentBody = route.request().postDataJSON();
+        await route.fulfill({ status: 200, json: { message: "User created" } });
+    });
+
+    await page.goto("/?invite=GOLDENTICKET");
+    await page.getByRole("button", { name: "Sign Up" }).click();
+    await page.locator('input[name="email"]').fill("invited@example.com");
+    await page.locator('input[name="username"]').fill("invitedone");
+    await page.locator('input[name="password"]').fill("password123");
+    await page.locator('input[name="passwordRepeat"]').fill("password123");
+    await page.getByRole("button", { name: "Create Account" }).click();
+
+    await expect.poll(() => sentBody).not.toBeNull();
+    expect(sentBody.inviteCode).toBe("GOLDENTICKET");
+});
+
+// Nothing extra is sent when there is no invite in the link, so an open
+// registration is byte-for-byte what it was.
+test("an ordinary visit sends no invite code", async ({ page }) => {
+    let sentBody = null;
+    await page.route("**/users", async (route) => {
+        sentBody = route.request().postDataJSON();
+        await route.fulfill({ status: 200, json: { message: "User created" } });
+    });
+
+    await page.goto("/");
+    await page.getByRole("button", { name: "Sign Up" }).click();
+    await page.locator('input[name="email"]').fill("plain@example.com");
+    await page.locator('input[name="username"]').fill("plainone");
+    await page.locator('input[name="password"]').fill("password123");
+    await page.locator('input[name="passwordRepeat"]').fill("password123");
+    await page.getByRole("button", { name: "Create Account" }).click();
+
+    await expect.poll(() => sentBody).not.toBeNull();
+    expect(sentBody.inviteCode).toBeUndefined();
+});
+
 // Doubles as the guard on non-400 failures. The client used to check
 // `response.status === 400` and ignore everything else, so when the API started
 // answering 401 for bad credentials this test failed with an empty toast — the

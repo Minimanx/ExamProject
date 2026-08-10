@@ -3,6 +3,7 @@
     import { apiFetch } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
+    import { page } from "$app/state";
 
     let { socket } = $props();
 
@@ -10,6 +11,8 @@
     let username = $state();
     let password = $state();
     let passwordRepeat = $state();
+    // An invite link is /?invite=CODE. See the hedge in the roadmap's §3.
+    const inviteCode = $derived(page.url.searchParams.get("invite") ?? "");
     let token = $state();
 
     // These five drive which panel is shown; without $state the screen would
@@ -65,6 +68,10 @@
                 username: username,
                 password: password,
                 passwordRepeat: passwordRepeat,
+                // Carried in the invite link rather than typed into a field, so
+                // there is nothing extra on screen while registration is open.
+                // The server ignores it unless INVITE_ONLY is set.
+                ...(inviteCode && { inviteCode }),
             }),
         });
 
