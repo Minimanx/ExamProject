@@ -12,22 +12,41 @@ import { test, expect } from "@playwright/test";
 // so a fixed address would collide with the previous run's user on the second
 // invocation and signup would return "Email already exists".
 const RUN = Date.now().toString(36).slice(-6);
+const API = "http://localhost:5055";
+
+// The account every test logs in with. Created once through the API rather
+// than by an earlier test, so no test depends on another having run — a
+// focused run (`-g`) works exactly like a full one.
 const USER = {
     email: `e2e-${RUN}@example.com`,
     username: `e2e${RUN}`,
     password: "password123",
 };
 
+// A separate account for the UI signup test, so it never collides with USER.
+const SIGNUP_USER = {
+    email: `signup-${RUN}@example.com`,
+    username: `signup${RUN}`,
+    password: "password123",
+};
+
 test.describe.configure({ mode: "serial" });
+
+test.beforeAll(async ({ request }) => {
+    await request.post(`${API}/users`, {
+        data: { ...USER, passwordRepeat: USER.password },
+        failOnStatusCode: false,
+    });
+});
 
 /** The login overlay covers the scene until a user is stored. */
 async function signUp(page) {
     await page.goto("/");
     await page.getByRole("button", { name: "Sign Up" }).click();
-    await page.locator('input[name="email"]').fill(USER.email);
-    await page.locator('input[name="username"]').fill(USER.username);
-    await page.locator('input[name="password"]').fill(USER.password);
-    await page.locator('input[name="passwordRepeat"]').fill(USER.password);
+    await page.locator('input[name="email"]').fill(SIGNUP_USER.email);
+    await page.locator('input[name="username"]').fill(SIGNUP_USER.username);
+    await page.locator('input[name="password"]').fill(SIGNUP_USER.password);
+    await page.locator('input[name="passwordRepeat"]').fill(SIGNUP_USER.password);
     await page.getByRole("button", { name: "Create Account" }).click();
 }
 
@@ -160,6 +179,63 @@ test("the about panel opens and closes again", async ({ page }) => {
     await page.getByRole("button", { name: "Back" }).click();
     await expect(page.locator(".containerListView")).not.toContainText(/passion project/i);
     await expect(page.getByRole("button", { name: "About" })).toBeVisible();
+});
+
+// CreateEventScreen holds the most state of any component, and none of it was
+// covered before the runes migration touched it. OMDB is unreachable with a
+// test key, so the movie search is intercepted.
+test("creating an event: search, select a movie, and submit", async ({ page }) => {
+    await page.route("**/movies?s=*", (route) =>
+        route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                data: {
+                    Response: "True",
+                    Search: [
+                        { Title: "Interstellar", Year: "2014", imdbID: "tt0816692", Poster: "N/A" },
+                    ],
+                },
+            }),
+        })
+    );
+
+    await logIn(page);
+    await page.getByRole("button", { name: "Create Event" }).first().click();
+
+    // Two buttons are labelled "Create Event" and both carry
+    // id="addTheaterButton": the one in the scene that opens this panel, and
+    // the one inside it that submits. Scope to the panel holding the form.
+    // Containers nest, so filtering matches the outer scene container too;
+    // document order puts the innermost (the panel) last.
+    const panel = page
+        .locator("div.container")
+        .filter({ has: page.locator('input[name="eventName"]') })
+        .last();
+
+    await page.locator('input[name="eventName"]').fill("Runes Night");
+    await page.locator('input[name="searchMovie"]').first().fill("interstellar");
+    await page.locator('input[name="searchMovie"]').first().dispatchEvent("change");
+
+    // The result list renders once the (intercepted) search resolves. Scope to
+    // the panel: an unscoped "ul" also matches the toast container.
+    const result = panel.locator("ul").filter({ hasText: "Interstellar" }).first();
+    await expect(result).toBeVisible();
+    // dispatchEvent rather than click(): the search is debounced and re-renders
+    // the result list, which swallows a real mouse click landing mid-render.
+    // This exercises the same on:click handler deterministically.
+    await result.dispatchEvent("click");
+    // Selecting sets chosenMovieID, which the markup reflects as .selectedMovie.
+    await expect(result).toHaveClass(/selectedMovie/);
+
+    const soon = new Date(Date.now() + 90 * 60 * 1000);
+    const hh = String(soon.getHours()).padStart(2, "0");
+    const mm = String(soon.getMinutes()).padStart(2, "0");
+    await page.locator('input[name="startTime"]').fill(`${hh}:${mm}`);
+    await page.locator('input[name="amountOfSpaces"]').fill("10");
+
+    await panel.getByRole("button", { name: "Create Event" }).click();
+    await expect(page.locator("._toastContainer")).toContainText(/Event Created|already have an ongoing event/i);
 });
 
 test("unknown paths fall back to the scene", async ({ page }) => {

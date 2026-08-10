@@ -14,6 +14,37 @@ process.env.OMDB_API_KEY = "test-omdb-key";
 process.env.EMAIL_USER = "";
 process.env.EMAIL_PASSWORD = "";
 
+// Stub OMDB. The routers call the global fetch (node-fetch was removed in
+// Phase 0.2), so the whole outbound path can be intercepted here — a client
+// test cannot stub a call the server makes.
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (input, init) => {
+    const url = String(input);
+    if (!url.includes("omdbapi.com")) return realFetch(input, init);
+
+    const query = new URL(url).searchParams;
+    const body = query.get("i")
+        ? {
+              Response: "True",
+              Title: "Interstellar",
+              Year: "2014",
+              Runtime: "169 min",
+              imdbRating: "8.7",
+              Poster: "https://example.com/poster.jpg",
+              Plot: "A test plot.",
+              Genre: "Sci-Fi",
+          }
+        : {
+              Response: "True",
+              Search: [{ Title: "Interstellar", Year: "2014", imdbID: "tt0816692", Poster: "N/A" }],
+          };
+
+    return new Response(JSON.stringify(body), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+    });
+};
+
 const { server } = await import("./app.js");
 const db = (await import("./database/createConnection.js")).default;
 
