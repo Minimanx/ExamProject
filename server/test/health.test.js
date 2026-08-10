@@ -20,6 +20,20 @@ describe("error handling", () => {
     });
 });
 
+describe("malformed request body", () => {
+    // FIX 3 (final review): the error handler used to hardcode res.status(500),
+    // flattening body-parser's own 400/413 statuses to 500. body-parser sets
+    // err.status on a JSON parse failure; the handler now honours it.
+    it("returns 400, not 500, for a body express.json() cannot parse", async () => {
+        const response = await request(app)
+            .post("/login")
+            .set("Content-Type", "application/json")
+            .send('{"broken"');
+
+        expect(response.status).toBe(400);
+    });
+});
+
 describe("rate limiting", () => {
     it("sends standard RateLimit headers", async () => {
         const response = await request(app).get("/health");

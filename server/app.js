@@ -132,13 +132,17 @@ app.use((err, req, res, next) => {
         method: req.method,
         path: req.path,
         message: err.message,
+        stack: err.stack,
     });
 
     if (res.headersSent) {
         return next(err);
     }
 
-    res.status(500).send({ message: "Something went wrong" });
+    const status = err.status || err.statusCode || 500;
+    res.status(status).send({
+        message: status >= 500 ? "Something went wrong" : err.message,
+    });
 });
 
 export { app, server, io };
