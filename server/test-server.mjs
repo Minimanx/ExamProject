@@ -49,25 +49,27 @@ const { server } = await import("./app.js");
 const db = (await import("./database/createConnection.js")).default;
 
 const now = Date.now();
-await db.theaters.insertMany([0, 1, 2].map((i) => ({
-    eventName: ["Movie Night", "Sci-Fi Fest", "Noir Evening"][i],
-    startTime: new Date(now + 3600000),
-    timeToClose: new Date(now + 10800000),
-    amountOfSpaces: 10,
-    position: i,
-    ownerID: "000000000000000000000001",
-    usersInsideTheater: [],
-    passwordBool: false,
-    password: "",
-    imdbID: "tt000000" + i,
-    movieName: ["The Matrix", "Blade Runner", "Chinatown"][i],
-    movieRuntime: 136,
-    movieReleaseYear: "1999",
-    imdbRating: "8.7",
-    hrefPoster: "",
-    moviePlot: "",
-    movieGenres: "Action",
-})));
+await db.theaters.insertMany(
+    [0, 1, 2].map((i) => ({
+        eventName: ["Movie Night", "Sci-Fi Fest", "Noir Evening"][i],
+        startTime: new Date(now + 3600000),
+        timeToClose: new Date(now + 10800000),
+        amountOfSpaces: 10,
+        position: i,
+        ownerID: "000000000000000000000001",
+        usersInsideTheater: [],
+        passwordBool: false,
+        password: "",
+        imdbID: "tt000000" + i,
+        movieName: ["The Matrix", "Blade Runner", "Chinatown"][i],
+        movieRuntime: 136,
+        movieReleaseYear: "1999",
+        imdbRating: "8.7",
+        hrefPoster: "",
+        moviePlot: "",
+        movieGenres: "Action",
+    }))
+);
 
 const port = Number(process.env.PORT) || 5055;
 server.listen(port, () => console.log(`test server ready on ${port}`));

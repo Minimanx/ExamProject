@@ -1,69 +1,73 @@
-@import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
-@import url('https://fonts.googleapis.com/css2?family=Monoton&display=swap');
+@import url("https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Monoton&display=swap");
 
-html, body {
-	position: relative;
-	width: 100%;
-	height: 100%;
+html,
+body {
+    position: relative;
+    width: 100%;
+    height: 100%;
 }
 
 body {
-	background-color: rgb(27, 27, 27);
-	color: #333;
-	margin: auto;
-	padding: 0;
-	box-sizing: border-box;
-	font-family: 'Press Start 2P', cursive;
+    background-color: rgb(27, 27, 27);
+    color: #333;
+    margin: auto;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: "Press Start 2P", cursive;
 }
 
 a {
-	color: rgb(0,100,200);
-	text-decoration: none;
+    color: rgb(0, 100, 200);
+    text-decoration: none;
 }
 
 a:hover {
-	text-decoration: underline;
+    text-decoration: underline;
 }
 
 a:visited {
-	color: rgb(0,80,160);
+    color: rgb(0, 80, 160);
 }
 
 label {
-	display: block;
+    display: block;
 }
 
-input, button, select, textarea {
-	font-family: inherit;
-	font-size: inherit;
-	-webkit-padding: 0.4em 0;
-	padding: 0.4em;
-	margin: 0 0 0.5em 0;
-	box-sizing: border-box;
-	border: 1px solid #ccc;
-	border-radius: 2px;
+input,
+button,
+select,
+textarea {
+    font-family: inherit;
+    font-size: inherit;
+    -webkit-padding: 0.4em 0;
+    padding: 0.4em;
+    margin: 0 0 0.5em 0;
+    box-sizing: border-box;
+    border: 1px solid #ccc;
+    border-radius: 2px;
 }
 
 input:disabled {
-	color: #ccc;
+    color: #ccc;
 }
 
 button {
-	color: #333;
-	background-color: #f4f4f4;
-	outline: none;
+    color: #333;
+    background-color: #f4f4f4;
+    outline: none;
 }
 
 button:disabled {
-	color: #999;
+    color: #999;
 }
 
 button:not(:disabled):active {
-	background-color: #ddd;
+    background-color: #ddd;
 }
 
 button:focus {
-	border-color: #666;
+    border-color: #666;
 }
 
 /* Pixel-art styles shared by TheaterFront and EmptyLot.
@@ -71,37 +75,64 @@ button:focus {
    because the neoncolor class is built at runtime - Svelte cannot prove it
    is used and would prune it from a component's scoped styles. */
 .movieTitle {
-  fill: rgb(222, 255, 251);
-  font-size: 8px;
-  font-family: "Monoton", cursive;
-  user-select: none;
-  text-anchor: middle;
+    fill: rgb(222, 255, 251);
+    font-size: 8px;
+    font-family: "Monoton", cursive;
+    user-select: none;
+    text-anchor: middle;
 }
 .neoncolor0 {
-  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-    0 0 40px rgb(38, 0, 255), 0 0 80px rgb(38, 0, 255),
-    0 0 90px rgb(38, 0, 255), 0 0 100px rgb(38, 0, 255),
-    0 0 150px rgb(38, 0, 255);
+    text-shadow:
+        0 0 5px #fff,
+        0 0 10px #fff,
+        0 0 20px #fff,
+        0 0 40px rgb(38, 0, 255),
+        0 0 80px rgb(38, 0, 255),
+        0 0 90px rgb(38, 0, 255),
+        0 0 100px rgb(38, 0, 255),
+        0 0 150px rgb(38, 0, 255);
 }
 .neoncolor1 {
-  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-    0 0 40px rgb(30, 255, 0), 0 0 80px rgb(30, 255, 0),
-    0 0 90px rgb(30, 255, 0), 0 0 100px rgb(30, 255, 0),
-    0 0 150px rgb(30, 255, 0);
+    text-shadow:
+        0 0 5px #fff,
+        0 0 10px #fff,
+        0 0 20px #fff,
+        0 0 40px rgb(30, 255, 0),
+        0 0 80px rgb(30, 255, 0),
+        0 0 90px rgb(30, 255, 0),
+        0 0 100px rgb(30, 255, 0),
+        0 0 150px rgb(30, 255, 0);
 }
 .neoncolor2 {
-  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff, 0 0 40px #0ff,
-    0 0 80px #0ff, 0 0 90px #0ff, 0 0 100px #0ff, 0 0 150px #0ff;
+    text-shadow:
+        0 0 5px #fff,
+        0 0 10px #fff,
+        0 0 20px #fff,
+        0 0 40px #0ff,
+        0 0 80px #0ff,
+        0 0 90px #0ff,
+        0 0 100px #0ff,
+        0 0 150px #0ff;
 }
 .neoncolor3 {
-  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-    0 0 40px rgb(255, 0, 234), 0 0 80px rgb(255, 0, 234),
-    0 0 90px rgb(255, 0, 234), 0 0 100px rgb(255, 0, 234),
-    0 0 150px rgb(255, 0, 234);
+    text-shadow:
+        0 0 5px #fff,
+        0 0 10px #fff,
+        0 0 20px #fff,
+        0 0 40px rgb(255, 0, 234),
+        0 0 80px rgb(255, 0, 234),
+        0 0 90px rgb(255, 0, 234),
+        0 0 100px rgb(255, 0, 234),
+        0 0 150px rgb(255, 0, 234);
 }
 .neoncolor4 {
-  text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-    0 0 40px rgb(255, 115, 0), 0 0 80px rgb(255, 115, 0),
-    0 0 90px rgb(255, 115, 0), 0 0 100px rgb(255, 115, 0),
-    0 0 150px rgb(255, 115, 0);
+    text-shadow:
+        0 0 5px #fff,
+        0 0 10px #fff,
+        0 0 20px #fff,
+        0 0 40px rgb(255, 115, 0),
+        0 0 80px rgb(255, 115, 0),
+        0 0 90px rgb(255, 115, 0),
+        0 0 100px rgb(255, 115, 0),
+        0 0 150px rgb(255, 115, 0);
 }

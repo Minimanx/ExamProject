@@ -58,7 +58,7 @@ const sessionMiddleware = session({
         secure: isProduction,
         sameSite: isProduction ? "none" : "lax",
         maxAge: 7 * 24 * 60 * 60 * 1000,
-    }
+    },
 });
 app.use(sessionMiddleware);
 
@@ -76,7 +76,7 @@ const loginLimiter = rateLimit({
 });
 app.use(baseLimiter);
 
-app.use(express.json())
+app.use(express.json());
 
 // Strips $-prefixed keys so a Mongo operator cannot be smuggled into a query.
 // Ordering is load-bearing: this MUST run after express.json(). Registered
@@ -116,13 +116,13 @@ function sanitizeRequest(req, res, next) {
     sanitize(req.body);
     next();
 }
-app.use(sanitizeRequest)
+app.use(sanitizeRequest);
 
 app.get("/health", (req, res) => {
     res.status(200).send({ status: "ok" });
 });
 
-const wrap = middleware => (socket, next) => middleware(socket.request, {}, next);
+const wrap = (middleware) => (socket, next) => middleware(socket.request, {}, next);
 io.use(wrap(sessionMiddleware));
 
 import carSocket from "./socketios/carSocket.js";

@@ -6,6 +6,29 @@ on:
   pull_request:
 
 jobs:
+  lint:
+    name: Lint and format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: client/package-lock.json
+      - run: npm ci
+        working-directory: client
+      - run: npm ci
+        working-directory: server
+      - run: npm run lint
+        working-directory: client
+      - run: npm run format:check
+        working-directory: client
+      - run: npm run lint
+        working-directory: server
+      - run: npm run format:check
+        working-directory: server
+
   server:
     name: Server tests
     runs-on: ubuntu-latest

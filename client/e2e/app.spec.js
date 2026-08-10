@@ -144,7 +144,9 @@ test("signing up creates a user", async ({ page }) => {
     await expect(page.locator("._toastContainer")).toContainText("User created");
 });
 
-test("logging in with a wrong password shows an error and keeps the form usable", async ({ page }) => {
+test("logging in with a wrong password shows an error and keeps the form usable", async ({
+    page,
+}) => {
     await page.goto("/");
     await page.locator('input[name="email"]').fill(USER.email);
     await page.locator('input[name="password"]').fill("definitely-wrong");
@@ -171,7 +173,9 @@ test("driving moves the player car", async ({ page }) => {
     expect(await car.getAttribute("style")).not.toBe(before);
 });
 
-test("parking at a theater opens its info panel, and joining enters the theater", async ({ page }) => {
+test("parking at a theater opens its info panel, and joining enters the theater", async ({
+    page,
+}) => {
     await logIn(page);
 
     // Drive up into the theater row.
@@ -185,7 +189,9 @@ test("parking at a theater opens its info panel, and joining enters the theater"
 
     await expect(page).toHaveURL(/\/theaters\/[a-f0-9]{24}$/);
     await expect(page.locator(".liveChatContainer")).toBeVisible();
-    await expect(page.locator(".timeOfMovie h1").first()).toContainText(/Starts in|Ongoing|Closing|Closed/);
+    await expect(page.locator(".timeOfMovie h1").first()).toContainText(
+        /Starts in|Ongoing|Closing|Closed/
+    );
 });
 
 // The countdown is driven by an interval updating currentTime and the derived
@@ -224,13 +230,15 @@ test("sending a chat message shows it and clears the input", async ({ page }) =>
 test("the list view sorts by name and reverses on a second click", async ({ page }) => {
     await logIn(page);
 
-    const names = () =>
-        page.locator(".containerListView .names").allTextContents();
+    const names = () => page.locator(".containerListView .names").allTextContents();
 
     const initial = await names();
     expect(initial.length).toBeGreaterThan(1);
 
-    const sortByName = page.locator(".containerListView li").filter({ hasText: /^Name\/Movie$/ }).first();
+    const sortByName = page
+        .locator(".containerListView li")
+        .filter({ hasText: /^Name\/Movie$/ })
+        .first();
     await sortByName.click();
     const ascending = await names();
     expect(ascending).not.toEqual(initial);
@@ -307,7 +315,9 @@ test("creating an event: search, select a movie, and submit", async ({ page }) =
     await page.locator('input[name="amountOfSpaces"]').fill("10");
 
     await panel.getByRole("button", { name: "Create Event" }).click();
-    await expect(page.locator("._toastContainer")).toContainText(/Event Created|already have an ongoing event/i);
+    await expect(page.locator("._toastContainer")).toContainText(
+        /Event Created|already have an ongoing event/i
+    );
 });
 
 test("unknown paths fall back to the scene", async ({ page }) => {

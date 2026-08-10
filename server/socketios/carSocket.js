@@ -4,7 +4,7 @@ const socket = (io) => {
 
         socket.on("carPosition", ({ id, coords, direction, screen }) => {
             const now = Date.now();
-            if(now - lastPositionBroadcast < 50) return;
+            if (now - lastPositionBroadcast < 50) return;
             lastPositionBroadcast = now;
             socket.broadcast.emit("newCarPosition", { id, coords, direction, screen });
         });
@@ -29,6 +29,6 @@ const socket = (io) => {
             socket.broadcast.emit("carLeft", { id: socket.id });
         });
     });
-}
+};
 
 export default socket;

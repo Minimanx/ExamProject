@@ -1,5 +1,5 @@
 <script>
-	import InteractiveSpace from "$lib/pages/InteractiveSpace.svelte";
+    import InteractiveSpace from "$lib/pages/InteractiveSpace.svelte";
 </script>
 
 <InteractiveSpace />

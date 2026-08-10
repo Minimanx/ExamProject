@@ -13,26 +13,26 @@ router.get("/logout", (req, res) => {
 router.post("/login", async (req, res) => {
     const clientUser = req.body;
 
-    if(!clientUser.email || !clientUser.password) {
+    if (!clientUser.email || !clientUser.password) {
         res.status(400).send({ message: "All fields must be filled" });
         return;
     }
 
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
-    if(serverUser === null) {
+    if (serverUser === null) {
         res.status(400).send({ message: "Email or password incorrect" });
         return;
     }
 
-    if(await bcrypt.compare(clientUser.password, serverUser.password)) {
+    if (await bcrypt.compare(clientUser.password, serverUser.password)) {
         const { password, passwordToken, ...responseUser } = serverUser;
         req.session.loggedIn = true;
         req.session.userID = serverUser._id.toString();
         req.session.email = serverUser.email;
         req.session.username = serverUser.username;
 
-        res.status(200).send({ data: responseUser, message: "Successfully logged in"});
+        res.status(200).send({ data: responseUser, message: "Successfully logged in" });
     } else {
         res.status(400).send({ message: "Email or password incorrect" });
     }
@@ -40,28 +40,39 @@ router.post("/login", async (req, res) => {
 
 router.post("/forgotpassword", async (req, res) => {
     const clientUser = req.body;
-    
-    if(!clientUser.email) {
+
+    if (!clientUser.email) {
         res.status(400).send({ message: "All fields must be filled" });
         return;
     }
-    if(!/\S+@\S+\.\S+/.test(clientUser.email)) {
+    if (!/\S+@\S+\.\S+/.test(clientUser.email)) {
         res.status(400).send({ message: "Email must be valid" });
         return;
     }
-    
+
     const serverUser = await db.users.findOne({ email: clientUser.email.toLowerCase() });
 
-    if(serverUser === null) {
-        res.status(200).send({ message: "If this email is tied to a user, an email has been sent to it." });
+    if (serverUser === null) {
+        res.status(200).send({
+            message: "If this email is tied to a user, an email has been sent to it.",
+        });
         return;
     }
 
-    const token = crypto.randomBytes(3).toString('hex');
-    await db.users.updateOne({ email: serverUser.email.toLowerCase() }, { $set: { passwordToken: token }});
+    const token = crypto.randomBytes(3).toString("hex");
+    await db.users.updateOne(
+        { email: serverUser.email.toLowerCase() },
+        { $set: { passwordToken: token } }
+    );
 
-    void mailer("Forgot Password", `<span style="font-size: 25px;">Code to use for password reset:</span> <span style="font-size: 35px;">${token}</span>`, clientUser.email);
-    res.status(200).send({ message: "If this email is tied to a user, an email has been sent to it." });
+    void mailer(
+        "Forgot Password",
+        `<span style="font-size: 25px;">Code to use for password reset:</span> <span style="font-size: 35px;">${token}</span>`,
+        clientUser.email
+    );
+    res.status(200).send({
+        message: "If this email is tied to a user, an email has been sent to it.",
+    });
 });
 
 // The reset token and email must be non-empty strings before they reach a
@@ -70,58 +81,75 @@ router.post("/forgotpassword", async (req, res) => {
 // matches every document where the field is null or absent — no sanitizer can
 // prevent that, because null is not an operator. See defect S10.
 function hasValidResetCredentials(clientUser) {
-    return typeof clientUser.token === "string" && clientUser.token.length > 0
-        && typeof clientUser.email === "string" && clientUser.email.length > 0;
+    return (
+        typeof clientUser.token === "string" &&
+        clientUser.token.length > 0 &&
+        typeof clientUser.email === "string" &&
+        clientUser.email.length > 0
+    );
 }
 
 router.post("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
-    if(!hasValidResetCredentials(clientUser)) {
-        res.status(400).send({ message: "Code must be filled"});
+    if (!hasValidResetCredentials(clientUser)) {
+        res.status(400).send({ message: "Code must be filled" });
         return;
     }
 
-    const serverUser = await db.users.findOne({ passwordToken: clientUser.token, email: clientUser.email.toLowerCase() });
+    const serverUser = await db.users.findOne({
+        passwordToken: clientUser.token,
+        email: clientUser.email.toLowerCase(),
+    });
 
-    if(serverUser === null) {
+    if (serverUser === null) {
         res.status(400).send({ message: "Code is invalid" });
         return;
     }
-    
+
     res.status(200).send({});
 });
 
 router.patch("/resetpassword", async (req, res) => {
     const clientUser = req.body;
 
-    if(!hasValidResetCredentials(clientUser)) {
-        res.status(400).send({ message: "Code must be filled"});
+    if (!hasValidResetCredentials(clientUser)) {
+        res.status(400).send({ message: "Code must be filled" });
         return;
     }
-    if(!clientUser.password || !clientUser.passwordRepeat) {
+    if (!clientUser.password || !clientUser.passwordRepeat) {
         res.status(400).send({ message: "All fields must be filled" });
         return;
     }
-    if(clientUser.password !== clientUser.passwordRepeat) {
+    if (clientUser.password !== clientUser.passwordRepeat) {
         res.status(400).send({ message: "Passwords must match" });
         return;
     }
-    if(clientUser.password.length < 8) {
+    if (clientUser.password.length < 8) {
         res.status(400).send({ message: "Password is too short" });
         return;
     }
 
-    const serverUser = await db.users.findOne({ passwordToken: clientUser.token, email: clientUser.email.toLowerCase() });
+    const serverUser = await db.users.findOne({
+        passwordToken: clientUser.token,
+        email: clientUser.email.toLowerCase(),
+    });
 
-    if(serverUser === null) {
+    if (serverUser === null) {
         res.status(400).send({ message: "Something went wrong, try to start over" });
         return;
     }
 
     const newPassword = await bcrypt.hash(clientUser.password, 12);
-    await db.users.updateOne({ email: clientUser.email.toLowerCase(), passwordToken: clientUser.token }, { $set: { password: newPassword }, $unset: { passwordToken: "" }});
-    void mailer("Password changed successfully", `<h2>Your password has been changed!</h2>`, clientUser.email);
+    await db.users.updateOne(
+        { email: clientUser.email.toLowerCase(), passwordToken: clientUser.token },
+        { $set: { password: newPassword }, $unset: { passwordToken: "" } }
+    );
+    void mailer(
+        "Password changed successfully",
+        `<h2>Your password has been changed!</h2>`,
+        clientUser.email
+    );
     res.status(200).send({ message: "Password changed successfully" });
 });
 

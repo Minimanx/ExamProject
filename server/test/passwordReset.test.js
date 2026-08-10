@@ -25,16 +25,14 @@ describe("POST /forgotpassword", () => {
     });
 
     it("rejects a malformed email", async () => {
-        const response = await post("/forgotpassword")
-            .send({ email: "not-an-email" });
+        const response = await post("/forgotpassword").send({ email: "not-an-email" });
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Email must be valid");
     });
 
     it("does not reveal whether an unknown email exists", async () => {
-        const response = await post("/forgotpassword")
-            .send({ email: "nobody@example.com" });
+        const response = await post("/forgotpassword").send({ email: "nobody@example.com" });
 
         expect(response.status).toBe(200);
         expect(response.body.message).toBe(
@@ -58,8 +56,7 @@ describe("POST /forgotpassword", () => {
 
 describe("POST /resetpassword", () => {
     it("rejects a missing token", async () => {
-        const response = await post("/resetpassword")
-            .send({ email: "someone@example.com" });
+        const response = await post("/resetpassword").send({ email: "someone@example.com" });
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Code must be filled");
@@ -69,8 +66,7 @@ describe("POST /resetpassword", () => {
         const user = await registerUser();
         await requestResetToken(user);
 
-        const response = await post("/resetpassword")
-            .send({ email: user.email, token: "aaaaaa" });
+        const response = await post("/resetpassword").send({ email: user.email, token: "aaaaaa" });
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Code is invalid");
@@ -80,8 +76,7 @@ describe("POST /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await post("/resetpassword")
-            .send({ email: user.email, token });
+        const response = await post("/resetpassword").send({ email: user.email, token });
 
         expect(response.status).toBe(200);
     });
@@ -92,8 +87,12 @@ describe("PATCH /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await patch("/resetpassword")
-            .send({ email: user.email, token, password: "newpass123", passwordRepeat: "other123" });
+        const response = await patch("/resetpassword").send({
+            email: user.email,
+            token,
+            password: "newpass123",
+            passwordRepeat: "other123",
+        });
 
         expect(response.status).toBe(400);
         expect(response.body.message).toBe("Passwords must match");
@@ -103,13 +102,12 @@ describe("PATCH /resetpassword", () => {
         const user = await registerUser();
         const token = await requestResetToken(user);
 
-        const response = await patch("/resetpassword")
-            .send({
-                email: user.email,
-                token,
-                password: "newpassword123",
-                passwordRepeat: "newpassword123",
-            });
+        const response = await patch("/resetpassword").send({
+            email: user.email,
+            token,
+            password: "newpassword123",
+            passwordRepeat: "newpassword123",
+        });
 
         expect(response.status).toBe(200);
 
@@ -136,13 +134,12 @@ describe("PATCH /resetpassword", () => {
         expect(stored.passwordToken).toBeUndefined();
 
         // And it cannot be used a second time.
-        const reuse = await patch("/resetpassword")
-            .send({
-                email: user.email,
-                token,
-                password: "thirdpassword123",
-                passwordRepeat: "thirdpassword123",
-            });
+        const reuse = await patch("/resetpassword").send({
+            email: user.email,
+            token,
+            password: "thirdpassword123",
+            passwordRepeat: "thirdpassword123",
+        });
 
         expect(reuse.status).toBe(400);
     });

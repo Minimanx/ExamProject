@@ -22,76 +22,75 @@
 
     async function login() {
         const response = await apiFetch("/login", {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
                 email: email,
                 password: password,
             }),
-		});
+        });
 
         const result = await response.json();
 
-        if(response.status === 400) {
+        if (response.status === 400) {
             error(result.message);
             return;
         }
-        if(response.status === 200) {
+        if (response.status === 200) {
             $user.loggedIn = true;
             $user.username = result.data.username;
             $user.userID = result.data._id;
-            $user.playerColor = "#" + Math.floor(Math.random()*16777215).toString(16);
+            $user.playerColor = "#" + Math.floor(Math.random() * 16777215).toString(16);
             $user.insideTheater = false;
             $playerMovement = true;
             socket.disconnect().connect();
             socket.emit("carUpdate", { name: result.data.username, color: $user.playerColor });
             success(result.message);
         }
-
     }
 
     async function signUp() {
-		const response = await apiFetch("/users", {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
+        const response = await apiFetch("/users", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
                 email: email,
                 username: username,
                 password: password,
-                passwordRepeat: passwordRepeat
+                passwordRepeat: passwordRepeat,
             }),
-		});
+        });
 
         const result = await response.json();
 
-        if(response.status === 400) {
+        if (response.status === 400) {
             error(result.message);
             return;
         }
-        if(response.status === 200) {
+        if (response.status === 200) {
             success(result.message);
             changeToLogin();
         }
     }
 
     async function forgotPass() {
-		const response = await apiFetch("/forgotpassword", {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
-                email: email
+        const response = await apiFetch("/forgotpassword", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+                email: email,
             }),
-		});
+        });
 
         const result = await response.json();
 
-        if(response.status === 400) {
+        if (response.status === 400) {
             error(result.message);
             return;
         }
@@ -101,20 +100,20 @@
     }
 
     async function confirmToken() {
-		const response = await apiFetch("/resetpassword", {
-			method: 'POST',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
+        const response = await apiFetch("/resetpassword", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
                 email: email,
-                token: token
+                token: token,
             }),
-		});
+        });
 
         const result = await response.json();
 
-        if(response.status === 400) {
+        if (response.status === 400) {
             error(result.message);
             return;
         }
@@ -123,30 +122,29 @@
     }
 
     async function changePass() {
-		const response = await apiFetch("/resetpassword", {
-			method: 'PATCH',
-			headers: {
-				'Content-Type': 'application/json',
-			},
-			body: JSON.stringify({
+        const response = await apiFetch("/resetpassword", {
+            method: "PATCH",
+            headers: {
+                "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
                 email: email,
                 token: token,
                 password: password,
-                passwordRepeat: passwordRepeat
+                passwordRepeat: passwordRepeat,
             }),
-		});
+        });
 
         const result = await response.json();
 
-        if(response.status === 400) {
+        if (response.status === 400) {
             error(result.message);
             return;
         }
-        if(response.status === 200) {
+        if (response.status === 200) {
             success(result.message);
             changeToLogin();
         }
-        
     }
 
     function changeToLogin() {
@@ -209,9 +207,15 @@
 {#if loginComponent === true}
     <div class="container">
         <label for="email">Email</label>
-        <input name="email" type="email" bind:value={email} placeholder="Type email here...">
+        <input name="email" type="email" bind:value={email} placeholder="Type email here..." />
         <label for="password">Password</label>
-        <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
+        <input
+            name="password"
+            type="password"
+            bind:value={password}
+            placeholder="Type password here..."
+            maxlength="24"
+        />
         <button id="mainbutton" onclick={login}>Login</button>
         <div class="otherOptions">
             <button onclick={changeToSignUp}>Sign Up</button>
@@ -222,13 +226,31 @@
 {#if signUpComponent === true}
     <div class="container">
         <label for="email">Email</label>
-        <input name="email" type="email" bind:value={email} placeholder="Type email here...">
+        <input name="email" type="email" bind:value={email} placeholder="Type email here..." />
         <label for="username">Username</label>
-        <input name="username" type="text" bind:value={username} placeholder="Type username here..." maxlength="16">
+        <input
+            name="username"
+            type="text"
+            bind:value={username}
+            placeholder="Type username here..."
+            maxlength="16"
+        />
         <label for="password">Password</label>
-        <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
+        <input
+            name="password"
+            type="password"
+            bind:value={password}
+            placeholder="Type password here..."
+            maxlength="24"
+        />
         <label for="passwordRepeat">Repeat Password</label>
-        <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">
+        <input
+            name="passwordRepeat"
+            type="password"
+            bind:value={passwordRepeat}
+            placeholder="Type password here..."
+            maxlength="24"
+        />
         <button id="mainbutton" onclick={signUp}>Create Account</button>
         <div class="otherOptions">
             <button onclick={changeToLogin}>Back</button>
@@ -238,7 +260,7 @@
 {#if forgotPassComponent === true}
     <div class="container">
         <label for="email">Email</label>
-        <input name="email" type="email" bind:value={email} placeholder="Type email here...">
+        <input name="email" type="email" bind:value={email} placeholder="Type email here..." />
         <button id="mainbutton" onclick={forgotPass}>Click here to reset password</button>
         <div class="otherOptions">
             <button onclick={changeToLogin}>Back</button>
@@ -248,7 +270,12 @@
 {#if tokenComponent === true}
     <div class="container">
         <label for="token">Email Code</label>
-        <input name="token" type="text" bind:value={token} placeholder="Type code from email here...">
+        <input
+            name="token"
+            type="text"
+            bind:value={token}
+            placeholder="Type code from email here..."
+        />
         <button id="mainbutton" onclick={confirmToken}>Click here to confirm</button>
         <div class="otherOptions">
             <button onclick={changeToLogin}>Back</button>
@@ -258,9 +285,21 @@
 {#if changePassComponent === true}
     <div class="container">
         <label for="password">New Password</label>
-        <input name="password" type="password" bind:value={password} placeholder="Type password here..." maxlength="24">
+        <input
+            name="password"
+            type="password"
+            bind:value={password}
+            placeholder="Type password here..."
+            maxlength="24"
+        />
         <label for="passwordRepeat">Repeat Password</label>
-        <input name="passwordRepeat" type="password" bind:value={passwordRepeat} placeholder="Type password here..." maxlength="24">
+        <input
+            name="passwordRepeat"
+            type="password"
+            bind:value={passwordRepeat}
+            placeholder="Type password here..."
+            maxlength="24"
+        />
         <button id="mainbutton" onclick={changePass}>Change Password</button>
         <div class="otherOptions">
             <button onclick={changeToLogin}>Back</button>

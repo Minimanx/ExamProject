@@ -15,7 +15,7 @@ export function apiFetch(path, options = {}) {
 }
 
 export function createSocket() {
-    if(!sharedSocket) {
+    if (!sharedSocket) {
         sharedSocket = io(apiUrl || undefined, { withCredentials: true });
     }
 
