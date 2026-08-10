@@ -427,15 +427,6 @@
     width: 200px;
     height: 80px;
   }
-  .closed {
-    fill: red;
-  }
-  .closing {
-    fill: #e69f12;
-  }
-  .startTime {
-    fill: green;
-  }
   .menuButton {
     position: fixed;
     padding: 0;
@@ -521,11 +512,6 @@
     left: 0;
     height: var(--stage-height);
   }
-  .backgroundimg {
-    height: 350px;
-    width: 1000px;
-    position: absolute;
-  }
   .waterExtension {
     position: absolute;
     top: 350px;
@@ -579,55 +565,5 @@
   }
   .playerCar {
     z-index: 1001;
-  }
-  .carName {
-    alignment-baseline: after-edge;
-    user-select: none;
-    font-family: sans-serif;
-  }
-  .streetSign {
-    width: 80px;
-    position: absolute;
-    left: 15px;
-    top: 530px;
-  }
-  .eventInfo {
-    text-anchor: middle;
-    font-size: 4px;
-  }
-  .movieTitle {
-    fill: rgb(222, 255, 251);
-    font-size: 8px;
-    font-family: "Monoton", cursive;
-    user-select: none;
-    text-anchor: middle;
-  }
-  .neoncolor0 {
-    text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-      0 0 40px rgb(38, 0, 255), 0 0 80px rgb(38, 0, 255),
-      0 0 90px rgb(38, 0, 255), 0 0 100px rgb(38, 0, 255),
-      0 0 150px rgb(38, 0, 255);
-  }
-  .neoncolor1 {
-    text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-      0 0 40px rgb(30, 255, 0), 0 0 80px rgb(30, 255, 0),
-      0 0 90px rgb(30, 255, 0), 0 0 100px rgb(30, 255, 0),
-      0 0 150px rgb(30, 255, 0);
-  }
-  .neoncolor2 {
-    text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff, 0 0 40px #0ff,
-      0 0 80px #0ff, 0 0 90px #0ff, 0 0 100px #0ff, 0 0 150px #0ff;
-  }
-  .neoncolor3 {
-    text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-      0 0 40px rgb(255, 0, 234), 0 0 80px rgb(255, 0, 234),
-      0 0 90px rgb(255, 0, 234), 0 0 100px rgb(255, 0, 234),
-      0 0 150px rgb(255, 0, 234);
-  }
-  .neoncolor4 {
-    text-shadow: 0 0 5px #fff, 0 0 10px #fff, 0 0 20px #fff,
-      0 0 40px rgb(255, 115, 0), 0 0 80px rgb(255, 115, 0),
-      0 0 90px rgb(255, 115, 0), 0 0 100px rgb(255, 115, 0),
-      0 0 150px rgb(255, 115, 0);
   }
 </style>

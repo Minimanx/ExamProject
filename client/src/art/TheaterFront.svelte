@@ -129,3 +129,19 @@
   >
   <image href={theater.hrefPoster} height="68" y="0.5" x="10%" />
 </svg>
+
+<style>
+.closed {
+  fill: red;
+}
+.closing {
+  fill: #e69f12;
+}
+.startTime {
+  fill: green;
+}
+.eventInfo {
+  text-anchor: middle;
+  font-size: 4px;
+}
+</style>

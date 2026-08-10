@@ -26,3 +26,12 @@
 />
 <path stroke="#a1855a" d="M18 15h1M2 16h5M17 16h5" />
 </svg>
+
+<style>
+.streetSign {
+  width: 80px;
+  position: absolute;
+  left: 15px;
+  top: 530px;
+}
+</style>

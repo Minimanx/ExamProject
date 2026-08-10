@@ -155,3 +155,11 @@
     d="M331 121h41M8 125h57M178 128h28M356 129h19M48 134h142M317 135h65"
   />
 </svg>
+
+<style>
+.backgroundimg {
+  height: 350px;
+  width: 1000px;
+  position: absolute;
+}
+</style>

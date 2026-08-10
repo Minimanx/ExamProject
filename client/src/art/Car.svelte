@@ -37,3 +37,11 @@
 />
 <path stroke="#ababab" d="M8 13h2M36 13h2M8 14h2M36 14h2" />
 </svg>
+
+<style>
+.carName {
+  alignment-baseline: after-edge;
+  user-select: none;
+  font-family: sans-serif;
+}
+</style>
