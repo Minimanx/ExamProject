@@ -203,8 +203,13 @@ curl https://flixdrive-api.minimanx.dev/health
 Expected response:
 
 ```json
-{"status":"ok"}
+{"status":"ok","mongo":"ok"}
 ```
+
+`/health` pings MongoDB rather than only confirming the process is alive. If the
+database becomes unreachable after boot, it answers `503` with
+`{"status":"degraded","mongo":"unreachable"}`, so Coolify stops sending traffic
+to an instance that cannot serve a single route.
 
 Test the Socket.IO handshake and allowed browser origin:
 

@@ -8,6 +8,7 @@ import helmet from "helmet";
 import MongoStore from "connect-mongo";
 import { mongoClientPromise } from "./database/createConnection.js";
 import { validateConfig } from "./config.js";
+import { checkMongoHealth } from "./health.js";
 
 const app = express();
 const server = http.createServer(app);
@@ -140,8 +141,17 @@ function sanitizeRequest(req, res, next) {
 }
 app.use(sanitizeRequest);
 
-app.get("/health", (req, res) => {
-    res.status(200).send({ status: "ok" });
+app.get("/health", async (req, res) => {
+    const mongoHealthy = await checkMongoHealth(await mongoClientPromise);
+
+    // 503 rather than 200-with-a-flag: the point of this endpoint is to let a
+    // load balancer stop sending traffic here, and it decides on the status
+    // code. DEPLOYMENT.md already promises a bad database URI keeps the
+    // deployment unhealthy; this extends that promise past boot.
+    res.status(mongoHealthy ? 200 : 503).send({
+        status: mongoHealthy ? "ok" : "degraded",
+        mongo: mongoHealthy ? "ok" : "unreachable",
+    });
 });
 
 const wrap = (middleware) => (socket, next) => middleware(socket.request, {}, next);
