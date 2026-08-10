@@ -4,20 +4,23 @@
     import { playerMovement } from "../stores/stateManagementStore.js";
     import { apiFetch, createSocket } from "../services/api.js";
 
-    export let createEventBool;
+    // Two-way: InteractiveSpace binds this and back() writes to it to close.
+    let { createEventBool = $bindable() } = $props();
 
     const socket = createSocket();
 
-    let eventName = "";
-    let searchMovieName = "";
-    let passwordBool = false;
-    let password = "";
-    let amountOfSpaces;
-    let startTime;
-    let chosenMovieID = "";
+    let eventName = $state("");
+    let searchMovieName = $state("");
+    let passwordBool = $state(false);
+    let password = $state("");
+    let amountOfSpaces = $state();
+    let startTime = $state();
+    let chosenMovieID = $state("");
+    // Debounce handle only — never read in the template, so it stays a plain
+    // let rather than costing a needless re-render.
     let timeoutID;
-    let loadingMovieSearch = false;
-    let movies = [];
+    let loadingMovieSearch = $state(false);
+    let movies = $state([]);
 
     function searchMovie() {
         clearTimeout(timeoutID);

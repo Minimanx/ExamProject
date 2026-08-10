@@ -4,19 +4,21 @@
     import { user } from "../stores/userStore.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
 
-    export let socket;
+    let { socket } = $props();
 
-    let email;
-    let username;
-    let password;
-    let passwordRepeat;
-    let token;
+    let email = $state();
+    let username = $state();
+    let password = $state();
+    let passwordRepeat = $state();
+    let token = $state();
 
-    let loginComponent = true;
-    let signUpComponent = false;
-    let forgotPassComponent = false;
-    let tokenComponent = false;
-    let changePassComponent = false;
+    // These five drive which panel is shown; without $state the screen would
+    // freeze on the login panel.
+    let loginComponent = $state(true);
+    let signUpComponent = $state(false);
+    let forgotPassComponent = $state(false);
+    let tokenComponent = $state(false);
+    let changePassComponent = $state(false);
 
     async function login() {
         const response = await apiFetch("/login", {
