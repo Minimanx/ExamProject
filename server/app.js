@@ -6,6 +6,7 @@ import { Server } from "socket.io";
 import sanitize from "mongo-sanitize";
 import rateLimit from "express-rate-limit";
 import cors from "cors";
+import helmet from "helmet";
 import MongoStore from "connect-mongo";
 import { mongoClientPromise } from "./database/createConnection.js";
 
@@ -41,7 +42,30 @@ const io = new Server(server, {
 });
 
 app.set("trust proxy", 1);
+// contentSecurityPolicy is off: the API serves JSON, and when SERVE_CLIENT is
+// on it serves a SvelteKit build whose CSP belongs with the client, not here.
+app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(corsOptions));
+
+// The session cookie is sameSite:"none" in production, because the client is on
+// a different origin — so the browser attaches it to cross-site requests too.
+// SameSite therefore cannot be the defence. Reject state-changing requests that
+// declare an origin we do not know. A missing Origin is allowed: same-origin
+// form posts and non-browser clients omit it, and only a present-and-wrong
+// origin is evidence of a cross-site attempt. See defect S5.
+const SAFE_METHODS = new Set(["GET", "HEAD", "OPTIONS"]);
+
+app.use((req, res, next) => {
+    if (SAFE_METHODS.has(req.method)) return next();
+
+    const origin = req.get("Origin");
+    if (origin && !isOriginAllowed(origin.replace(/\/$/, ""))) {
+        res.status(403).send({ message: "Cross-origin request rejected" });
+        return;
+    }
+
+    next();
+});
 
 import session from "express-session";
 const sessionMiddleware = session({

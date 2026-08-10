@@ -19,7 +19,7 @@
     "license": "ISC",
     "config": {
         "mongodbMemoryServer": {
-            "_comment": "Stops the postinstall hook downloading a ~148MB mongod on every install. A plain `npm ci` in a deploy build installs devDependencies unless NODE_ENV=production is set at BUILD time, which most hosts do not do \u2014 so the binary was being pulled into production images that never run a test. Tests download it on first use instead; CI caches it via MONGOMS_DOWNLOAD_DIR. See DEPLOYMENT.md.",
+            "_comment": "Stops the postinstall hook downloading a ~148MB mongod on every install. A plain `npm ci` in a deploy build installs devDependencies unless NODE_ENV=production is set at BUILD time, which most hosts do not do — so the binary was being pulled into production images that never run a test. Tests download it on first use instead; CI caches it via MONGOMS_DOWNLOAD_DIR. See DEPLOYMENT.md.",
             "disablePostinstall": "true"
         }
     },
@@ -31,6 +31,7 @@
         "express": "^5.2.1",
         "express-rate-limit": "^8.6.2",
         "express-session": "^1.19.0",
+        "helmet": "^8.3.0",
         "mongo-sanitize": "^1.1.0",
         "mongodb": "^7.5.0",
         "nodemailer": "^9.0.5",
@@ -43,6 +44,7 @@
         "globals": "^17.9.0",
         "mongodb-memory-server": "^11.2.0",
         "prettier": "^3.9.6",
+        "socket.io-client": "^4.8.3",
         "supertest": "^7.2.2",
         "vitest": "^4.1.10"
     }

@@ -4,8 +4,9 @@ import { app } from "../app.js";
 import { registerUser, loginAgent, seedTheater } from "./helpers.js";
 
 describe("GET /theaters", () => {
-    // DEFECT S8 (roadmap spec §5): this endpoint requires no session and
-    // exposes every theater including ownerID. Phase 2 gates it.
+    // Defect S8 (roadmap spec §5, fixed): the endpoint still requires no
+    // session — browsing events before signing up is intended — but it no
+    // longer exposes ownerID, which no client view needs.
     it("is readable without logging in", async () => {
         await seedTheater({ eventName: "Public Night" });
 
@@ -14,7 +15,7 @@ describe("GET /theaters", () => {
         expect(response.status).toBe(200);
         expect(response.body.data).toHaveLength(1);
         expect(response.body.data[0].eventName).toBe("Public Night");
-        expect(response.body.data[0].ownerID).toBeDefined();
+        expect(response.body.data[0].ownerID).toBeUndefined();
     });
 
     it("never returns the theater password hash", async () => {

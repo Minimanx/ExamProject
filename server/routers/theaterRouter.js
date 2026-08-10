@@ -6,7 +6,12 @@ import bcrypt from "bcrypt";
 const router = Router();
 
 router.get("/theaters", async (req, res) => {
-    const theaters = await db.theaters.find({}, { projection: { password: 0 } }).toArray();
+    // The listing is public so events can be browsed before signing up, but
+    // ownerID is not needed by any client view and should not be exposed.
+    // See defect S8.
+    const theaters = await db.theaters
+        .find({}, { projection: { password: 0, ownerID: 0 } })
+        .toArray();
     res.status(200).send({ data: theaters });
 });
 

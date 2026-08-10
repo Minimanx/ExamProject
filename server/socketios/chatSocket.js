@@ -1,6 +1,10 @@
 import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
 
+const MAX_MESSAGE_LENGTH = 200;
+const MESSAGE_WINDOW_MS = 10000;
+const MAX_MESSAGES_PER_WINDOW = 10;
+
 const socket = (io) => {
     io.on("connection", (socket) => {
         socket.on("enteredTheater", ({ theaterId } = {}) => {
@@ -26,8 +30,23 @@ const socket = (io) => {
             const theaterId = socket.data.theaterId;
             if (!ObjectId.isValid(theaterId) || !socket.rooms.has(theaterId)) return;
 
+            // Until now the only limit was the client's maxlength attribute, so
+            // a crafted client could flood a theater with arbitrary payloads.
+            // See defect S7.
+            if (typeof sendMessage !== "string") return;
+
+            const text = sendMessage.trim();
+            if (!text || text.length > MAX_MESSAGE_LENGTH) return;
+
+            const now = Date.now();
+            socket.data.messageTimes = (socket.data.messageTimes ?? []).filter(
+                (at) => now - at < MESSAGE_WINDOW_MS
+            );
+            if (socket.data.messageTimes.length >= MAX_MESSAGES_PER_WINDOW) return;
+            socket.data.messageTimes.push(now);
+
             io.to(theaterId).emit("newMessage", {
-                text: sendMessage,
+                text,
                 username: socket.request.session.username,
                 color,
             });

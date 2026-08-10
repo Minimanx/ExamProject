@@ -23,6 +23,13 @@ const USER = {
     password: "password123",
 };
 
+// A second player for the two-context socket test.
+const MOVER = {
+    email: `mover-${RUN}@example.com`,
+    username: `mover${RUN}`,
+    password: "password123",
+};
+
 // A separate account for the UI signup test, so it never collides with USER.
 const SIGNUP_USER = {
     email: `signup-${RUN}@example.com`,
@@ -46,10 +53,12 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.beforeAll(async ({ request }) => {
-    await request.post(`${API}/users`, {
-        data: { ...USER, passwordRepeat: USER.password },
-        failOnStatusCode: false,
-    });
+    for (const account of [USER, MOVER]) {
+        await request.post(`${API}/users`, {
+            data: { ...account, passwordRepeat: account.password },
+            failOnStatusCode: false,
+        });
+    }
 });
 
 /** The login overlay covers the scene until a user is stored. */
@@ -359,10 +368,16 @@ test("a remote car that has never moved is not mirrored", async ({ browser }) =>
         await watcherPage.getByRole("button", { name: "Login" }).click();
         await expect(watcherPage.locator(".containerInteractiveSpace")).toBeVisible();
 
-        // A second visitor joins. It never presses a key, so its car has no
-        // `direction` at all.
+        // A second player joins and never presses a key, so its car has no
+        // `direction` at all. It must log in: since defect S4 was fixed, an
+        // unauthenticated socket cannot broadcast a car, so anonymous visitors
+        // no longer appear in the world.
         const moverPage = await mover.newPage();
         await moverPage.goto("/");
+        await moverPage.locator('input[name="email"]').fill(MOVER.email);
+        await moverPage.locator('input[name="password"]').fill(MOVER.password);
+        await moverPage.getByRole("button", { name: "Login" }).click();
+        await expect(moverPage.locator(".containerInteractiveSpace")).toBeVisible();
 
         const remoteCar = watcherPage.locator(".remoteCar svg").first();
         await expect(remoteCar).toBeVisible({ timeout: 15000 });

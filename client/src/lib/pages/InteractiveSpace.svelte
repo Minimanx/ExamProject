@@ -103,8 +103,9 @@
     }
 
     function emitCarJoined() {
+        // The server uses its own socket.id; sending one was how a client could
+        // impersonate another car (defect S3).
         socket.emit("carJoined", {
-            id: socket.id,
             color: $user.playerColor,
             coords: playerCoords,
             name: playerName,
@@ -118,7 +119,6 @@
         lastPositionBroadcast = now;
 
         socket.emit("carPosition", {
-            id: socket.id,
             coords: playerCoords,
             direction: playerDirection,
             screen: screenScrollAmount,
@@ -250,7 +250,7 @@
 
     function changeColor(event) {
         $user.playerColor = event.target.value;
-        socket.emit("colorChanged", { id: socket.id, color: $user.playerColor });
+        socket.emit("colorChanged", { color: $user.playerColor });
     }
 
     function handleKeydown(event) {
