@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { formatDuration } from "./duration.js";
+import { formatDuration, formatTimeOfDay } from "./duration.js";
 
 // DEFECT C2 (roadmap spec §5): the three countdowns in InsideTheater.svelte
 // each turned a duration into hh:mm:ss by constructing `new Date(duration)` —
@@ -44,5 +44,47 @@ describe("formatDuration", () => {
         process.env.TZ = original;
 
         expect([...seen]).toEqual(["02:01:05"]);
+    });
+});
+
+// The roadmap's Phase 2 asks for times stored in UTC and rendered in the
+// viewer's locale. Storage was already right — Mongo holds Date objects, which
+// are UTC — but rendering was `getHours()` and `getMinutes()` spelled out inline
+// with hand-written zero padding, in two components, always 24-hour. A viewer
+// who expects 8:30 PM saw 20:30.
+describe("formatTimeOfDay", () => {
+    const evening = new Date("2026-08-10T20:30:00Z");
+
+    it("renders a 24-hour locale as 24-hour", () => {
+        expect(formatTimeOfDay(evening, "en-GB", "UTC")).toBe("20:30");
+    });
+
+    it("renders a 12-hour locale as 12-hour", () => {
+        expect(formatTimeOfDay(evening, "en-US", "UTC")).toMatch(/8:30\s?PM/i);
+    });
+
+    // The same instant is a different wall-clock time depending on where you
+    // are, which is the entire point of storing UTC.
+    it("shows the viewer's own wall clock, not the server's", () => {
+        expect(formatTimeOfDay(evening, "en-GB", "Asia/Kolkata")).toBe("02:00");
+    });
+
+    it("pads a single-digit hour and minute", () => {
+        expect(formatTimeOfDay(new Date("2026-08-10T09:05:00Z"), "en-GB", "UTC")).toBe("09:05");
+    });
+
+    it("accepts the string form the API sends", () => {
+        expect(formatTimeOfDay("2026-08-10T20:30:00Z", "en-GB", "UTC")).toBe("20:30");
+    });
+
+    // Chat timestamps carry seconds; a theater's start time does not.
+    it("includes seconds when asked", () => {
+        expect(
+            formatTimeOfDay(new Date("2026-08-10T20:30:07Z"), "en-GB", "UTC", { seconds: true })
+        ).toBe("20:30:07");
+    });
+
+    it("renders nothing rather than 'Invalid Date' for a missing time", () => {
+        expect(formatTimeOfDay(undefined)).toBe("");
     });
 });

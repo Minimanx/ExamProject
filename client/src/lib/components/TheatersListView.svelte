@@ -1,4 +1,6 @@
 <script>
+    import { formatTimeOfDay } from "../services/duration.js";
+
     let { theaters, teleportToTheater = () => {} } = $props();
 
     let sortBySpacesPicker = $state(0);
@@ -134,14 +136,7 @@
                         <li>min</li>
                     </div>
                     <div class="eventInfoSingle">
-                        <li>
-                            {(new Date(theater.startTime).getHours() < 10 ? "0" : "") +
-                                new Date(theater.startTime).getHours()}:{(new Date(
-                                theater.startTime
-                            ).getMinutes() < 10
-                                ? "0"
-                                : "") + new Date(theater.startTime).getMinutes()}
-                        </li>
+                        <li>{formatTimeOfDay(theater.startTime)}</li>
                     </div>
                     <div class="eventInfoSingle">
                         <li>

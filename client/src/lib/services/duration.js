@@ -21,3 +21,33 @@ export function formatDuration(milliseconds) {
 
     return [hours, minutes, seconds].map((part) => String(part).padStart(2, "0")).join(":");
 }
+
+/**
+ * Render an instant as a time of day, the way the viewer expects to read it.
+ *
+ * Times are stored in UTC and this is where they become local. The two places
+ * that showed a theater's start time each spelled out `getHours()`,
+ * `getMinutes()` and their own zero padding inline, and always produced
+ * 24-hour: a viewer who expects 8:30 PM saw 20:30.
+ *
+ * `locale` and `timeZone` are parameters so this can be tested from more than
+ * one place on Earth; in the app both default to the browser's own.
+ */
+export function formatTimeOfDay(
+    instant,
+    locale = undefined,
+    timeZone = undefined,
+    { seconds = false } = {}
+) {
+    const date = instant instanceof Date ? instant : new Date(instant ?? NaN);
+    if (Number.isNaN(date.getTime())) {
+        return "";
+    }
+
+    return date.toLocaleTimeString(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+        ...(seconds && { second: "2-digit" }),
+        ...(timeZone && { timeZone }),
+    });
+}

@@ -4,7 +4,7 @@
     import { user } from "../stores/userStore.js";
     import { error, success } from "../components/toasts/toastThemes.js";
     import { Pulse } from "svelte-loading-spinners";
-    import { formatDuration } from "../services/duration.js";
+    import { formatDuration, formatTimeOfDay } from "../services/duration.js";
 
     const socket = createSocket();
 
@@ -194,13 +194,9 @@
                                     {message.username}
                                 </li>
                                 <li class="timeStamp">
-                                    {(message.time.getHours() < 10 ? "0" : "") +
-                                        message.time.getHours()}:{(message.time.getMinutes() < 10
-                                        ? "0"
-                                        : "") +
-                                        message.time.getMinutes()}:{(message.time.getSeconds() < 10
-                                        ? "0"
-                                        : "") + message.time.getSeconds()}
+                                    {formatTimeOfDay(message.time, undefined, undefined, {
+                                        seconds: true,
+                                    })}
                                 </li>
                             </div>
                             <li>

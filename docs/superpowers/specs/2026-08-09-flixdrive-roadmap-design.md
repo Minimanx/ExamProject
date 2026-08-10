@@ -241,8 +241,14 @@ after each.
   throws on a non-string — a malformed request was a 500.
 - Introduce a domain layer (theater service, user service) between routers and Mongo, and
   make it the single owner of `usersInsideTheater`.
-- Rewrite date handling: store UTC, render in the viewer's locale, delete the hardcoded
-  `3600000` offsets.
+- ~~Rewrite date handling: store UTC, render in the viewer's locale, delete the hardcoded
+  `3600000` offsets.~~ **DONE 2026-08-10.** Storage was already right — Mongo holds `Date`
+  objects, which are UTC. The offsets went with C2. Rendering was the remaining half: three
+  components each spelled out `getHours()`, `getMinutes()` and their own zero padding inline,
+  always producing 24-hour, so a viewer who expects 8:30 PM saw 20:30. `formatTimeOfDay` now
+  renders through `toLocaleTimeString`, with `locale` and `timeZone` as parameters so it can be
+  tested from more than one place on Earth — a fixed instant reads `20:30` in `en-GB`, `8:30 PM`
+  in `en-US`, and `02:00` the next day in `Asia/Kolkata`, which is the point of storing UTC.
 
 **The two hedges from §3 land here:**
 

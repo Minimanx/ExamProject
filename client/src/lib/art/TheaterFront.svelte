@@ -1,4 +1,6 @@
 <script>
+    import { formatTimeOfDay } from "../services/duration.js";
+
     let { theater, currentTime } = $props();
 
     // Picked once per mount rather than inline in the markup. Under Svelte 3
@@ -84,13 +86,7 @@
     <text class="eventInfo" y="8" x="67%">{theater.eventName}</text>
     {#if currentTime.getTime() < new Date(theater.startTime).getTime()}
         <text class="eventInfo" y="20" x="67%">Starts at:</text>
-        <text class="eventInfo startTime" y="26" x="67%"
-            >{(new Date(theater.startTime).getHours() < 10 ? "0" : "") +
-                new Date(theater.startTime).getHours()}:{(new Date(theater.startTime).getMinutes() <
-            10
-                ? "0"
-                : "") + new Date(theater.startTime).getMinutes()}</text
-        >
+        <text class="eventInfo startTime" y="26" x="67%">{formatTimeOfDay(theater.startTime)}</text>
     {:else if currentTime.getTime() > new Date(theater.startTime).getTime() && currentTime.getTime() < new Date(theater.timeToClose).getTime() - 900000}
         <text class="eventInfo startTime" y="23" x="67%">Currently showing</text>
     {:else if currentTime.getTime() > new Date(theater.timeToClose).getTime() - 900000 && currentTime.getTime() < new Date(theater.timeToClose).getTime()}
