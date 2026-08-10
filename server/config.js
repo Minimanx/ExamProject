@@ -43,6 +43,15 @@ export function validateConfig(env = process.env) {
         );
     }
 
+    // The server served the client from client/public when this was "true". The
+    // SvelteKit migration deleted that directory, and adapter-vercel emits no
+    // index.html to point at, so the branch was removed rather than repointed.
+    if (env.SERVE_CLIENT === "true") {
+        warnings.push(
+            "SERVE_CLIENT=true is no longer supported — the server serves the API only, and the client is deployed separately"
+        );
+    }
+
     if (problems.length > 0) {
         throw new Error(`Invalid configuration:\n  - ${problems.join("\n  - ")}`);
     }

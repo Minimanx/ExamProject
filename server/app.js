@@ -1,6 +1,4 @@
 import express from "express";
-import path from "path";
-import { fileURLToPath } from "url";
 import http from "http";
 import { Server } from "socket.io";
 import sanitize from "mongo-sanitize";
@@ -42,8 +40,8 @@ const io = new Server(server, {
 });
 
 app.set("trust proxy", 1);
-// contentSecurityPolicy is off: the API serves JSON, and when SERVE_CLIENT is
-// on it serves a SvelteKit build whose CSP belongs with the client, not here.
+// contentSecurityPolicy is off: the API serves JSON only. The CSP that matters
+// belongs with the client, which Vercel deploys and serves separately.
 app.use(helmet({ contentSecurityPolicy: false }));
 app.use(cors(corsOptions));
 
@@ -160,7 +158,11 @@ import movieRouter from "./routers/movieRouter.js";
 app.use(movieRouter);
 import userRouter from "./routers/userRouter.js";
 app.use(userRouter);
-app.use(loginLimiter);
+// Scoped to the credential endpoints by path. Registered path-less, this
+// limiter also counted everything that fell through routing — every 404, and
+// every static asset under SERVE_CLIENT=true — so ten stray requests from one
+// NAT'd IP locked everyone behind it out of logging in. See defect O6.
+app.use(["/login", "/forgotpassword", "/resetpassword"], loginLimiter);
 import loginRouter from "./routers/loginRouter.js";
 app.use(loginRouter);
 
@@ -170,18 +172,9 @@ if (process.env.NODE_ENV === "test") {
     });
 }
 
-if (process.env.SERVE_CLIENT === "true") {
-    const currentDirectory = path.dirname(fileURLToPath(import.meta.url));
-    const clientPublicDirectory = path.resolve(currentDirectory, "../client/public");
-    app.use(express.static(clientPublicDirectory));
-    app.get("/{*splat}", (req, res) => {
-        res.sendFile(path.join(clientPublicDirectory, "index.html"));
-    });
-} else {
-    app.use((req, res) => {
-        res.status(404).send({ message: "Not found" });
-    });
-}
+app.use((req, res) => {
+    res.status(404).send({ message: "Not found" });
+});
 
 app.use((err, req, res, next) => {
     console.error("Unhandled request error", {

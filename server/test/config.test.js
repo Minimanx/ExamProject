@@ -44,3 +44,27 @@ describe("boot-time configuration validation", () => {
         expect(warnings.join(" ")).toMatch(/OMDB_API_KEY/);
     });
 });
+
+// The SvelteKit migration deleted client/public, which the SERVE_CLIENT=true
+// branch served. adapter-vercel emits no index.html at all, so the branch
+// cannot be repointed — it was removed. Anyone still setting the variable is
+// running a configuration that silently does nothing.
+describe("SERVE_CLIENT", () => {
+    const complete = {
+        MONGODB_URI: "mongodb://localhost:27017/FlixDrive",
+        SESSION_SECRET: "a".repeat(32),
+        NODE_ENV: "test",
+    };
+
+    it("warns that the server no longer serves the client", () => {
+        const { warnings } = validateConfig({ ...complete, SERVE_CLIENT: "true" });
+
+        expect(warnings.join(" ")).toContain("SERVE_CLIENT");
+    });
+
+    it("says nothing when SERVE_CLIENT is unset", () => {
+        const { warnings } = validateConfig(complete);
+
+        expect(warnings.join(" ")).not.toContain("SERVE_CLIENT");
+    });
+});

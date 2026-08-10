@@ -55,6 +55,43 @@ describe("rate limiting", () => {
 
         expect(response.status).toBe(429);
     });
+
+    // DEFECT O6 (roadmap spec §5): `app.use(loginLimiter)` was path-less and
+    // registered ahead of the 404 handler, so anything that fell through
+    // routing — every unknown path — spent the login bucket. Ten stray 404s
+    // from one NAT'd IP locked every user behind it out of /login for 15
+    // minutes. These IPs are outside the 10.0.x.x range uniqueIp() generates.
+    it("does not spend the login bucket on requests to unknown paths", async () => {
+        const ip = "10.255.0.2";
+        for (let i = 0; i < 20; i++) {
+            await request(app).get(`/no-such-path-${i}`).set("X-Forwarded-For", ip);
+        }
+        const response = await request(app).post("/login").set("X-Forwarded-For", ip).send({});
+
+        expect(response.status).not.toBe(429);
+    });
+
+    // The scoping is a path list, so it can silently lose a path. Both reset
+    // endpoints are credential-guessing surfaces and must stay covered.
+    it.each(["/forgotpassword", "/resetpassword"])("still rate limits %s", async (path) => {
+        const ip = `10.254.0.${path.length}`;
+        for (let i = 0; i < 10; i++) {
+            await request(app).post(path).set("X-Forwarded-For", ip).send({});
+        }
+        const response = await request(app).post(path).set("X-Forwarded-For", ip).send({});
+
+        expect(response.status).toBe(429);
+    });
+
+    it("does not spend the login bucket on ordinary API reads", async () => {
+        const ip = "10.255.0.3";
+        for (let i = 0; i < 20; i++) {
+            await request(app).get("/theaters").set("X-Forwarded-For", ip);
+        }
+        const response = await request(app).post("/login").set("X-Forwarded-For", ip).send({});
+
+        expect(response.status).not.toBe(429);
+    });
 });
 
 // DEFECT N1 (roadmap spec §5): mongo-sanitize recurses without a depth limit,
