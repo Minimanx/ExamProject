@@ -139,10 +139,21 @@
   let playerDirection = false;
   $: playerName = $user.username || "";
   let screenScrollAmount = 0;
-  const canvasLength = 1000;
+  // Measured from the scene container rather than assumed, so the scroll maths
+  // follow the real viewport width instead of a hard-coded 1000px.
+  let canvasLength = 1000;
   let createEventBool = false;
   let aboutPageBool = false;
-  let highestPosition;
+  let occupiedSlots = 0;
+  let theatersLoaded = false;
+  // The world is highestPosition * 400px wide and every slot draws its own
+  // stretch of beach, road and rocks, so it must span at least the visible
+  // scene or the ground runs out and bare water shows through. Derived rather
+  // than assigned because canvasLength is measured from a element that only
+  // exists once the scene renders — computing it once during load would read
+  // the pre-measurement default. The old floor of 3 (1200px) happened to work
+  // only while the scene was always 1000px wide.
+  $: highestPosition = Math.max(3, Math.ceil(canvasLength / 400), occupiedSlots);
   let currentTime = new Date();
 
   onMount(() => {
@@ -196,8 +207,8 @@
         if (keys.d && playerCoords.x < canvasLength - 50) {
           playerCoords.x = Math.min(canvasLength - 50, playerCoords.x + distance);
           playerDirection = false;
-          const maxScroll = highestPosition * 400 - 1000;
-          if (playerCoords.x > 800 && screenScrollAmount < maxScroll) {
+          const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
+          if (playerCoords.x > canvasLength - 200 && screenScrollAmount < maxScroll) {
             const scrollDistance = Math.min(distance, maxScroll - screenScrollAmount);
             screenScrollAmount += scrollDistance;
             playerCoords.x -= scrollDistance;
@@ -270,16 +281,10 @@
 
   function teleportToTheater(position) {
     playerCoords.y = 470;
-    if (position === 0) {
-      playerCoords.x = 185;
-      screenScrollAmount = 0;
-    } else if (position === 1) {
-      playerCoords.x = 585;
-      screenScrollAmount = 0;
-    } else if (position > 1) {
-      screenScrollAmount = position * 400 - 600;
-      playerCoords.x = 785;
-    }
+    const worldX = position * 400 + 185;
+    const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
+    screenScrollAmount = Math.min(Math.max(0, worldX - (canvasLength - 215)), maxScroll);
+    playerCoords.x = worldX - screenScrollAmount;
     emitCarPosition(true);
     checkIfInTheater();
   }
@@ -289,17 +294,14 @@
     const { data } = await response.json();
     theaters = data;
 
-    if (theaters.length !== 0) {
-      highestPosition =
-        [...theaters].sort((a, b) => b.position - a.position)[0].position + 1;
-      if (highestPosition < 3) {
-        highestPosition = 3;
-      }
-    } else {
-      highestPosition = 3;
-    }
-    if (screenScrollAmount > highestPosition * 400 - 1000) {
-      screenScrollAmount = highestPosition * 400 - 1000;
+    occupiedSlots = theaters.length
+      ? [...theaters].sort((a, b) => b.position - a.position)[0].position + 1
+      : 0;
+    theatersLoaded = true;
+
+    const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
+    if (screenScrollAmount > maxScroll) {
+      screenScrollAmount = maxScroll;
       emitCarPosition(true);
     }
   }
@@ -325,7 +327,7 @@
 
 <svelte:window on:keydown={handleKeydown} on:keyup={handleKeyUp} />
 
-{#if highestPosition}
+{#if theatersLoaded}
   {#if $user.loggedIn === false}
     <LoginScreen {socket} />
     <div class="container blackedout" />
@@ -335,7 +337,7 @@
     <div class="containerInteractiveSpace">
       <Skyline />
       <div class="waterExtension" aria-hidden="true"></div>
-      <div class="container2" style="width: {canvasLength}px">
+      <div class="container2" bind:clientWidth={canvasLength}>
         <div
           class="world"
           style="width: {highestPosition * 400}px; transform: translate3d({-screenScrollAmount}px, 0, 0);"
@@ -418,7 +420,7 @@
   .loadingScreen {
     position: fixed;
     inset: 0;
-    width: 1500px;
+    width: var(--stage-width);
     height: var(--stage-height);
     display: grid;
     place-items: center;
@@ -490,7 +492,7 @@
   }
   .containerInteractiveSpace {
     height: var(--stage-height);
-    width: 1000px;
+    width: calc(var(--stage-width) - 500px);
     background-color: #177aeb;
     overflow: hidden;
   }
@@ -504,8 +506,8 @@
     box-sizing: border-box;
   }
   .container {
-    min-width: 1500px;
-    max-width: 1500px;
+    min-width: var(--stage-width);
+    max-width: var(--stage-width);
     display: flex;
     position: fixed;
     top: 0;
@@ -516,8 +518,8 @@
     position: absolute;
     top: 350px;
     bottom: 0;
-    width: 1000px;
-    background: #177aeb url("/water-tile.svg") top left / 1000px 160px repeat-y;
+    width: calc(var(--stage-width) - 500px);
+    background: #177aeb url("/water-tile.svg") top left / 1000px 160px repeat;
   }
   .lotSlot {
     position: absolute;
@@ -545,7 +547,7 @@
     will-change: transform;
   }
   .playerLayer {
-    width: 1000px;
+    width: calc(var(--stage-width) - 500px);
     height: 800px;
     position: absolute;
     left: 0;

@@ -273,7 +273,7 @@
     }
     .movieInfoContainer {
 		height: var(--stage-height);
-		width: 1000px;
+		width: calc(var(--stage-width) - 500px);
 		background-color:rgb(225, 241, 255);
 		overflow: hidden;
         display: flex;
@@ -293,8 +293,8 @@
         justify-content: flex-end;
 	}
 	.container {
-		min-width: 1500px;
-		max-width: 1500px;
+		min-width: var(--stage-width);
+		max-width: var(--stage-width);
 		display: flex;
 		position: fixed;
 		top: 0;

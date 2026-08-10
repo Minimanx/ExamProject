@@ -2,6 +2,7 @@
   class="backgroundimg"
   xmlns="http://www.w3.org/2000/svg"
   viewBox="0 -0.5 400 140"
+  preserveAspectRatio="xMidYMid slice"
   shape-rendering="crispEdges"
 >
   <path
@@ -159,7 +160,7 @@
 <style>
 .backgroundimg {
   height: 350px;
-  width: 1000px;
+  width: calc(var(--stage-width) - 500px);
   position: absolute;
 }
 </style>

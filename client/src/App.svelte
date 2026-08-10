@@ -14,11 +14,19 @@
 		const viewportWidth = viewport?.width || window.innerWidth;
 		const viewportHeight = viewport?.height || window.innerHeight;
 		const scale = Math.min(viewportWidth / stageWidth, viewportHeight / stageHeight);
+
+		// The stage is scaled to fit, then grown along whichever axis the scale did
+		// not constrain, so it always reaches the viewport edges. Height alone used
+		// to be grown, which left black bars on any viewport wider than
+		// stageWidth/stageHeight (1.875:1) — a 2560-wide monitor hits that as soon
+		// as browser chrome takes the viewport below 1365px tall.
 		const height = viewportHeight / scale;
+		const width = viewportWidth / scale;
 
 		return {
 			scale,
 			height,
+			width,
 			sceneOffset: Math.max(0, height - stageHeight),
 		};
 	}
@@ -46,7 +54,7 @@
 
 <Router>
 	<main
-		style="--stage-scale: {stageLayout.scale}; --stage-height: {stageLayout.height}px; --scene-offset: {stageLayout.sceneOffset}px;"
+		style="--stage-scale: {stageLayout.scale}; --stage-height: {stageLayout.height}px; --stage-width: {stageLayout.width}px; --scene-offset: {stageLayout.sceneOffset}px;"
 	>
 		<Route path="/" component={InteractiveSpace} />
 		{#if $user.loggedIn === true}
@@ -59,7 +67,7 @@
 
 <style>
 	main {
-		width: 1500px;
+		width: var(--stage-width);
 		height: var(--stage-height);
 		position: fixed;
 		top: 50%;
