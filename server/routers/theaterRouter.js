@@ -2,6 +2,7 @@ import { Router } from "express";
 import { ObjectId } from "mongodb";
 import "dotenv/config";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 import { sendError } from "../errors.js";
 import { limits } from "../limits.js";
 import { validateBody, validateQuery } from "../validate.js";
@@ -152,23 +153,28 @@ router.post(
         }
 
         const movieRuntime = Number(movie.Runtime.split(" ")[0]);
+        // Generated here rather than asked of the host: the old password was
+        // something they had to invent and then pass on out of band, stored
+        // bcrypt-hashed so nobody could read it back to share it.
+        const lobbyKey = requested.private ? theaters.generateLobbyKey() : undefined;
 
         // Built field by field rather than from req.body.data. The old code
         // stored the request body itself and overwrote the fields it cared
         // about, so anything the client invented — a slot, an imdbRating, an
         // _id — was persisted verbatim wherever the handler happened not to
         // write over it. See defect C3.
+        let created;
         try {
-            await theaters.createTheater(
+            created = await theaters.createTheater(
                 {
                     eventName: requested.eventName,
                     startTime,
                     amountOfSpaces: requested.amountOfSpaces,
                     imdbID: requested.imdbID,
-                    passwordBool: Boolean(requested.passwordBool),
-                    password: requested.passwordBool
-                        ? await bcrypt.hash(requested.password, 12)
-                        : "",
+                    isPrivate: requested.private,
+                    // Spread so a public theater has no key field at all, rather
+                    // than a null one that later reads as "a key exists".
+                    ...(requested.private && { lobbyKey }),
                     ownerID,
                     movieName: movie.Title,
                     // Spread rather than set to undefined: the driver stores
@@ -200,7 +206,14 @@ router.post(
             throw error;
         }
 
-        res.status(200).send({ message: "Event Created" });
+        // The key is returned once, to the host, so they have something to
+        // share; it is projected out of every listing and never retrievable
+        // again. The id comes with it because a link needs both halves.
+        res.status(200).send({
+            message: "Event Created",
+            theaterId: created.insertedId.toString(),
+            ...(lobbyKey && { lobbyKey }),
+        });
     }
 );
 
@@ -218,7 +231,24 @@ router.patch(
             return;
         }
 
-        if (theater.passwordBool) {
+        if (theater.isPrivate) {
+            // timingSafeEqual needs equal lengths, and the key length is fixed
+            // and public, so a length mismatch is simply a wrong key.
+            const supplied = Buffer.from(clientUser.lobbyKey ?? "", "utf8");
+            const expected = Buffer.from(theater.lobbyKey ?? "", "utf8");
+            if (
+                supplied.length !== expected.length ||
+                !crypto.timingSafeEqual(supplied, expected)
+            ) {
+                sendError(res, "FORBIDDEN", "That link is not valid for this event");
+                return;
+            }
+        } else if (theater.passwordBool) {
+            // Theaters created before lobby keys existed. They expire within
+            // hours of their showing, so this branch and the `password` field on
+            // joinTheaterSchema come out once none can still be live — but until
+            // then, removing it would break someone's evening mid-event.
+            //
             // bcrypt.compare throws on a non-string, so a join that omits the
             // password entirely turned a malformed request into a 500.
             if (

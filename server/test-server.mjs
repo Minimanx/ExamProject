@@ -61,8 +61,7 @@ await db.theaters.insertMany(
         // fixture runs without the guarantee it is meant to exercise.
         ownerID: `${i + 1}`.padStart(24, "0"),
         usersInsideTheater: [],
-        passwordBool: false,
-        password: "",
+        isPrivate: false,
         imdbID: "tt000000" + i,
         movieName: ["The Matrix", "Blade Runner", "Chinatown"][i],
         movieRuntime: 136,

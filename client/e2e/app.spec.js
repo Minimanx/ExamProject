@@ -72,10 +72,10 @@ async function signUp(page) {
     await page.getByRole("button", { name: "Create Account" }).click();
 }
 
-async function logIn(page) {
+async function logIn(page, account = USER) {
     await page.goto("/");
-    await page.locator('input[name="email"]').fill(USER.email);
-    await page.locator('input[name="password"]').fill(USER.password);
+    await page.locator('input[name="email"]').fill(account.email);
+    await page.locator('input[name="password"]').fill(account.password);
     await page.getByRole("button", { name: "Login" }).click();
     await expect(page.locator(".blackedout")).toHaveCount(0);
 }
@@ -409,6 +409,69 @@ test("creating an event: search, select a movie, and submit", async ({ page }) =
     await expect(page.locator("._toastContainer")).toContainText(
         /Event Created|already have an ongoing event/i
     );
+});
+
+// Phase 3 replaced the host-invented theater password with a server-generated
+// lobby key. The key is returned once, on creation, and projected out of every
+// listing afterwards — so the moment it appears on screen is the only moment it
+// exists anywhere the host can see it.
+test("creating a private event shows an invite link exactly once", async ({ page }) => {
+    await page.route("**/movies?s=*", (route) =>
+        route.fulfill({
+            status: 200,
+            contentType: "application/json",
+            body: JSON.stringify({
+                data: {
+                    Response: "True",
+                    Search: [
+                        { Title: "Solaris", Year: "1972", imdbID: "tt0069293", Poster: "N/A" },
+                    ],
+                },
+            }),
+        })
+    );
+
+    // A fresh account: MAX_EVENTS_PER_OWNER is 1, so the account the other
+    // tests share may already be hosting.
+    const host = {
+        email: `host-${RUN}@example.com`,
+        username: `host${RUN}`,
+        password: "password123",
+    };
+    await page.request.post(`${API}/users`, {
+        data: { ...host, passwordRepeat: host.password },
+        failOnStatusCode: false,
+    });
+
+    await logIn(page, host);
+    await page.getByRole("button", { name: "Create Event" }).first().click();
+
+    const panel = page
+        .locator("div.container")
+        .filter({ has: page.locator('input[name="eventName"]') })
+        .last();
+
+    await page.locator('input[name="eventName"]').fill("Private Night");
+    await page.locator('input[name="searchMovie"]').first().fill("solaris");
+    await page.locator('input[name="searchMovie"]').first().dispatchEvent("change");
+    const result = panel.locator("ul").filter({ hasText: "Solaris" }).first();
+    await expect(result).toBeVisible();
+    await result.dispatchEvent("click");
+
+    const soon = new Date(Date.now() + 90 * 60 * 1000);
+    await page
+        .locator('input[name="startTime"]')
+        .fill(
+            `${String(soon.getHours()).padStart(2, "0")}:${String(soon.getMinutes()).padStart(2, "0")}`
+        );
+    await page.locator('input[name="amountOfSpaces"]').fill("10");
+    await panel.locator("#passwordCheckbox").check();
+
+    await panel.getByRole("button", { name: "Create Event" }).click();
+
+    const link = panel.locator('input[name="inviteLink"]');
+    await expect(link).toBeVisible();
+    expect(await link.inputValue()).toMatch(/\?theater=[a-f0-9]{24}&key=[0-9a-f]{16}$/);
 });
 
 test("unknown paths fall back to the scene", async ({ page }) => {

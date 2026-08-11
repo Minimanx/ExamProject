@@ -12,6 +12,7 @@
  * socket at once — left a ghost holding a seat for the life of the theater.
  */
 
+import crypto from "crypto";
 import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
 import { liveOccupants } from "../socketios/presence.js";
@@ -142,8 +143,11 @@ export async function listTheaters(log, { q, hasSpace, startingWithin } = {}) {
     // ownerID is not needed by any client view and should not be exposed, but
     // the listing itself stays public so events can be browsed before signing
     // up. See defect S8.
+    // lobbyKey is projected out, not merely undisplayed: the listing is public,
+    // so anything in it is public. isPrivate stays, because the UI has to know
+    // to ask for a key.
     const theaters = await db.theaters
-        .find(filter, { projection: { password: 0, ownerID: 0 } })
+        .find(filter, { projection: { password: 0, ownerID: 0, lobbyKey: 0 } })
         .toArray();
 
     for (const theater of theaters) {
@@ -165,7 +169,21 @@ export async function findTheater(id) {
 }
 
 export async function findTheaterForViewer(id) {
-    return db.theaters.findOne({ _id: new ObjectId(id) }, { projection: { password: 0 } });
+    return db.theaters.findOne(
+        { _id: new ObjectId(id) },
+        { projection: { password: 0, lobbyKey: 0 } }
+    );
+}
+
+/**
+ * A key for a private lobby, shareable as a link.
+ *
+ * Replaces a bcrypt-hashed password the host had to invent and pass on out of
+ * band. 16 hex characters is 64 bits: an event lasts hours and a wrong key is a
+ * 403, so the search is hopeless well inside the theater's own lifetime.
+ */
+export function generateLobbyKey() {
+    return crypto.randomBytes(8).toString("hex");
 }
 
 export async function ownerEventCount(ownerID) {

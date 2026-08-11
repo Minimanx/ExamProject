@@ -11,8 +11,10 @@
 
     let eventName = $state("");
     let searchMovieName = $state("");
-    let passwordBool = $state(false);
-    let password = $state("");
+    let isPrivate = $state(false);
+    // Handed back once, on creation. Nothing can read it out of a listing, so
+    // this is the only chance the host gets to copy it.
+    let inviteLink = $state("");
     let amountOfSpaces = $state();
     let startTime = $state();
     let chosenMovieID = $state("");
@@ -73,8 +75,7 @@
                 data: {
                     eventName: eventName,
                     imdbID: chosenMovieID,
-                    passwordBool: passwordBool,
-                    password: password,
+                    private: isPrivate,
                     amountOfSpaces: amountOfSpaces,
                     startTime: new Date(new Date().toDateString() + " " + startTime),
                 },
@@ -88,6 +89,17 @@
         if (response.ok) {
             success(result.message);
             socket.emit("theaterAdded");
+
+            // A private event stays on screen until the host has the link,
+            // because closing the form is the last moment the key exists
+            // anywhere they can see it.
+            if (result.lobbyKey) {
+                // Lands in the world with the key attached rather than at the
+                // theater page directly: joining happens by driving up to the
+                // lobby, so the link has to name which theater the key is for.
+                inviteLink = `${window.location.origin}/?theater=${result.theaterId}&key=${result.lobbyKey}`;
+                return;
+            }
             back();
         }
     }
@@ -170,29 +182,20 @@
     </div>
 
     <div class="passwordInputs">
-        {#if passwordBool}
-            <input
-                name="password"
-                type="password"
-                bind:value={password}
-                onfocus={() => ($playerMovement = false)}
-                onblur={() => ($playerMovement = true)}
-                maxlength="24"
-                placeholder="Type password here..."
-            />
-        {:else}
-            <label for="searchMovie">Private event?</label>
-        {/if}
-        <input
-            id="passwordCheckbox"
-            name="searchMovie"
-            type="checkbox"
-            bind:checked={passwordBool}
-        />
+        <label for="privateEvent">Private event?</label>
+        <input id="passwordCheckbox" name="privateEvent" type="checkbox" bind:checked={isPrivate} />
     </div>
 
-    <button class="menuButton" id="addTheaterButton" onclick={createEvent}>Create Event</button>
-    <button class="menuButton" id="backButton" onclick={back}>Back</button>
+    {#if inviteLink}
+        <div class="inviteLink">
+            <label for="inviteLinkInput">Share this link — it is not shown again</label>
+            <input id="inviteLinkInput" name="inviteLink" readonly value={inviteLink} />
+        </div>
+        <button class="menuButton" id="backButton" onclick={back}>Done</button>
+    {:else}
+        <button class="menuButton" id="addTheaterButton" onclick={createEvent}>Create Event</button>
+        <button class="menuButton" id="backButton" onclick={back}>Back</button>
+    {/if}
 </div>
 
 <style>
@@ -216,6 +219,18 @@
     #imageItem {
         height: 100%;
     }
+    .inviteLink {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+        padding: 4px 0;
+    }
+
+    .inviteLink input {
+        font-family: inherit;
+        font-size: 12px;
+    }
+
     #passwordCheckbox {
         width: 20px;
         height: 20px;

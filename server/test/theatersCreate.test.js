@@ -87,15 +87,21 @@ describe("POST /theaters", () => {
         expect(response.body.message).toBe("Time must be within 24 hours");
     });
 
-    it("rejects a short password when passwordBool is set", async () => {
+    // Phase 3 replaced the host-invented password with a server-generated lobby
+    // key, so there is no password to be too short. A password sent by an old
+    // client is simply ignored rather than accepted as a secret nothing checks.
+    it("ignores a password field left over from before lobby keys", async () => {
         const agent = await loginAgent(await registerUser());
 
         const response = await agent
             .post("/theaters")
             .send({ data: validEvent({ passwordBool: true, password: "short" }) });
 
-        expect(response.status).toBe(400);
-        expect(response.body.message).toBe("Password must be between 8 and 24 characters");
+        expect(response.status).toBe(200);
+        const stored = await db.theaters.findOne({ eventName: "Movie Night" });
+        expect(stored.password).toBeUndefined();
+        expect(stored.passwordBool).toBeUndefined();
+        expect(stored.isPrivate).toBe(false);
     });
 
     it("creates the theater and enriches it from OMDB", async () => {
@@ -114,16 +120,14 @@ describe("POST /theaters", () => {
         expect(stored.position).toBe(0);
     });
 
-    it("hashes the theater password when one is set", async () => {
+    it("stores a lobby key for a private theater and none for a public one", async () => {
         const agent = await loginAgent(await registerUser());
 
-        await agent
-            .post("/theaters")
-            .send({ data: validEvent({ passwordBool: true, password: "lobbypassword" }) });
+        await agent.post("/theaters").send({ data: validEvent({ private: true }) });
 
         const stored = await db.theaters.findOne({ eventName: "Movie Night" });
-        expect(stored.password).not.toBe("lobbypassword");
-        expect(stored.password.startsWith("$2")).toBe(true);
+        expect(stored.isPrivate).toBe(true);
+        expect(stored.lobbyKey).toMatch(/^[0-9a-f]{16}$/);
     });
 
     it("allows only one live event per owner", async () => {

@@ -5,11 +5,23 @@
     import { user } from "../stores/userStore.js";
     import { error, success } from "./toasts/toastThemes.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
+    import { page } from "$app/state";
 
     const socket = createSocket();
     let { theater } = $props();
-    let password = $state("");
+    // Carried in the invite link, not typed: the host shares
+    // /theaters/<id>?key=<key> and the key rides along from there.
+    let lobbyKey = $state("");
     let joining = $state(false);
+
+    // A key in the URL is for whichever theater the link named, so it is only
+    // used for that one — walking up to a different private lobby with someone
+    // else's link in your address bar must not let you in.
+    const keyForThisTheater = $derived(
+        page.url.searchParams.get("theater") === theater._id
+            ? (page.url.searchParams.get("key") ?? "")
+            : lobbyKey
+    );
 
     async function joinTheater() {
         if (joining) return;
@@ -27,8 +39,8 @@
                 },
                 body: JSON.stringify({
                     userID: $user.userID,
-                    password: password,
                     joining: true,
+                    ...(keyForThisTheater && { lobbyKey: keyForThisTheater }),
                 }),
             });
 
@@ -89,14 +101,16 @@
                 /></svg
             >
         </h4>
-        {#if theater.passwordBool}
+        {#if theater.isPrivate && !keyForThisTheater}
+            <p class="privateNotice">Private event — you need the host's invite link</p>
+        {:else if theater.isPrivate}
             <input
-                type="password"
-                maxlength="24"
-                bind:value={password}
+                name="lobbyKey"
+                type="text"
+                bind:value={lobbyKey}
                 onfocus={() => ($playerMovement = false)}
                 onblur={() => ($playerMovement = true)}
-                placeholder="Type password here..."
+                placeholder="Invite key"
             />
         {/if}
     </div>

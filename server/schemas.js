@@ -131,18 +131,13 @@ export const createTheaterSchema = body({
             .min(1, SPACES_RANGE)
             .max(limits.maxSeats, SPACES_RANGE),
         imdbID: required("Must choose a movie"),
-        passwordBool: z.boolean({ error: ALL_FIELDS }).default(false),
-        // Only read when passwordBool is set; the pairing is checked below.
-        password: z.string({ error: PASSWORD_LENGTH }).optional(),
+        // A private theater's key is generated server-side, so the host supplies
+        // only the choice. `password` and `passwordBool` are gone: they made the
+        // host invent a secret and pass it on out of band, and stored it
+        // bcrypt-hashed so nobody could read it back to share it.
+        private: z.boolean({ error: ALL_FIELDS }).default(false),
     }),
-}).refine(
-    (value) =>
-        !value.data.passwordBool ||
-        (typeof value.data.password === "string" &&
-            value.data.password.length >= 8 &&
-            value.data.password.length <= 24),
-    { error: PASSWORD_LENGTH, path: ["data", "password"] }
-);
+});
 
 // `joining` carries the old "Unsupported theater update" message because this
 // route answers that for any PATCH that is not a join. The other two get the
@@ -152,5 +147,8 @@ export const createTheaterSchema = body({
 export const joinTheaterSchema = body({
     joining: z.literal(true, { error: "Unsupported theater update" }),
     userID: required(),
+    lobbyKey: z.string({ error: ALL_FIELDS }).optional(),
+    // Only for theaters created before lobby keys existed. Remove once none can
+    // still be live — they expire within hours of their showing.
     password: z.string({ error: ALL_FIELDS }).optional(),
 });
