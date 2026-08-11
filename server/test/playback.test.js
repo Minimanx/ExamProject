@@ -126,6 +126,31 @@ describe("synced playback", () => {
         }
     });
 
+    // Every host action checks ownership against the database first, so two
+    // sent in quick succession can finish their lookups out of order and be
+    // applied in the wrong order. A host who pauses right after playing would
+    // end up playing. Caught as a 1-in-6 flake on the pause test above; this
+    // reproduces it on demand.
+    it("applies rapid host actions in the order they were sent", async () => {
+        const { theater, host } = await seedTheaterWithHost();
+        const hostSide = await joinTheater(theater, host);
+        const guest = await joinTheater(theater);
+
+        try {
+            const seen = await nextState(guest.socket, () => {
+                hostSide.socket.emit("playbackPlay", { positionSeconds: 10 });
+                hostSide.socket.emit("playbackPause", { positionSeconds: 20 });
+                hostSide.socket.emit("playbackPlay", { positionSeconds: 30 });
+                hostSide.socket.emit("playbackPause", { positionSeconds: 40 });
+            });
+
+            expect(seen.at(-1)).toMatchObject({ playing: false, positionSeconds: 40 });
+        } finally {
+            hostSide.socket.close();
+            guest.socket.close();
+        }
+    });
+
     it("tells the room when the host seeks", async () => {
         const { theater, host } = await seedTheaterWithHost();
         const hostSide = await joinTheater(theater, host);

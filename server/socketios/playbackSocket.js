@@ -76,8 +76,23 @@ function isFiniteSeconds(value) {
 
 const socket = (io) => {
     io.on("connection", (socket) => {
-        /** Every host action is "change the state, then tell the room". */
-        async function asHost(change) {
+        /**
+         * Host actions, applied one at a time in the order they arrived.
+         *
+         * Each one checks ownership against the database before it can act, and
+         * two sent in quick succession can finish those lookups out of order —
+         * so a host who pauses immediately after playing would end up playing.
+         * The chain makes each wait for the one before it, which costs nothing:
+         * these are button presses, not a stream.
+         */
+        let inOrder = Promise.resolve();
+
+        function asHost(change) {
+            inOrder = inOrder.then(() => applyAsHost(change)).catch(() => {});
+            return inOrder;
+        }
+
+        async function applyAsHost(change) {
             const theaterId = theaterOf(socket);
             if (theaterId === null) return;
             if (!(await isHost(socket, theaterId))) return;

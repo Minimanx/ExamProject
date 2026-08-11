@@ -315,18 +315,26 @@ browser test.
 
 **Goal:** the architectural change that unblocks clubs, multiple lobbies and procgen.
 
-- Hub becomes a first-class entity carrying an `instanceId`, with a capacity cap — even
-  though only one instance will exist for a long time. Sharding later becomes config
-  rather than a rewrite.
-- Instanced spaces for events and clubs.
-- **Server-authoritative movement.** Today the client is authoritative and trivially
-  spoofable.
-- **Spatial interest management** — only sync nearby players. Required once concurrency
-  passes roughly 30.
-- Multiple concurrent lobbies.
+- ~~Hub becomes a first-class entity carrying an `instanceId`, with a capacity cap.~~
+  **DONE 2026-08-11.** Every socket joins an instance room and world events address it rather
+  than every connection. `HUB_CAPACITY` bounds one instance, and a caller has to handle a
+  refusal now — while the answer is always "the world is full" — so Phase 11 can change the
+  answer to "here is another" without changing a caller.
+- ~~Instanced spaces for events and clubs.~~ **DONE 2026-08-11.** Each theater is its own room
+  for chat and its own playback state; walking into one leaves the hub instance.
+- ~~**Server-authoritative movement.**~~ **DONE 2026-08-11.** The server holds the position and
+  accepts a proposal only if it is inside the world and reachable at the world's speed. Built as
+  validation rather than server-side simulation — see the Phase 4 plan for the reasoning and for
+  what would justify revisiting it.
+- ~~**Spatial interest management.**~~ **DONE 2026-08-11.** A uniform grid answers "who is near
+  whom" without walking the world, and crossing the boundary emits enter and leave — without
+  those, interest management presents as cars freezing where they were last seen.
+- ~~Multiple concurrent lobbies.~~ **DONE 2026-08-11.** Verified rather than assumed: six tests
+  covering playback, chat, ready checks and countdowns across two simultaneous showings, plus
+  that hosting one lobby confers no control over another.
 
-**Exit criteria:** two lobbies run simultaneously in separate instances; a client only
-receives position updates for players it can see.
+**Exit criteria:** ~~two lobbies run simultaneously in separate instances; a client only
+receives position updates for players it can see.~~ **MET 2026-08-11.**
 
 ---
 
