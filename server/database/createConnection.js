@@ -66,6 +66,24 @@ export async function backfillModerationState() {
  * as `theaters.ownerID` and `theaters.position` were tightened to unique for
  * defect C4 — is a no-op on any database that already ran the old version.
  */
+/**
+ * Remove an index that a later design replaced.
+ *
+ * A unique `ownerID_1` still enforces one-event-per-owner no matter what the
+ * compound index says, so leaving it behind would silently pin the limit at 1 on
+ * any database that ran the old version. Idempotent: a missing index is fine.
+ */
+export async function dropSupersededIndex(collection, name) {
+    try {
+        await collection.dropIndex(name);
+    } catch (error) {
+        // 27 is IndexNotFound — the expected case on a fresh database.
+        if (error.code !== 27) {
+            throw error;
+        }
+    }
+}
+
 async function ensureIndex(collection, keys, options = {}) {
     try {
         return await collection.createIndex(keys, options);
@@ -83,36 +101,73 @@ async function ensureIndex(collection, keys, options = {}) {
 // concurrency checks out of application code — where two overlapping requests
 // can both pass them — and into the database, which is the only place that can
 // decide atomically. See defects O1 and C4.
-export const indexesReady = Promise.all([
-    ensureIndex(collections.users, { email: 1 }, { unique: true }),
-    ensureIndex(
-        collections.users,
-        { username: 1 },
-        { unique: true, collation: { locale: "en", strength: 1 } }
-    ),
-    ensureIndex(collections.theaters, { position: 1 }, { unique: true }),
-    ensureIndex(collections.theaters, { ownerID: 1 }, { unique: true }),
-    ensureIndex(collections.theaters, { timeToClose: 1 }),
+/**
+ * Build every index, reporting each failure on its own.
+ *
+ * This was a `Promise.all` whose rejection was caught and logged, which fails
+ * twice over: one bad entry cancels every other index, and the process then runs
+ * as though nothing were wrong. That is not hypothetical — a `dropIndex` on a
+ * collection that did not exist yet answered NamespaceNotFound rather than
+ * IndexNotFound, and took every uniqueness guarantee in the database with it,
+ * including the one holding "at most N events per owner" together.
+ *
+ * `allSettled` keeps a failure local, and each one is named, because a unique
+ * index that did not build means its guarantee is silently absent — which is
+ * precisely the class of problem the unique indexes exist to prevent. See
+ * DEPLOYMENT.md.
+ */
+async function buildAll(steps) {
+    const outcomes = await Promise.allSettled(Object.values(steps).map((step) => step()));
+
+    Object.keys(steps).forEach((name, index) => {
+        const outcome = outcomes[index];
+        if (outcome.status === "rejected") {
+            logger.error(
+                { index: name, err: outcome.reason },
+                "Failed to build an index — its guarantee is not in force"
+            );
+        }
+    });
+}
+
+export const indexesReady = buildAll({
+    // Every login and signup looked users up by email or username, and both were
+    // full collection scans. The unique constraints also move duplicate and
+    // concurrency checks out of application code — where two overlapping
+    // requests can both pass them — and into the database, which is the only
+    // place that can decide atomically. See defects O1 and C4.
+    "users.email": () => ensureIndex(collections.users, { email: 1 }, { unique: true }),
+    "users.username": () =>
+        ensureIndex(
+            collections.users,
+            { username: 1 },
+            { unique: true, collation: { locale: "en", strength: 1 } }
+        ),
+    "theaters.position": () => ensureIndex(collections.theaters, { position: 1 }, { unique: true }),
+    // Dropped, not kept: a unique index on the owner alone says "at most one
+    // event" no matter what the compound index says, so leaving it behind would
+    // pin the configurable limit at 1.
+    "theaters.ownerID (superseded)": () => dropSupersededIndex(collections.theaters, "ownerID_1"),
+    // { ownerID, ownerSlot } because Phase 3 made the per-owner limit
+    // configurable, and slots bounded by that limit keep "at most N" a decision
+    // the database makes rather than a count-then-insert that races.
+    "theaters.ownerSlot": () =>
+        ensureIndex(collections.theaters, { ownerID: 1, ownerSlot: 1 }, { unique: true }),
+    "theaters.timeToClose": () => ensureIndex(collections.theaters, { timeToClose: 1 }),
     // Unused until Phase 9, but the shape of the queries is already known: a
     // moderator opens the queue oldest-first, and looks up everything ever
     // reported about one person.
-    ensureIndex(collections.reports, { subjectID: 1, createdAt: -1 }),
-    ensureIndex(collections.reports, { state: 1, createdAt: 1 }),
-    // One person blocking another twice is the same block, so the database
-    // says so rather than trusting a UI not to double-submit.
-    ensureIndex(collections.blocks, { blockerID: 1, blockedID: 1 }, { unique: true }),
+    "reports.subject": () => ensureIndex(collections.reports, { subjectID: 1, createdAt: -1 }),
+    "reports.queue": () => ensureIndex(collections.reports, { state: 1, createdAt: 1 }),
+    // One person blocking another twice is the same block, so the database says
+    // so rather than trusting a UI not to double-submit.
+    "blocks.pair": () =>
+        ensureIndex(collections.blocks, { blockerID: 1, blockedID: 1 }, { unique: true }),
     // The reverse lookup — who has blocked me — is what filtering a room needs.
-    ensureIndex(collections.blocks, { blockedID: 1 }),
+    "blocks.blocked": () => ensureIndex(collections.blocks, { blockedID: 1 }),
     // Unique so two invites cannot share a code, and because claiming one is a
     // findOneAndUpdate on it.
-    ensureIndex(collections.invites, { code: 1 }, { unique: true }),
-])
-    .then(backfillModerationState)
-    .catch((error) => {
-        // Logged rather than thrown so a boot is not blocked, but a unique index
-        // that failed to build means its guarantee is silently absent — most likely
-        // because the data already violates it. See DEPLOYMENT.md.
-        logger.error({ err: error }, "Failed to create indexes");
-    });
+    "invites.code": () => ensureIndex(collections.invites, { code: 1 }, { unique: true }),
+}).then(backfillModerationState);
 
 export default collections;

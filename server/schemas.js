@@ -19,6 +19,7 @@
  */
 
 import { z } from "zod";
+import { limits } from "./limits.js";
 
 const ALL_FIELDS = "All fields must be filled";
 
@@ -41,7 +42,9 @@ const password = required().min(8, PASSWORD_LENGTH).max(24, PASSWORD_LENGTH);
 
 const USERNAME_LENGTH = "Username must be between 3 and 16 characters";
 const EVENT_NAME_LENGTH = "Event name must be between 3 and 18 characters";
-const SPACES_RANGE = "Amount of spaces must be between 1 and 99";
+// Built from the limit rather than written out: raising the cap and leaving the
+// message behind would produce an error that lies about the rule.
+const SPACES_RANGE = `Amount of spaces must be between 1 and ${limits.maxSeats}`;
 
 const passwordsMatch = {
     error: "Passwords must match",
@@ -111,7 +114,7 @@ export const createTheaterSchema = body({
             .number({ error: ALL_FIELDS })
             .int(SPACES_RANGE)
             .min(1, SPACES_RANGE)
-            .max(99, SPACES_RANGE),
+            .max(limits.maxSeats, SPACES_RANGE),
         imdbID: required("Must choose a movie"),
         passwordBool: z.boolean({ error: ALL_FIELDS }).default(false),
         // Only read when passwordBool is set; the pairing is checked below.

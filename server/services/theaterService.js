@@ -126,8 +126,28 @@ export async function findTheaterForViewer(id) {
     return db.theaters.findOne({ _id: new ObjectId(id) }, { projection: { password: 0 } });
 }
 
-export async function ownerHasLiveTheater(ownerID) {
-    return (await db.theaters.countDocuments({ ownerID }, { limit: 1 })) > 0;
+export async function ownerEventCount(ownerID) {
+    return db.theaters.countDocuments({ ownerID });
+}
+
+/**
+ * The lowest owner slot this person is not already using, or null when they are
+ * at their limit.
+ *
+ * A unique index on `ownerID` says "at most one" and nothing else, which is why
+ * making the limit configurable needed a second field. `{ ownerID, ownerSlot }`
+ * unique says "at most one per slot", and slots are bounded by the limit, so the
+ * database still decides — a count-then-insert would let every racing request
+ * read the same count and all proceed. See defect C4 for what that costs.
+ */
+function firstFreeOwnerSlot(taken, maxEventsPerOwner) {
+    const used = new Set(taken.map((theater) => theater.ownerSlot ?? 0));
+    for (let slot = 0; slot < maxEventsPerOwner; slot++) {
+        if (!used.has(slot)) {
+            return slot;
+        }
+    }
+    return null;
 }
 
 /**
@@ -139,23 +159,32 @@ export async function ownerHasLiveTheater(ownerID) {
  * conflict only means someone else took the gap first, so recompute and retry.
  * See defect C4.
  */
-export async function createTheater(document) {
+export async function createTheater(document, { maxEventsPerOwner }) {
     for (let attempt = 0; attempt < MAX_SLOT_ATTEMPTS; attempt++) {
         const occupied = await db.theaters.find({}, { projection: { position: 1 } }).toArray();
+        const mine = await db.theaters
+            .find({ ownerID: document.ownerID }, { projection: { ownerSlot: 1 } })
+            .toArray();
+
+        const ownerSlot = firstFreeOwnerSlot(mine, maxEventsPerOwner);
+        if (ownerSlot === null) {
+            throw new OwnerConflictError();
+        }
 
         try {
             return await db.theaters.insertOne({
                 ...document,
                 usersInsideTheater: [],
                 position: firstFreeSlot(occupied),
+                ownerSlot,
             });
         } catch (error) {
             if (error.code !== DUPLICATE_KEY) {
                 throw error;
             }
-            if (error.keyPattern?.ownerID) {
-                throw new OwnerConflictError();
-            }
+            // Either slot can collide, and both mean the same thing: someone
+            // took it between the read and the insert. Recompute and try again;
+            // an owner genuinely at their limit exits above, not here.
         }
     }
 

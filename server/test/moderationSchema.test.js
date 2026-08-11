@@ -1,7 +1,11 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { app } from "../app.js";
-import db, { indexesReady, backfillModerationState } from "../database/createConnection.js";
+import db, {
+    indexesReady,
+    backfillModerationState,
+    dropSupersededIndex,
+} from "../database/createConnection.js";
 
 // Roadmap §3, hedge 2: the safety data models land now, unused. The sequencing
 // chosen was "features first, safety retrofitted", and the risk that carries is
@@ -109,5 +113,57 @@ describe("moderationState on users", () => {
 
         const stored = await db.users.findOne({ email: "banned@example.com" });
         expect(stored.moderationState).toBe("banned");
+    });
+});
+
+// Index setup used to be one Promise.all whose rejection was caught and logged.
+// A single failing entry therefore cancelled every other index and left the
+// process running as though nothing were wrong — which is how a `dropIndex` on a
+// not-yet-created collection (NamespaceNotFound, not IndexNotFound) removed every
+// uniqueness guarantee in the database at once, including the one holding
+// "at most N events per owner" together.
+//
+// Asserting the built set is the only way to notice: nothing else fails.
+describe("every declared index is actually built", () => {
+    const expected = {
+        users: [{ email: 1 }, { username: 1 }],
+        theaters: [{ position: 1 }, { timeToClose: 1 }, { ownerID: 1, ownerSlot: 1 }],
+        reports: [
+            { subjectID: 1, createdAt: -1 },
+            { state: 1, createdAt: 1 },
+        ],
+        blocks: [{ blockerID: 1, blockedID: 1 }, { blockedID: 1 }],
+        invites: [{ code: 1 }],
+    };
+
+    it.each(Object.entries(expected))("%s", async (collection, keys) => {
+        await indexesReady;
+        const built = (await db[collection].indexes()).map((index) => JSON.stringify(index.key));
+
+        for (const key of keys) {
+            expect(built).toContain(JSON.stringify(key));
+        }
+    });
+
+    // The superseded one enforced "at most one event per owner" regardless of
+    // what the compound index says, so leaving it behind pins the limit at 1.
+    //
+    // Recreating it first is the point: on a fresh database it never existed,
+    // so asserting its absence proves nothing about the databases that matter —
+    // the ones that ran the previous version.
+    it("drops the superseded ownerID index when one is there to drop", async () => {
+        await indexesReady;
+        await db.theaters.createIndex({ ownerID: 1 }, { unique: true });
+        expect((await db.theaters.indexes()).map((i) => i.name)).toContain("ownerID_1");
+
+        await dropSupersededIndex(db.theaters, "ownerID_1");
+
+        expect((await db.theaters.indexes()).map((i) => i.name)).not.toContain("ownerID_1");
+    });
+
+    it("is untroubled by a superseded index that is already gone", async () => {
+        await indexesReady;
+
+        await expect(dropSupersededIndex(db.theaters, "ownerID_1")).resolves.toBeUndefined();
     });
 });

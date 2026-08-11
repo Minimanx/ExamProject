@@ -3,6 +3,7 @@ import { ObjectId } from "mongodb";
 import "dotenv/config";
 import bcrypt from "bcrypt";
 import { sendError } from "../errors.js";
+import { limits } from "../limits.js";
 import { validateBody } from "../validate.js";
 import { createTheaterSchema, joinTheaterSchema } from "../schemas.js";
 import * as theaters from "../services/theaterService.js";
@@ -106,15 +107,19 @@ router.post(
     async (req, res) => {
         const requested = req.body.data;
 
+        // The form sends a time of day, so a time already past today means
+        // tomorrow. The window then bounds how far ahead an event may be.
+        const windowMs = limits.schedulingWindowHours * 3600000;
         let startTime = new Date(requested.startTime);
-        if (startTime.getTime() < new Date().getTime()) {
+        if (startTime.getTime() < Date.now()) {
             startTime = new Date(startTime.getTime() + 86400000);
         }
-        if (
-            startTime.getTime() > new Date().getTime() + 86400000 ||
-            startTime.getTime() < new Date().getTime()
-        ) {
-            sendError(res, "VALIDATION_FAILED", "Time must be within 24 hours");
+        if (startTime.getTime() > Date.now() + windowMs || startTime.getTime() < Date.now()) {
+            sendError(
+                res,
+                "VALIDATION_FAILED",
+                `Time must be within ${limits.schedulingWindowHours} hours`
+            );
             return;
         }
 
@@ -124,7 +129,7 @@ router.post(
         // gets the plain explanation without a call to OMDB first. The unique
         // index is what actually enforces it — see the catch below.
         const ownerID = req.session.userID.toString();
-        if (await theaters.ownerHasLiveTheater(ownerID)) {
+        if ((await theaters.ownerEventCount(ownerID)) >= limits.maxEventsPerOwner) {
             sendError(res, "CONFLICT", "You already have an ongoing event");
             return;
         }
@@ -154,29 +159,34 @@ router.post(
         // _id — was persisted verbatim wherever the handler happened not to
         // write over it. See defect C3.
         try {
-            await theaters.createTheater({
-                eventName: requested.eventName,
-                startTime,
-                amountOfSpaces: requested.amountOfSpaces,
-                imdbID: requested.imdbID,
-                passwordBool: Boolean(requested.passwordBool),
-                password: requested.passwordBool ? await bcrypt.hash(requested.password, 12) : "",
-                ownerID,
-                movieName: movie.Title,
-                // Spread rather than set to undefined: the driver stores
-                // undefined as null, and the field was previously absent for
-                // short titles.
-                ...(movie.Title.length > 18 && {
-                    movieNameCutToFit: `${movie.Title.slice(0, 17)}...`,
-                }),
-                movieReleaseYear: movie.Year,
-                movieRuntime: movieRuntime,
-                imdbRating: movie.imdbRating,
-                hrefPoster: movie.Poster,
-                moviePlot: movie.Plot,
-                movieGenres: movie.Genre,
-                timeToClose: new Date(startTime.getTime() + movieRuntime * 60000 + 900000),
-            });
+            await theaters.createTheater(
+                {
+                    eventName: requested.eventName,
+                    startTime,
+                    amountOfSpaces: requested.amountOfSpaces,
+                    imdbID: requested.imdbID,
+                    passwordBool: Boolean(requested.passwordBool),
+                    password: requested.passwordBool
+                        ? await bcrypt.hash(requested.password, 12)
+                        : "",
+                    ownerID,
+                    movieName: movie.Title,
+                    // Spread rather than set to undefined: the driver stores
+                    // undefined as null, and the field was previously absent for
+                    // short titles.
+                    ...(movie.Title.length > 18 && {
+                        movieNameCutToFit: `${movie.Title.slice(0, 17)}...`,
+                    }),
+                    movieReleaseYear: movie.Year,
+                    movieRuntime: movieRuntime,
+                    imdbRating: movie.imdbRating,
+                    hrefPoster: movie.Poster,
+                    moviePlot: movie.Plot,
+                    movieGenres: movie.Genre,
+                    timeToClose: new Date(startTime.getTime() + movieRuntime * 60000 + 900000),
+                },
+                { maxEventsPerOwner: limits.maxEventsPerOwner }
+            );
         } catch (error) {
             if (error instanceof theaters.OwnerConflictError) {
                 sendError(res, "CONFLICT", "You already have an ongoing event");

@@ -304,6 +304,27 @@ restored into the Coolify MongoDB resource.
 - Changes to backend environment variables require a Coolify redeploy.
 - Keep MongoDB private; there is no normal reason to expose port `27017`.
 
+## Hosting limits
+
+Three numbers bound what a host may do. The defaults reproduce the behaviour
+FlixDrive shipped with, so leaving them unset changes nothing. Phase 8 turns
+these into per-tier values; today they are per-deployment.
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `MAX_SCHEDULING_WINDOW_HOURS` | 24 | How far ahead an event may be scheduled |
+| `MAX_SEATS` | 99 | Seats one theater may have |
+| `MAX_EVENTS_PER_OWNER` | 1 | Live events one person may host at once |
+
+Each must be a positive integer. A value the server cannot use stops the boot
+rather than falling back to the default — a limit that silently reverts looks
+like a healthy deployment behaving as though the setting was never written.
+
+`MAX_EVENTS_PER_OWNER` is enforced by a unique index on `{ ownerID, ownerSlot }`.
+On a database that ran an earlier version, the superseded unique index on
+`ownerID` alone is dropped at boot; until that has happened the limit stays at 1
+regardless of what the variable says.
+
 ## Closing registration
 
 `INVITE_ONLY=true` requires a valid, unused invite code to sign up. It is read
