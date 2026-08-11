@@ -284,3 +284,59 @@ describe("proximity chat", () => {
         }
     });
 });
+
+// Phase 4: the world stopped being one implicit global broadcast. Every socket
+// belongs to a hub instance and world events address that instance's room.
+//
+// With one instance configured nothing observable changes, which is exactly why
+// it needs a test: a seam that is never exercised is not there when Phase 11
+// needs it.
+describe("hub instances", () => {
+    it("puts a joining player in an instance and tells them which", async () => {
+        const user = await registerUser();
+        const agent = request.agent(app);
+        const login = await agent
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: user.email, password: user.password });
+        const cookie = login.headers["set-cookie"].map((c) => c.split(";")[0]).join("; ");
+        const socket = await connect({ Cookie: cookie });
+
+        try {
+            const assigned = await new Promise((resolve) => {
+                socket.on("hubAssigned", resolve);
+                socket.emit("carJoined", {
+                    coords: { x: 60, y: 600 },
+                    color: "#fff",
+                    name: "someone",
+                    screen: 0,
+                });
+            });
+
+            expect(assigned.instanceId).toMatch(/^hub-\d+$/);
+        } finally {
+            socket.close();
+        }
+    });
+
+    it("does not put an unauthenticated socket in an instance", async () => {
+        const listener = await connectAt(100);
+        const anonymous = await connect();
+
+        try {
+            const seen = await collect(anonymous, "hubAssigned", () => {
+                anonymous.emit("carJoined", {
+                    coords: { x: 60, y: 600 },
+                    color: "#fff",
+                    name: "nobody",
+                    screen: 0,
+                });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            listener.socket.close();
+            anonymous.close();
+        }
+    });
+});

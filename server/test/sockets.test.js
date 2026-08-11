@@ -44,6 +44,18 @@ function connect(extraHeaders = {}) {
 }
 
 /** Collect events seen by `watcher` for a moment after `act()` runs. */
+/**
+ * Join the hub, which is what puts a socket in the world.
+ *
+ * Since Phase 4 a world event addresses one instance's room rather than every
+ * connection, so a socket that never joined neither sends nor hears anything
+ * that happens there.
+ */
+async function enterWorld(socket, coords = { x: 60, y: 600 }) {
+    socket.emit("carJoined", { coords, color: "#fff", name: "player", screen: 0 });
+    await new Promise((r) => setTimeout(r, 150));
+}
+
 async function collect(watcher, event, act, ms = 400) {
     const seen = [];
     watcher.on(event, (payload) => seen.push(payload));
@@ -79,6 +91,10 @@ describe("socket authentication (defect S4)", () => {
         const watcher = await connectAsUser();
         const player = await connectAsUser();
         try {
+            // Phase 4: world events address a hub instance, and joining one is
+            // what puts you in it. A watcher who never joined is not in the
+            // world and hears nothing that happens there.
+            await enterWorld(watcher);
             const seen = await collect(watcher, "newCarJoined", () => {
                 player.emit("carJoined", {
                     coords: { x: 1, y: 2 },
@@ -102,6 +118,9 @@ describe("socket identity (defect S3)", () => {
         const watcher = await connectAsUser();
         const player = await connectAsUser();
         try {
+            await enterWorld(watcher);
+            await enterWorld(player);
+
             const seen = await collect(watcher, "newCarPosition", () => {
                 player.emit("carPosition", {
                     id: "somebody-elses-socket-id",

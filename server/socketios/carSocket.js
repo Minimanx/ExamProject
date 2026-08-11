@@ -1,4 +1,23 @@
+import { HubInstances } from "../world/instances.js";
+import { limits } from "../limits.js";
 const POSITION_THROTTLE_MS = 50;
+
+/**
+ * Every world event addresses one hub instance rather than every connection.
+ *
+ * Only one instance exists today, so this changes nothing observable — which is
+ * the point. Phase 11 shards the hub when concurrency demands it, and the
+ * roadmap's mitigation for that being its largest technical risk is that this
+ * groundwork makes it configuration. A seam that is never exercised is not
+ * there when it is needed.
+ */
+const hub = new HubInstances({ capacity: limits.hubCapacity });
+
+/** The instance room this socket is in, or null if it never joined one. */
+function instanceRoom(socket) {
+    const instanceId = socket.data.instanceId;
+    return instanceId && socket.rooms.has(instanceId) ? instanceId : null;
+}
 
 /**
  * How far a speech bubble carries, in world pixels.
@@ -84,7 +103,9 @@ const socket = (io) => {
             if (now - lastPositionBroadcast < POSITION_THROTTLE_MS) return;
             lastPositionBroadcast = now;
 
-            socket.broadcast.emit("newCarPosition", { id: socket.id, coords, direction, screen });
+            const room = instanceRoom(socket);
+            if (room === null) return;
+            socket.to(room).emit("newCarPosition", { id: socket.id, coords, direction, screen });
         });
 
         socket.on("hubMessage", async ({ text } = {}) => {
@@ -126,6 +147,15 @@ const socket = (io) => {
         socket.on("carJoined", async ({ coords, color, name, screen }) => {
             if (!(await refreshAndCheck(socket))) return;
 
+            const { instanceId, reason } = hub.join(socket.id);
+            if (instanceId === null) {
+                socket.emit("hubFull", { message: reason });
+                return;
+            }
+            socket.data.instanceId = instanceId;
+            socket.join(instanceId);
+            socket.emit("hubAssigned", { instanceId });
+
             // The spawn position counts. Recording only on movement would leave
             // two people who have just arrived unable to hear each other, which
             // is exactly when they would want to talk.
@@ -134,17 +164,23 @@ const socket = (io) => {
                 socket.data.worldPosition = position;
             }
 
-            socket.broadcast.emit("newCarJoined", { id: socket.id, color, coords, name, screen });
+            socket
+                .to(instanceId)
+                .emit("newCarJoined", { id: socket.id, color, coords, name, screen });
         });
 
         socket.on("carUpdate", ({ name, color }) => {
             if (!isAuthenticated(socket)) return;
-            socket.broadcast.emit("newCarUpdate", { id: socket.id, name, color });
+            const room = instanceRoom(socket);
+            if (room === null) return;
+            socket.to(room).emit("newCarUpdate", { id: socket.id, name, color });
         });
 
         socket.on("colorChanged", ({ color }) => {
             if (!isAuthenticated(socket)) return;
-            socket.broadcast.emit("newColorChanged", { id: socket.id, color });
+            const room = instanceRoom(socket);
+            if (room === null) return;
+            socket.to(room).emit("newColorChanged", { id: socket.id, color });
         });
 
         socket.on("theaterAdded", () => {
@@ -154,13 +190,27 @@ const socket = (io) => {
 
         socket.on("joinedTheater", () => {
             if (!isAuthenticated(socket)) return;
-            socket.broadcast.emit("newJoinedTheater", { id: socket.id });
-            socket.broadcast.emit("carLeft", { id: socket.id });
+
+            const room = instanceRoom(socket);
+            if (room === null) return;
+
+            // Walking into a theater leaves the hub: the car is gone from the
+            // world until they come back out.
+            socket.to(room).emit("newJoinedTheater", { id: socket.id });
+            socket.to(room).emit("carLeft", { id: socket.id });
+            socket.leave(room);
+            hub.leave(socket.id);
+            delete socket.data.instanceId;
         });
 
         socket.on("disconnect", () => {
+            const room = instanceRoom(socket);
+            if (room !== null) {
+                socket.to(room).emit("carLeft", { id: socket.id });
+            }
+            hub.leave(socket.id);
+            // The strip is shared by everyone, instanced or not.
             io.emit("newTheaterAdded");
-            socket.broadcast.emit("carLeft", { id: socket.id });
         });
     });
 };

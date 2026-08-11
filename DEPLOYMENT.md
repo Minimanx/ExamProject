@@ -315,10 +315,16 @@ these into per-tier values; today they are per-deployment.
 | `MAX_SCHEDULING_WINDOW_HOURS` | 24 | How far ahead an event may be scheduled |
 | `MAX_SEATS` | 99 | Seats one theater may have |
 | `MAX_EVENTS_PER_OWNER` | 1 | Live events one person may host at once |
+| `HUB_CAPACITY` | 60 | Players sharing one hub instance |
 
 Each must be a positive integer. A value the server cannot use stops the boot
 rather than falling back to the default — a limit that silently reverts looks
 like a healthy deployment behaving as though the setting was never written.
+
+`HUB_CAPACITY` bounds one instance of the world. Only one instance exists, so
+reaching it means the world is full and a joining player is turned away. When
+that starts happening, the answer is another instance rather than a larger
+number — the seam for that is in place and the number is a stopgap.
 
 `MAX_EVENTS_PER_OWNER` is enforced by a unique index on `{ ownerID, ownerSlot }`.
 On a database that ran an earlier version, the superseded unique index on

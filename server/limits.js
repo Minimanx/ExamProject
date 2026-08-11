@@ -32,6 +32,10 @@ export function readLimits(env = process.env) {
         schedulingWindowHours: positiveInteger(env, "MAX_SCHEDULING_WINDOW_HOURS", 24),
         maxSeats: positiveInteger(env, "MAX_SEATS", 99),
         maxEventsPerOwner: positiveInteger(env, "MAX_EVENTS_PER_OWNER", 1),
+        // One hub instance holds this many players. Phase 11 turns "full" into
+        // "allocate another" rather than a refusal; until then it is the cap on
+        // how many people share a world.
+        hubCapacity: positiveInteger(env, "HUB_CAPACITY", 60),
     };
 }
 

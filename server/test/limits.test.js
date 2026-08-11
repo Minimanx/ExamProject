@@ -11,6 +11,8 @@ describe("readLimits", () => {
             schedulingWindowHours: 24,
             maxSeats: 99,
             maxEventsPerOwner: 1,
+            // Phase 4: one hub instance holds this many players.
+            hubCapacity: 60,
         });
     });
 
@@ -18,6 +20,7 @@ describe("readLimits", () => {
         ["MAX_SCHEDULING_WINDOW_HOURS", "72", "schedulingWindowHours", 72],
         ["MAX_SEATS", "250", "maxSeats", 250],
         ["MAX_EVENTS_PER_OWNER", "3", "maxEventsPerOwner", 3],
+        ["HUB_CAPACITY", "120", "hubCapacity", 120],
     ])("reads %s", (variable, value, key, expected) => {
         expect(readLimits({ [variable]: value })[key]).toBe(expected);
     });
