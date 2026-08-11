@@ -103,6 +103,21 @@ export const movieSearchSchema = body(
     TITLE_REQUIRED
 );
 
+/**
+ * Optional search and filters on the public listing.
+ *
+ * A blank string means "no search" rather than "match nothing", because that is
+ * what an emptied search box sends. `startingWithin` is minutes.
+ */
+export const theaterListingSchema = z.object({
+    q: z.string().trim().max(80).optional(),
+    hasSpace: z.enum(["true", "false"], { error: "hasSpace must be true or false" }).optional(),
+    startingWithin: z
+        .string()
+        .regex(/^[1-9][0-9]*$/, "startingWithin must be a positive number of minutes")
+        .optional(),
+});
+
 export const createTheaterSchema = body({
     data: body({
         eventName: required().min(3, EVENT_NAME_LENGTH).max(18, EVENT_NAME_LENGTH),

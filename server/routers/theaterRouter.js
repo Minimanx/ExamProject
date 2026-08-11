@@ -4,8 +4,8 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import { sendError } from "../errors.js";
 import { limits } from "../limits.js";
-import { validateBody } from "../validate.js";
-import { createTheaterSchema, joinTheaterSchema } from "../schemas.js";
+import { validateBody, validateQuery } from "../validate.js";
+import { createTheaterSchema, joinTheaterSchema, theaterListingSchema } from "../schemas.js";
 import * as theaters from "../services/theaterService.js";
 const router = Router();
 
@@ -46,8 +46,8 @@ function loadTheater(failureMessage) {
     };
 }
 
-router.get("/theaters", async (req, res) => {
-    res.status(200).send({ data: await theaters.listTheaters(req.log) });
+router.get("/theaters", validateQuery(theaterListingSchema), async (req, res) => {
+    res.status(200).send({ data: await theaters.listTheaters(req.log, req.validatedQuery) });
 });
 
 router.get("/theaters/:id", requireSession("Must be logged in"), async (req, res) => {

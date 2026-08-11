@@ -307,6 +307,39 @@ test("the list view sorts by name and reverses on a second click", async ({ page
     expect(descending).toEqual([...ascending].reverse());
 });
 
+// Phase 3 exit criterion: two people can find each other by search. The strip
+// seeds Movie Night / The Matrix, Sci-Fi Fest / Blade Runner and Noir Evening /
+// Chinatown, so a search has something to narrow.
+test("searching the list view narrows it, by event and by film", async ({ page }) => {
+    await logIn(page);
+
+    const names = () => page.locator(".containerListView .names").allTextContents();
+    const search = page.getByPlaceholder(/search/i);
+
+    expect((await names()).length).toBeGreaterThan(1);
+
+    // Polling on the contents, not the count: two consecutive searches that both
+    // return one row make a length assertion pass on the previous result.
+    await search.fill("noir");
+    await expect.poll(names).toEqual([expect.stringContaining("Noir Evening")]);
+
+    // Searching the film, not the name the host gave the evening.
+    await search.fill("blade");
+    await expect.poll(names).toEqual([expect.stringContaining("Sci-Fi Fest")]);
+
+    await search.fill("");
+    await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
+});
+
+test("a search that matches nothing says so rather than showing everything", async ({ page }) => {
+    await logIn(page);
+
+    await page.getByPlaceholder(/search/i).fill("nosuchfilmanywhere");
+
+    await expect.poll(() => page.locator(".containerListView .names").count()).toBe(0);
+    await expect(page.locator(".containerListView")).toContainText(/no (events|theaters) match/i);
+});
+
 test("the about panel opens and closes again", async ({ page }) => {
     await logIn(page);
     await page.getByRole("button", { name: "About" }).click();

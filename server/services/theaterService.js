@@ -101,19 +101,61 @@ export async function occupantsOf(theater) {
     return present;
 }
 
-/** The public strip: expired theaters swept, occupancy reconciled. */
-export async function listTheaters(log) {
+/**
+ * Escape a user's search term so it is matched as text.
+ *
+ * The term comes from a search box, so it contains whatever was typed. Dropped
+ * into a regular expression unescaped, `(` is a syntax error that fails the
+ * request and `.*` is a pattern that matches every theater on the strip — a
+ * search that silently returns everything is worse than one that errors.
+ */
+function asLiteral(term) {
+    return term.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+/**
+ * The public strip, optionally searched and filtered.
+ *
+ * Filtering happens in the query rather than the client. The client could do it
+ * today only because the strip is small, which is a fact about the current size
+ * rather than a design.
+ */
+export async function listTheaters(log, { q, hasSpace, startingWithin } = {}) {
     await removeExpiredTheaters(log);
+
+    const filter = {};
+
+    if (q) {
+        const term = new RegExp(asLiteral(q), "i");
+        // People search for the film as often as for whatever the host called
+        // the evening, so both count as a match.
+        filter.$or = [{ eventName: term }, { movieName: term }];
+    }
+
+    if (startingWithin) {
+        // An event already under way is not "starting within" anything, but it
+        // is the one you are most likely to want to walk into, so the window
+        // bounds the future end only.
+        filter.startTime = { $lte: new Date(Date.now() + Number(startingWithin) * 60000) };
+    }
 
     // ownerID is not needed by any client view and should not be exposed, but
     // the listing itself stays public so events can be browsed before signing
     // up. See defect S8.
     const theaters = await db.theaters
-        .find({}, { projection: { password: 0, ownerID: 0 } })
+        .find(filter, { projection: { password: 0, ownerID: 0 } })
         .toArray();
 
     for (const theater of theaters) {
         theater.usersInsideTheater = await occupantsOf(theater);
+    }
+
+    // Applied after reconciliation, not in the query: a theater whose seats are
+    // held by ghosts is not full, and only the sweep knows that. See defect C5.
+    if (hasSpace === "true") {
+        return theaters.filter(
+            (theater) => theater.usersInsideTheater.length < theater.amountOfSpaces
+        );
     }
     return theaters;
 }

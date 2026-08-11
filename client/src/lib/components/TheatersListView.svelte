@@ -1,7 +1,47 @@
 <script>
     import { formatTimeOfDay } from "../services/duration.js";
+    import { apiFetch } from "../services/api.js";
 
     let { theaters, teleportToTheater = () => {} } = $props();
+
+    // Searching queries the server rather than filtering the prop. The client
+    // has the whole strip today only because the strip is small, which is a fact
+    // about the current size and not something to build on.
+    let searchTerm = $state("");
+    let matches = $state(null);
+    let searchTimer;
+
+    // Debounced: a keystroke per request would put a request per keystroke on
+    // the listing, which also runs the expiry sweep and the occupancy
+    // reconciliation.
+    const SEARCH_DEBOUNCE_MS = 200;
+
+    function onSearchInput() {
+        clearTimeout(searchTimer);
+        const term = searchTerm.trim();
+
+        if (!term) {
+            matches = null;
+            return;
+        }
+        searchTimer = setTimeout(() => void runSearch(term), SEARCH_DEBOUNCE_MS);
+    }
+
+    async function runSearch(term) {
+        const response = await apiFetch(`/theaters?q=${encodeURIComponent(term)}`);
+        if (!response.ok) return;
+
+        const { data } = await response.json();
+        // A slower earlier request must not overwrite a newer one's results.
+        if (term === searchTerm.trim()) {
+            matches = data;
+        }
+    }
+
+    // null means "not searching" and shows everything; an empty array means a
+    // search that found nothing, which has to look different from no search at
+    // all or the list silently reads as "there is nothing on".
+    const visible = $derived(matches ?? theaters);
 
     let sortBySpacesPicker = $state(0);
     let sortByNamePicker = $state(0);
@@ -90,6 +130,15 @@
 </script>
 
 <div class="container">
+    <div class="searchBar">
+        <input
+            name="search"
+            type="search"
+            placeholder="Search events and films..."
+            bind:value={searchTerm}
+            oninput={onSearchInput}
+        />
+    </div>
     <div class="headers">
         <ul class="unorderedListHeaders">
             <li></li>
@@ -117,7 +166,10 @@
         </ul>
     </div>
     <div class="list">
-        {#each theaters as theater (theater._id)}
+        {#if matches !== null && matches.length === 0}
+            <p class="noMatches">No events match "{searchTerm.trim()}"</p>
+        {/if}
+        {#each visible as theater (theater._id)}
             <ul class="unorderedList" onclick={() => teleportToTheater(theater.position)}>
                 <li></li>
                 <div class="names">
@@ -205,6 +257,24 @@
     .unorderedListHeaders li:nth-child(6) {
         flex-basis: 35px;
     }
+    .searchBar {
+        padding: 4px 8px;
+    }
+
+    .searchBar input {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 4px 8px;
+        font-family: inherit;
+        font-size: 14px;
+    }
+
+    .noMatches {
+        padding: 12px 8px;
+        margin: 0;
+        text-align: center;
+    }
+
     .list {
         width: 100%;
         overflow-y: auto;
