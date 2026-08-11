@@ -19,6 +19,52 @@ export function registerSocketServer(io) {
 }
 
 /**
+ * Whether this user has a socket open anywhere.
+ *
+ * The same question this module already answers for a theater room, asked of
+ * every connection instead. Sockets are the only thing that knows: a session
+ * outlives a closed tab, so asking the database would report everyone who logged
+ * in this fortnight as present.
+ */
+/**
+ * Where a user is, for a friend who is allowed to join them.
+ *
+ * This deliberately bypasses interest management, which exists so players cannot
+ * see everyone's position. The caller is responsible for having established that
+ * the two are actually friends — see friendRouter.
+ */
+export function whereIs(userID) {
+    const socket = socketFor(userID);
+    if (socket === null) {
+        return { online: false, position: null, theaterId: null };
+    }
+
+    const at = socket.data.worldPosition;
+    return {
+        online: true,
+        position: at ? { x: at.x, y: at.y } : null,
+        theaterId: socket.data.theaterId ?? null,
+    };
+}
+
+function socketFor(userID) {
+    if (socketServer === null) {
+        return null;
+    }
+
+    for (const socket of socketServer.sockets.sockets.values()) {
+        if (socket.request.session?.userID?.toString() === userID) {
+            return socket;
+        }
+    }
+    return null;
+}
+
+export function isOnline(userID) {
+    return socketFor(userID) !== null;
+}
+
+/**
  * The user ids with a live socket in this theater's room, or null when there is
  * no socket server to ask — in which case the caller must not sweep anyone,
  * since "no sockets" and "cannot tell" would otherwise look identical.

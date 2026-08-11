@@ -20,8 +20,14 @@ const {
 await indexesReady;
 
 beforeEach(async () => {
-    await db.users.deleteMany({});
-    await db.theaters.deleteMany({});
+    // Every collection a test can write to. A collection left out does not fail
+    // anything directly — it leaks rows into the next test's counts, which shows
+    // up as an unrelated assertion being off by one.
+    await Promise.all(
+        [db.users, db.theaters, db.friendships, db.invites, db.blocks, db.reports].map(
+            (collection) => collection.deleteMany({})
+        )
+    );
 });
 
 afterAll(async () => {

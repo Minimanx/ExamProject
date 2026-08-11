@@ -144,6 +144,14 @@ export const createTheaterSchema = body({
 // ordinary validation message: a missing userID is a malformed request, not an
 // authentication failure, and the route's own check produces the 401 when the
 // id is present but belongs to someone else.
+export const friendRequestSchema = body({
+    username: required().min(3, USERNAME_LENGTH).max(16, USERNAME_LENGTH),
+});
+
+export const friendAnswerSchema = body({
+    accept: z.boolean({ error: "Say whether you accept" }),
+});
+
 export const joinTheaterSchema = body({
     joining: z.literal(true, { error: "Unsupported theater update" }),
     userID: required(),

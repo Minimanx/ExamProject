@@ -40,6 +40,11 @@ const collections = {
     //
     // invites: { code, createdAt, usedAt, usedBy }
     invites: db.collection("invites"),
+    // Phase 5. One row per pair, with the ids in a canonical order so the unique
+    // index below can see that (A,B) and (B,A) are the same relationship.
+    //
+    // friendships: { pairLow, pairHigh, requesterID, state, createdAt, respondedAt }
+    friendships: db.collection("friendships"),
 };
 
 /**
@@ -177,6 +182,11 @@ export const indexesReady = buildAll({
     // Unique so two invites cannot share a code, and because claiming one is a
     // findOneAndUpdate on it.
     "invites.code": () => ensureIndex(collections.invites, { code: 1 }, { unique: true }),
+    // The whole reason the pair is ordered: unordered, the index cannot tell
+    // (A,B) from (B,A), and two people adding each other at the same moment
+    // would create two friendships.
+    "friendships.pair": () =>
+        ensureIndex(collections.friendships, { pairLow: 1, pairHigh: 1 }, { unique: true }),
 }).then(backfillModerationState);
 
 export default collections;
