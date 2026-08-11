@@ -396,6 +396,40 @@ test("a search that matches nothing says so rather than showing everything", asy
     await expect(page.locator(".containerListView")).toContainText(/no (events|theaters) match/i);
 });
 
+// Phase 5: friends. The two accounts the suite shares are the natural pair, and
+// the request has to be answered by the other one — the whole point of keeping
+// who asked is that they cannot accept on their own behalf.
+test("adding a friend, from request through to accepted", async ({ browser }) => {
+    const askerContext = await contextWithOwnBucket(browser);
+    const targetContext = await contextWithOwnBucket(browser);
+    try {
+        const asker = await askerContext.newPage();
+        await logInOn(asker, USER);
+        await asker.getByRole("button", { name: "Friends" }).click();
+
+        await asker.locator('input[name="friendUsername"]').fill(MOVER.username);
+        await asker.getByRole("button", { name: "Add", exact: true }).click();
+        await expect(asker.locator("._toastContainer")).toContainText(/Friend request sent/i);
+
+        // From the asker's side it is an outstanding request, not a friend.
+        await expect(asker.getByText("Asked")).toBeVisible();
+
+        const target = await targetContext.newPage();
+        await logInOn(target, MOVER);
+        await target.getByRole("button", { name: "Friends" }).click();
+
+        await expect(target.getByText("Wants to be your friend")).toBeVisible();
+        await target.getByRole("button", { name: "Accept" }).click();
+        await expect(target.locator("._toastContainer")).toContainText(/Friend added/i);
+
+        // And now they are listed as a friend, with a presence dot.
+        await expect(target.locator(".presence")).toHaveCount(1);
+    } finally {
+        await askerContext.close();
+        await targetContext.close();
+    }
+});
+
 test("the about panel opens and closes again", async ({ page }) => {
     await logIn(page);
     await page.getByRole("button", { name: "About" }).click();

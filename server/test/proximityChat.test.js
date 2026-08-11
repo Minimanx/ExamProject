@@ -3,6 +3,7 @@ import { io as ioClient } from "socket.io-client";
 import request from "supertest";
 import { server, app } from "../app.js";
 import { registerUser, uniqueIp } from "./helpers.js";
+import db from "../database/createConnection.js";
 import { PROXIMITY_RADIUS } from "../socketios/carSocket.js";
 
 // Phase 3 exit criterion: two people can chat in the open world. A message is a
@@ -551,6 +552,132 @@ describe("spatial interest management", () => {
         } finally {
             watcher.close();
             leaving.close();
+        }
+    });
+});
+
+// Join-a-friend cannot be a client-side jump: Phase 4 made the server hold the
+// position and refuse anything it could not have driven to, so a teleport is
+// exactly what it rejects. The move therefore happens on the server, which is
+// also the only place that can put the player in the grid at the same time.
+describe("joining a friend", () => {
+    async function loggedInSocket() {
+        const user = await registerUser();
+        const agent = request.agent(app);
+        const login = await agent
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: user.email, password: user.password });
+        const cookie = login.headers["set-cookie"].map((c) => c.split(";")[0]).join("; ");
+        const socket = await connect({ Cookie: cookie });
+        return { user, agent, socket };
+    }
+
+    async function befriend(a, b) {
+        await a.agent.post("/friends").send({ username: b.user.username });
+        const friendship = await db.friendships.findOne({});
+        await b.agent.patch(`/friends/${friendship._id}`).send({ accept: true });
+        return friendship._id.toString();
+    }
+
+    async function enterWorldAt(socket, worldX) {
+        socket.emit("carJoined", {
+            coords: { x: 0, y: 600 },
+            color: "#fff",
+            name: "p",
+            screen: worldX,
+        });
+        await new Promise((r) => setTimeout(r, 150));
+    }
+
+    it("moves the joiner next to their friend", async () => {
+        const me = await loggedInSocket();
+        const friend = await loggedInSocket();
+        const friendshipId = await befriend(me, friend);
+        await enterWorldAt(me.socket, 0);
+        await enterWorldAt(friend.socket, 5000);
+
+        try {
+            const moved = await new Promise((resolve) => {
+                me.socket.on("positionCorrection", resolve);
+                me.socket.emit("joinFriend", { friendshipId });
+            });
+
+            expect(moved.x).toBeGreaterThan(4800);
+            expect(moved.x).toBeLessThan(5200);
+        } finally {
+            me.socket.close();
+            friend.socket.close();
+        }
+    });
+
+    // Being moved there is the whole point — a client that arrives without the
+    // server agreeing would have every subsequent step refused.
+    it("leaves the joiner able to keep driving from there", async () => {
+        const me = await loggedInSocket();
+        const friend = await loggedInSocket();
+        const friendshipId = await befriend(me, friend);
+        await enterWorldAt(me.socket, 0);
+        await enterWorldAt(friend.socket, 5000);
+
+        try {
+            await new Promise((resolve) => {
+                me.socket.on("positionCorrection", resolve);
+                me.socket.emit("joinFriend", { friendshipId });
+            });
+
+            // A step they could have driven, from where the server just put
+            // them. The arrival is beside the friend, not on top of them.
+            await new Promise((r) => setTimeout(r, 200));
+            const refusals = await collect(me.socket, "positionCorrection", () => {
+                me.socket.emit("carPosition", { coords: { x: 0, y: 600 }, screen: 4970 });
+            });
+
+            expect(refusals).toEqual([]);
+        } finally {
+            me.socket.close();
+            friend.socket.close();
+        }
+    });
+
+    it("refuses when the friendship is only pending", async () => {
+        const me = await loggedInSocket();
+        const other = await loggedInSocket();
+        await me.agent.post("/friends").send({ username: other.user.username });
+        const friendship = await db.friendships.findOne({});
+        await enterWorldAt(me.socket, 0);
+        await enterWorldAt(other.socket, 5000);
+
+        try {
+            const moved = await collect(me.socket, "positionCorrection", () => {
+                me.socket.emit("joinFriend", { friendshipId: friendship._id.toString() });
+            });
+
+            expect(moved).toEqual([]);
+        } finally {
+            me.socket.close();
+            other.socket.close();
+        }
+    });
+
+    it("refuses a friendship the joiner is not part of", async () => {
+        const first = await loggedInSocket();
+        const second = await loggedInSocket();
+        const stranger = await loggedInSocket();
+        const friendshipId = await befriend(first, second);
+        await enterWorldAt(stranger.socket, 0);
+        await enterWorldAt(second.socket, 5000);
+
+        try {
+            const moved = await collect(stranger.socket, "positionCorrection", () => {
+                stranger.socket.emit("joinFriend", { friendshipId });
+            });
+
+            expect(moved).toEqual([]);
+        } finally {
+            first.socket.close();
+            second.socket.close();
+            stranger.socket.close();
         }
     });
 });

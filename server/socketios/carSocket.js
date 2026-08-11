@@ -1,6 +1,9 @@
 import { HubInstances } from "../world/instances.js";
 import { acceptMove } from "../world/movement.js";
 import { SpatialGrid } from "../world/grid.js";
+import { WORLD } from "../world/movement.js";
+import { whereIs } from "./presence.js";
+import { find as findFriendship, involves } from "../services/friendService.js";
 import { limits } from "../limits.js";
 const POSITION_THROTTLE_MS = 50;
 
@@ -208,6 +211,46 @@ const socket = (io) => {
                     .get(watcherId)
                     ?.emit("newCarPosition", { id: socket.id, coords, direction, screen });
             }
+        });
+
+        /**
+         * Drive to a friend.
+         *
+         * Done here rather than by the client, because Phase 4 made the server
+         * hold the position and refuse anything it could not have driven to — a
+         * teleport is precisely what it rejects. The server performs the move,
+         * so its own copy agrees and the joiner can carry on driving from there.
+         */
+        socket.on("joinFriend", async ({ friendshipId } = {}) => {
+            if (!isAuthenticated(socket)) return;
+            if (instanceRoom(socket) === null) return;
+
+            const friendship = await findFriendship(friendshipId);
+            if (friendship === null || friendship.state !== "accepted") return;
+
+            const me = socket.request.session.userID.toString();
+            if (!involves(friendship, me)) return;
+
+            const otherID = friendship.pairLow === me ? friendship.pairHigh : friendship.pairLow;
+            const other = whereIs(otherID);
+            // Inside a theater is somewhere you are let into, not driven to.
+            if (!other.online || other.theaterId || other.position === null) return;
+
+            // Beside them rather than on top of them, and clamped to the road so
+            // the arrival is somewhere the world allows.
+            const arrival = {
+                x: Math.max(WORLD.minX, other.position.x - 60),
+                y: Math.min(WORLD.maxY, Math.max(WORLD.minY, other.position.y)),
+                at: Date.now(),
+            };
+            socket.data.worldPosition = arrival;
+            worldGrid.place(socket.id, arrival);
+            reconcileInterest(io, socket, arrival);
+
+            // The same event a refusal sends: from the client's point of view
+            // this is the server saying where it actually is, which is exactly
+            // what it is.
+            socket.emit("positionCorrection", { x: arrival.x, y: arrival.y });
         });
 
         socket.on("hubMessage", async ({ text } = {}) => {

@@ -5,6 +5,7 @@
     import LoginScreen from "../components/LoginScreen.svelte";
     import { user } from "../stores/userStore.js";
     import TheatersListView from "../components/TheatersListView.svelte";
+    import FriendsScreen from "../components/FriendsScreen.svelte";
     import SpeechBubble from "../art/SpeechBubble.svelte";
     import CreateEventScreen from "../components/CreateEventScreen.svelte";
     import { playerMovement } from "../stores/stateManagementStore.js";
@@ -202,6 +203,7 @@
     // follow the real viewport width instead of a hard-coded 1000px.
     let canvasLength = $state(1000);
     let createEventBool = $state(false);
+    let friendsBool = $state(false);
     let aboutPageBool = $state(false);
     // Not read by the template, but highestPosition derives from it — a $derived
     // only recomputes when its reactive dependencies change, so this must be
@@ -494,10 +496,16 @@
             {#if aboutPageBool === true}
                 <AboutPage bind:aboutPageBool />
             {/if}
+            {#if friendsBool === true}
+                <FriendsScreen bind:friendsBool {socket} />
+            {/if}
             <button class="menuButton" id="addTheaterButton" onclick={createEvent}
                 >Create Event</button
             >
             <button class="menuButton" id="addSomethingElseButton" onclick={aboutPage}>About</button
+            >
+            <button class="menuButton" id="friendsButton" onclick={() => (friendsBool = true)}
+                >Friends</button
             >
         </div>
     </div>
