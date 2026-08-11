@@ -430,6 +430,74 @@ test("adding a friend, from request through to accepted", async ({ browser }) =>
     }
 });
 
+// Phase 5: the spec named club discovery as "where SvelteKit's SSR starts paying
+// rent". A page that only renders once JavaScript runs is worth nothing to
+// whatever fetches a shared link first, so what matters is that the HTML the
+// server sends already contains the club.
+test("a public club page is rendered by the server", async ({ page, request }) => {
+    const owner = {
+        email: `clubowner-${RUN}@example.com`,
+        username: `clubown${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...owner, passwordRepeat: owner.password },
+        failOnStatusCode: false,
+    });
+    await logIn(page, owner);
+
+    const created = await page.request.post(`${API}/clubs`, {
+        data: {
+            name: `Noir Night ${RUN}`,
+            description: "Rain, hats, moral ambiguity.",
+            isPublic: true,
+            schedule: { weekday: 4, hour: 20, minute: 0, timeZone: "Europe/Copenhagen" },
+        },
+        failOnStatusCode: false,
+    });
+    expect(created.status()).toBe(200);
+    const { slug } = (await created.json()).data;
+
+    // Fetched as bytes, with no browser and no JavaScript: this is what a link
+    // preview or a crawler sees.
+    const html = await (await page.request.get(`/clubs/${slug}`)).text();
+    expect(html).toContain(`Noir Night ${RUN}`);
+    expect(html).toContain("Rain, hats, moral ambiguity.");
+    expect(html).toContain("Thursdays at 20:00");
+    expect(html).toContain(owner.username);
+
+    // And it works as a page too.
+    await page.goto(`/clubs/${slug}`);
+    await expect(page.getByRole("heading", { name: `Noir Night ${RUN}` })).toBeVisible();
+    await expect(page.getByText(/Next: .* at /)).toBeVisible();
+});
+
+test("a private club page is not found rather than forbidden", async ({ page, request }) => {
+    const owner = {
+        email: `privateowner-${RUN}@example.com`,
+        username: `privown${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...owner, passwordRepeat: owner.password },
+        failOnStatusCode: false,
+    });
+    await logIn(page, owner);
+
+    const created = await page.request.post(`${API}/clubs`, {
+        data: { name: `Secret ${RUN}`, description: "", isPublic: false, schedule: null },
+        failOnStatusCode: false,
+    });
+    const { slug } = (await created.json()).data;
+
+    // A separate context has no session, so it is a stranger. 403 would confirm
+    // the club exists, which is what someone guessing slugs wants to learn.
+    const response = await request.get(`http://localhost:8123/clubs/${slug}`, {
+        failOnStatusCode: false,
+    });
+    expect(response.status()).toBe(404);
+});
+
 test("the about panel opens and closes again", async ({ page }) => {
     await logIn(page);
     await page.getByRole("button", { name: "About" }).click();

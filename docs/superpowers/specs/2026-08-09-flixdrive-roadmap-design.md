@@ -342,12 +342,29 @@ receives position updates for players it can see.~~ **MET 2026-08-11.**
 
 **Goal:** the retention and monetization centrepiece. People stay for groups.
 
-- Friends: request/accept, presence, join-a-friend.
-- Clubs: member roster, roles and permissions, an owned space, recurring schedule, history.
-- Club discovery — public club pages, which is where SvelteKit's SSR starts paying rent.
+- ~~Friends: request/accept, presence, join-a-friend.~~ **DONE 2026-08-11.** One row per pair
+  with the ids in a canonical order, so the unique index can see that A-asking-B and
+  B-asking-A are the same relationship. Presence comes from the socket layer, the only thing
+  that knows. Join-a-friend is performed by the server, because Phase 4 made a client-side
+  teleport exactly what it refuses.
+- ~~Clubs: member roster, roles and permissions, recurring schedule.~~ **DONE 2026-08-11.**
+  Ordered roles, an owner who cannot be the last one to leave, and a moderator who
+  deliberately cannot change roles. The schedule is a wall clock and an IANA zone rather than
+  an instant, so a club meeting at 20:00 still meets at 20:00 after the clocks change.
+- ~~Club discovery — public club pages, which is where SvelteKit's SSR starts paying rent.~~
+  **DONE 2026-08-11.** SSR is now per route: the app moved into a `(app)` group that keeps
+  `ssr = false`, because the world still opens a socket at component-init scope and measures
+  the viewport before it can draw, and the club page sits outside it. A test fetches the page
+  as bytes with no JavaScript and asserts the club is already in the HTML — verified by
+  turning SSR off and watching it receive an empty shell.
 
-**Exit criteria:** a club can hold a recurring film night with a stable membership and a
-public page.
+**Exit criteria:** ~~a club can hold a recurring film night with a stable membership and a
+public page.~~ **MET 2026-08-11.**
+
+**Not built:** club-owned spaces and club history. Both depend on a club owning theaters,
+which is Phase 8's entitlement work — a club's right to hold a space is exactly the kind of
+thing the spec says must be server-enforced from an entitlements service rather than
+invented here and rewired later.
 
 ---
 
