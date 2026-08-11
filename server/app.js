@@ -167,6 +167,9 @@ registerSocketServer(io);
 
 import carSocket from "./socketios/carSocket.js";
 carSocket(io);
+import playbackSocket from "./socketios/playbackSocket.js";
+playbackSocket(io);
+
 import chatSocket from "./socketios/chatSocket.js";
 chatSocket(io);
 

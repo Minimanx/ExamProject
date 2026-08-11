@@ -549,6 +549,102 @@ test("the player car is mirrored at rest, matching playerDirection === false", a
     expect(transform).toContain("scale(-1, 1)");
 });
 
+// Phase 3 exit criterion: two people watch a film with synchronized play/pause.
+//
+// No video is loaded here — a real file would make the suite depend on a media
+// asset and on codec support. What is asserted is the part that has to be right
+// for two people to watch together: the host drives, the guest follows, and the
+// guest cannot drive.
+test("someone who is not the host gets no playback controls", async ({ page }) => {
+    await logIn(page);
+    await page.keyboard.down("w");
+    await page.waitForTimeout(700);
+    await page.keyboard.up("w");
+    await page.getByRole("button", { name: /^join$/i }).click();
+    await expect(page.locator(".liveChatContainer")).toBeVisible();
+
+    // The seeded theaters carry a placeholder ownerID, so nobody in the suite
+    // owns one.
+    await expect(page.locator('button[name="play"]')).toHaveCount(0);
+    await expect(page.locator('button[name="readyCheck"]')).toHaveCount(0);
+    await expect(page.locator(".hostOnly")).toContainText(/the host has the controls/i);
+});
+
+test("the host of their own event gets the controls", async ({ page, request }) => {
+    // A fresh account, because MAX_EVENTS_PER_OWNER is 1 and the shared account
+    // may already be hosting by the time this runs.
+    const host = {
+        email: `owner-${RUN}@example.com`,
+        username: `owner${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...host, passwordRepeat: host.password },
+        failOnStatusCode: false,
+    });
+
+    await logIn(page, host);
+
+    // Created through the API rather than the form: this test is about who owns
+    // playback, and the creation flow has its own tests.
+    const soon = new Date(Date.now() + 60 * 60 * 1000);
+    const created = await page.request.post(`${API}/theaters`, {
+        data: {
+            data: {
+                eventName: "Owned Night",
+                imdbID: "tt0133093",
+                amountOfSpaces: 10,
+                startTime: soon.toISOString(),
+            },
+        },
+        failOnStatusCode: false,
+    });
+    expect(created.status()).toBe(200);
+    const { theaterId } = await created.json();
+
+    const joined = await page.request.patch(`${API}/theaters/${theaterId}`, {
+        data: {
+            joining: true,
+            userID: await page.evaluate(() => JSON.parse(localStorage.getItem("user")).userID),
+        },
+        failOnStatusCode: false,
+    });
+    expect(joined.status()).toBe(200);
+
+    await page.goto(`/theaters/${theaterId}`);
+    await expect(page.locator(".liveChatContainer")).toBeVisible();
+
+    await expect(page.locator('button[name="play"]')).toBeVisible();
+    await expect(page.locator('button[name="readyCheck"]')).toBeVisible();
+    await expect(page.locator('button[name="startCountdown"]')).toBeVisible();
+});
+
+// The film is opened from the viewer's own disk and never uploaded. If this
+// ever grows a request, the promise the feature is built on has broken.
+test("choosing a film uploads nothing", async ({ page }) => {
+    await logIn(page);
+    await page.keyboard.down("w");
+    await page.waitForTimeout(700);
+    await page.keyboard.up("w");
+    await page.getByRole("button", { name: /^join$/i }).click();
+    await expect(page.locator(".liveChatContainer")).toBeVisible();
+
+    const uploads = [];
+    page.on("request", (request) => {
+        if (request.method() === "POST" && (request.postData()?.length ?? 0) > 10_000) {
+            uploads.push(request.url());
+        }
+    });
+
+    await page
+        .locator('input[name="filmFile"]')
+        .setInputFiles({ name: "film.webm", mimeType: "video/webm", buffer: Buffer.alloc(64_000) });
+    await page.waitForTimeout(1000);
+
+    expect(uploads).toEqual([]);
+    await expect(page.locator("video.film")).toBeVisible();
+});
+
 // Phase 3 exit criterion: two people can chat in the open world. Both players
 // start at the same spawn point, so they are within earshot without either
 // having to drive.

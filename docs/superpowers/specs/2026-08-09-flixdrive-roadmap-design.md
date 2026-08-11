@@ -286,17 +286,28 @@ rejection reachable from any route.
 
 **Goal:** make the thing people actually came for good.
 
-- **Speech-bubble proximity chat** in the hub — chat outside the theaters.
-- **Synced playback controls:** host play/pause/seek broadcast to the lobby, ready-check,
-  shared countdown. The video still never touches your servers.
-- **Theater search and filters.**
-- **Lobby keys** — proper invite links/keys, replacing today's bcrypt-hashed password on
-  the theater document.
-- **Lift the hardcoded limits:** the 24-hour scheduling window, one-event-per-user, and
-  the 99-seat cap. These become the free/paid boundary in Phase 8.
+- ~~**Speech-bubble proximity chat** in the hub.~~ **DONE 2026-08-11.** Range is decided by the
+  server from positions it already receives, because filtering in the client is a rendering
+  convention rather than a limit. Same length and rate rules as theater chat (S7).
+- ~~**Synced playback controls.**~~ **DONE 2026-08-11.** Host play/pause/seek, ready-check and a
+  shared countdown. Each viewer opens their own file with `createObjectURL`; only
+  `{ playing, positionSeconds, updatedAt }` travels, so the server never learns anything about
+  the film beyond a number of seconds. Host-only is enforced on the server — hiding the controls
+  stops an honest client and nothing else. Drift is corrected by seeking when properly lost and
+  by a small `playbackRate` change otherwise, because a seek is visible and a nudge is not.
+- ~~**Theater search and filters.**~~ **DONE 2026-08-11.** `q`, `hasSpace`, `startingWithin`,
+  filtered in the query. The search term is escaped to a literal: unescaped, `.*` would silently
+  match everything.
+- ~~**Lobby keys.**~~ **DONE 2026-08-11.** A server-generated key returned once to the host as a
+  shareable link, replacing a password they had to invent and pass on out of band. The
+  bcrypt path stays until pre-existing theaters expire.
+- ~~**Lift the hardcoded limits.**~~ **DONE 2026-08-11.** `MAX_SCHEDULING_WINDOW_HOURS`,
+  `MAX_SEATS`, `MAX_EVENTS_PER_OWNER`, defaulting to today's values. The per-owner limit needed
+  an `ownerSlot`, since a unique index says "at most one" and not "at most N".
 
-**Exit criteria:** two people can find each other by search, chat in the open world, and
-watch a film with synchronized play/pause.
+**Exit criteria:** ~~two people can find each other by search, chat in the open world, and
+watch a film with synchronized play/pause.~~ **MET 2026-08-11**, each covered by a two-context
+browser test.
 
 ---
 

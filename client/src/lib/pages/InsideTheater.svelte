@@ -5,6 +5,7 @@
     import { error, success } from "../components/toasts/toastThemes.js";
     import { Pulse } from "svelte-loading-spinners";
     import { formatDuration, formatTimeOfDay } from "../services/duration.js";
+    import VideoStage from "../components/VideoStage.svelte";
 
     const socket = createSocket();
 
@@ -108,6 +109,7 @@
 <div class="container">
     {#if theater}
         <div class="movieInfoContainer">
+            <VideoStage {socket} isHost={theater.ownerID === $user.userID} />
             <div class="timeOfMovie">
                 {#if currentTime.getTime() < startsAt}
                     <h1>Starts in:</h1>
