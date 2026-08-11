@@ -1,5 +1,6 @@
 import { HubInstances } from "../world/instances.js";
 import { acceptMove } from "../world/movement.js";
+import { SpatialGrid } from "../world/grid.js";
 import { limits } from "../limits.js";
 const POSITION_THROTTLE_MS = 50;
 
@@ -77,6 +78,72 @@ function applyProposedPosition(socket, coords, screen) {
     return accepted;
 }
 
+/**
+ * How far a player can see another player's car.
+ *
+ * Wider than earshot: you should watch someone drive up before they are close
+ * enough to talk to, or cars would appear out of nowhere mid-conversation.
+ */
+export const INTEREST_RADIUS = 900;
+
+/**
+ * Positions of everyone in the world, for answering "who is near whom".
+ *
+ * One grid rather than one per instance: a socket belongs to exactly one
+ * instance and the instance room does the separating, so a second index would be
+ * another thing to keep in step for no gain.
+ */
+const worldGrid = new SpatialGrid({ cellSize: INTEREST_RADIUS });
+
+/**
+ * Bring one client's view of the world in line with what it should see.
+ *
+ * A position update alone is not enough. Someone driving into range has to be
+ * announced or their car never appears, and someone driving out has to be
+ * removed or their car freezes where it was last seen — a ghost parked where
+ * somebody used to be. Those two are what makes interest management look like a
+ * bug when they are missing.
+ */
+function reconcileInterest(io, socket, position) {
+    const visible = new Set(worldGrid.near(position, INTEREST_RADIUS, socket.id));
+    const previously = socket.data.visibleTo ?? new Set();
+
+    for (const otherId of visible) {
+        if (previously.has(otherId)) continue;
+
+        const other = io.sockets.sockets.get(otherId);
+        if (!other) continue;
+
+        // Both are told: coming into view is symmetric, and only one of the two
+        // is moving.
+        socket.emit("newCarJoined", { id: otherId, ...(other.data.car ?? {}) });
+        other.emit("newCarJoined", { id: socket.id, ...(socket.data.car ?? {}) });
+        other.data.visibleTo?.add(socket.id);
+    }
+
+    for (const otherId of previously) {
+        if (visible.has(otherId)) continue;
+
+        const other = io.sockets.sockets.get(otherId);
+        socket.emit("carLeft", { id: otherId });
+        other?.emit("carLeft", { id: socket.id });
+        other?.data.visibleTo?.delete(socket.id);
+    }
+
+    socket.data.visibleTo = visible;
+}
+
+/** Take a player out of the world and tell whoever could see them. */
+function forgetPlayer(io, socket) {
+    for (const watcherId of socket.data.visibleTo ?? []) {
+        const other = io.sockets.sockets.get(watcherId);
+        other?.emit("carLeft", { id: socket.id });
+        other?.data.visibleTo?.delete(socket.id);
+    }
+    worldGrid.remove(socket.id);
+    socket.data.visibleTo = new Set();
+}
+
 function withinEarshot(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y) <= PROXIMITY_RADIUS;
 }
@@ -127,9 +194,20 @@ const socket = (io) => {
             if (now - lastPositionBroadcast < POSITION_THROTTLE_MS) return;
             lastPositionBroadcast = now;
 
-            const room = instanceRoom(socket);
-            if (room === null) return;
-            socket.to(room).emit("newCarPosition", { id: socket.id, coords, direction, screen });
+            if (instanceRoom(socket) === null) return;
+
+            const at = socket.data.worldPosition;
+            worldGrid.place(socket.id, at);
+            reconcileInterest(io, socket, at);
+
+            // Only the players who can see this one: the exit criterion for this
+            // phase is precisely that a client receives nothing for players it
+            // cannot see.
+            for (const watcherId of socket.data.visibleTo) {
+                io.sockets.sockets
+                    .get(watcherId)
+                    ?.emit("newCarPosition", { id: socket.id, coords, direction, screen });
+            }
         });
 
         socket.on("hubMessage", async ({ text } = {}) => {
@@ -180,14 +258,20 @@ const socket = (io) => {
             socket.join(instanceId);
             socket.emit("hubAssigned", { instanceId });
 
+            // Kept so someone who drives into view later can be told what this
+            // car looks like — the carJoined that described it is long gone.
+            socket.data.car = { color, name, coords, screen };
+
             // The spawn position counts. Recording only on movement would leave
             // two people who have just arrived unable to hear each other, which
             // is exactly when they would want to talk.
             applyProposedPosition(socket, coords, screen);
 
-            socket
-                .to(instanceId)
-                .emit("newCarJoined", { id: socket.id, color, coords, name, screen });
+            const joinedAt = socket.data.worldPosition;
+            if (joinedAt) {
+                worldGrid.place(socket.id, joinedAt);
+                reconcileInterest(io, socket, joinedAt);
+            }
         });
 
         socket.on("carUpdate", ({ name, color }) => {
@@ -218,17 +302,14 @@ const socket = (io) => {
             // Walking into a theater leaves the hub: the car is gone from the
             // world until they come back out.
             socket.to(room).emit("newJoinedTheater", { id: socket.id });
-            socket.to(room).emit("carLeft", { id: socket.id });
+            forgetPlayer(io, socket);
             socket.leave(room);
             hub.leave(socket.id);
             delete socket.data.instanceId;
         });
 
         socket.on("disconnect", () => {
-            const room = instanceRoom(socket);
-            if (room !== null) {
-                socket.to(room).emit("carLeft", { id: socket.id });
-            }
+            forgetPlayer(io, socket);
             hub.leave(socket.id);
             // The strip is shared by everyone, instanced or not.
             io.emit("newTheaterAdded");

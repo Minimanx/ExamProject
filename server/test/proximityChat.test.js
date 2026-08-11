@@ -438,3 +438,119 @@ describe("server-held positions", () => {
         }
     });
 });
+
+// Phase 4 exit criterion: a client only receives position updates for players it
+// can see. Crossing the boundary has to be an event in its own right — without
+// enter and leave, interest management looks exactly like a bug, with cars
+// freezing where they were last seen and never coming back.
+describe("spatial interest management", () => {
+    async function joinAt(worldX) {
+        const user = await registerUser();
+        const agent = request.agent(app);
+        const login = await agent
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: user.email, password: user.password });
+        const cookie = login.headers["set-cookie"].map((c) => c.split(";")[0]).join("; ");
+        const socket = await connect({ Cookie: cookie });
+        socket.emit("carJoined", {
+            coords: { x: 0, y: 600 },
+            color: "#fff",
+            name: "player",
+            screen: worldX,
+        });
+        await new Promise((r) => setTimeout(r, 150));
+        return socket;
+    }
+
+    /**
+     * Drive across the world at a speed the server will accept.
+     *
+     * Positions are validated at 250 px/s now, so a test that jumps 200px every
+     * 60ms is refused on every step and the car never moves — which looks
+     * exactly like interest management being broken. Each step waits long enough
+     * to have been driven.
+     */
+    async function driveTo(socket, fromX, toX) {
+        const step = 100;
+        const perStepMs = (step / 250) * 1000 + 60;
+        const direction = Math.sign(toX - fromX);
+
+        for (let at = fromX; direction > 0 ? at < toX : at > toX; at += step * direction) {
+            socket.emit("carPosition", { coords: { x: 0, y: 600 }, screen: at, direction: false });
+            await new Promise((r) => setTimeout(r, perStepMs));
+        }
+        socket.emit("carPosition", { coords: { x: 0, y: 600 }, screen: toX, direction: false });
+        await new Promise((r) => setTimeout(r, 200));
+    }
+
+    it("does not send positions for someone across the world", async () => {
+        const watcher = await joinAt(0);
+        const distant = await joinAt(6000);
+
+        try {
+            const seen = await collect(watcher, "newCarPosition", () => {
+                distant.emit("carPosition", { coords: { x: 0, y: 601 }, screen: 6000 });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            watcher.close();
+            distant.close();
+        }
+    });
+
+    it("sends positions for someone nearby", async () => {
+        const watcher = await joinAt(0);
+        const neighbour = await joinAt(200);
+
+        try {
+            const seen = await collect(watcher, "newCarPosition", () => {
+                neighbour.emit("carPosition", { coords: { x: 0, y: 601 }, screen: 200 });
+            });
+
+            expect(seen.length).toBeGreaterThan(0);
+        } finally {
+            watcher.close();
+            neighbour.close();
+        }
+    });
+
+    // Without this the car simply never appears: a client is told about people
+    // present when it joined and nobody who arrives later.
+    it("announces someone who drives into view", async () => {
+        const watcher = await joinAt(0);
+        const arriving = await joinAt(1400);
+
+        try {
+            const seen = [];
+            watcher.on("newCarJoined", (payload) => seen.push(payload));
+            await driveTo(arriving, 1400, 700);
+            watcher.off("newCarJoined");
+
+            expect(seen.map((car) => car.id)).toContain(arriving.id);
+        } finally {
+            watcher.close();
+            arriving.close();
+        }
+    });
+
+    // And without this it freezes: the last position received stays on screen
+    // forever, a ghost parked where someone used to be.
+    it("removes someone who drives out of view", async () => {
+        const watcher = await joinAt(0);
+        const leaving = await joinAt(700);
+
+        try {
+            const seen = [];
+            watcher.on("carLeft", (payload) => seen.push(payload));
+            await driveTo(leaving, 700, 1400);
+            watcher.off("carLeft");
+
+            expect(seen.map((car) => car.id)).toContain(leaving.id);
+        } finally {
+            watcher.close();
+            leaving.close();
+        }
+    });
+});
