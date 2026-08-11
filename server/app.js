@@ -181,6 +181,8 @@ import userRouter from "./routers/userRouter.js";
 app.use(userRouter);
 import friendRouter from "./routers/friendRouter.js";
 app.use(friendRouter);
+import clubRouter from "./routers/clubRouter.js";
+app.use(clubRouter);
 // Scoped to the credential endpoints by path. Registered path-less, this
 // limiter also counted everything that fell through routing — every 404, and
 // every static asset under SERVE_CLIENT=true — so ten stray requests from one

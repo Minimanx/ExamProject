@@ -45,6 +45,13 @@ const collections = {
     //
     // friendships: { pairLow, pairHigh, requesterID, state, createdAt, respondedAt }
     friendships: db.collection("friendships"),
+    // clubs:       { name, slug, description, isPublic, schedule, ownerID, createdAt }
+    // clubMembers: { clubID, userID, role, joinedAt }
+    //
+    // The schedule is a wall clock and an IANA zone, not an instant: a club that
+    // meets at 20:00 must still meet at 20:00 after the clocks change.
+    clubs: db.collection("clubs"),
+    clubMembers: db.collection("clubMembers"),
 };
 
 /**
@@ -187,6 +194,13 @@ export const indexesReady = buildAll({
     // would create two friendships.
     "friendships.pair": () =>
         ensureIndex(collections.friendships, { pairLow: 1, pairHigh: 1 }, { unique: true }),
+    // A slug is a club's address, so two clubs cannot share one.
+    "clubs.slug": () => ensureIndex(collections.clubs, { slug: 1 }, { unique: true }),
+    // One membership per person per club, decided by the database rather than by
+    // a check two simultaneous joins would both pass.
+    "clubMembers.membership": () =>
+        ensureIndex(collections.clubMembers, { clubID: 1, userID: 1 }, { unique: true }),
+    "clubMembers.byUser": () => ensureIndex(collections.clubMembers, { userID: 1 }),
 }).then(backfillModerationState);
 
 export default collections;

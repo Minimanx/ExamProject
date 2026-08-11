@@ -24,9 +24,16 @@ beforeEach(async () => {
     // anything directly — it leaks rows into the next test's counts, which shows
     // up as an unrelated assertion being off by one.
     await Promise.all(
-        [db.users, db.theaters, db.friendships, db.invites, db.blocks, db.reports].map(
-            (collection) => collection.deleteMany({})
-        )
+        [
+            db.users,
+            db.theaters,
+            db.friendships,
+            db.clubs,
+            db.clubMembers,
+            db.invites,
+            db.blocks,
+            db.reports,
+        ].map((collection) => collection.deleteMany({}))
     );
 });
 

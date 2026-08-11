@@ -41,6 +41,17 @@ const PASSWORD_LENGTH = "Password must be between 8 and 24 characters";
 const password = required().min(8, PASSWORD_LENGTH).max(24, PASSWORD_LENGTH);
 
 const USERNAME_LENGTH = "Username must be between 3 and 16 characters";
+const CLUB_NAME_LENGTH = "A club name must be between 3 and 40 characters";
+
+/** Whether the runtime recognises this IANA zone. */
+function isKnownTimeZone(name) {
+    try {
+        new Intl.DateTimeFormat("en-US", { timeZone: name });
+        return true;
+    } catch {
+        return false;
+    }
+}
 const EVENT_NAME_LENGTH = "Event name must be between 3 and 18 characters";
 // Built from the limit rather than written out: raising the cap and leaving the
 // message behind would produce an error that lies about the rule.
@@ -144,6 +155,34 @@ export const createTheaterSchema = body({
 // ordinary validation message: a missing userID is a malformed request, not an
 // authentication failure, and the route's own check produces the 401 when the
 // id is present but belongs to someone else.
+// A schedule is a wall clock and a zone. `timeZone` is checked against what the
+// runtime actually knows, so a made-up zone fails here rather than throwing from
+// Intl deep inside a page render.
+const scheduleSchema = z
+    .object({
+        weekday: z.number({ error: "Pick a day" }).int().min(0).max(6),
+        hour: z.number({ error: "Pick an hour" }).int().min(0).max(23),
+        minute: z.number({ error: "Pick a minute" }).int().min(0).max(59),
+        timeZone: z.string({ error: "Pick a timezone" }).refine(isKnownTimeZone, {
+            error: "That is not a timezone",
+        }),
+    })
+    .nullable();
+
+export const createClubSchema = body({
+    name: required("A club needs a name").min(3, CLUB_NAME_LENGTH).max(40, CLUB_NAME_LENGTH),
+    description: z
+        .string({ error: ALL_FIELDS })
+        .max(400, "That description is too long")
+        .default(""),
+    isPublic: z.boolean({ error: ALL_FIELDS }).default(true),
+    schedule: scheduleSchema.default(null),
+});
+
+export const clubRoleSchema = body({
+    role: z.enum(["member", "moderator", "owner"], { error: "That is not a role" }),
+});
+
 export const friendRequestSchema = body({
     username: required().min(3, USERNAME_LENGTH).max(16, USERNAME_LENGTH),
 });
