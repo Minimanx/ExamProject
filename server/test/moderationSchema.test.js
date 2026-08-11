@@ -5,6 +5,7 @@ import db, {
     indexesReady,
     backfillModerationState,
     dropSupersededIndex,
+    mongoClientPromise,
 } from "../database/createConnection.js";
 
 // Roadmap §3, hedge 2: the safety data models land now, unused. The sequencing
@@ -159,6 +160,19 @@ describe("every declared index is actually built", () => {
         await dropSupersededIndex(db.theaters, "ownerID_1");
 
         expect((await db.theaters.indexes()).map((i) => i.name)).not.toContain("ownerID_1");
+    });
+
+    // A fresh database has no collections at all, so the drop answers
+    // NamespaceNotFound rather than IndexNotFound. That case never appears in a
+    // full test run, because some earlier file has always created the
+    // collection — only a first deploy sees it.
+    it("is untroubled by a collection that does not exist yet", async () => {
+        const client = await mongoClientPromise;
+        const neverUsed = client
+            .db("FlixDrive")
+            .collection(`never-created-${Date.now().toString(36)}`);
+
+        await expect(dropSupersededIndex(neverUsed, "anything_1")).resolves.toBeUndefined();
     });
 
     it("is untroubled by a superseded index that is already gone", async () => {

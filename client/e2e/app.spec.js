@@ -45,12 +45,39 @@ test.describe.configure({ mode: "serial" });
 // sets `trust proxy`, so a distinct X-Forwarded-For per test gives each its own
 // bucket — the same fix the server suite needed for exactly the same reason.
 let ipCounter = 0;
-test.beforeEach(async ({ page }) => {
+function nextIp() {
     ipCounter += 1;
-    await page.setExtraHTTPHeaders({
-        "X-Forwarded-For": `10.1.${Math.floor(ipCounter / 256) % 256}.${ipCounter % 256}`,
-    });
+    return `10.1.${Math.floor(ipCounter / 256) % 256}.${ipCounter % 256}`;
+}
+
+test.beforeEach(async ({ page }) => {
+    await page.setExtraHTTPHeaders({ "X-Forwarded-For": nextIp() });
 });
+
+/**
+ * A second browser context that also gets its own rate-limit bucket.
+ *
+ * beforeEach only sets the header on the fixture's page, so a context created
+ * inside a test logs in from 127.0.0.1 — and every two-context test in the file
+ * therefore shares one bucket. That stays invisible until enough of them exist
+ * to reach ten logins, at which point a login silently 429s and the test fails
+ * somewhere far away, looking like a socket problem.
+ */
+async function contextWithOwnBucket(browser) {
+    return browser.newContext({ extraHTTPHeaders: { "X-Forwarded-For": nextIp() } });
+}
+
+/** Log in on a page from a second context, and prove it worked. */
+async function logInOn(page, account) {
+    await page.goto("/");
+    await page.locator('input[name="email"]').fill(account.email);
+    await page.locator('input[name="password"]').fill(account.password);
+    await page.getByRole("button", { name: "Login" }).click();
+    // The scene container is visible while logged out too — the login overlay
+    // sits on top of it — so asserting it proves nothing. The overlay going away
+    // is what says the login succeeded.
+    await expect(page.locator(".blackedout")).toHaveCount(0);
+}
 
 test.beforeAll(async ({ request }) => {
     for (const account of [USER, MOVER]) {
@@ -522,27 +549,70 @@ test("the player car is mirrored at rest, matching playerDirection === false", a
     expect(transform).toContain("scale(-1, 1)");
 });
 
+// Phase 3 exit criterion: two people can chat in the open world. Both players
+// start at the same spawn point, so they are within earshot without either
+// having to drive.
+test("a message in the hub appears as a bubble on both screens", async ({ browser }) => {
+    const speaker = await contextWithOwnBucket(browser);
+    const listener = await contextWithOwnBucket(browser);
+    try {
+        const speakerPage = await speaker.newPage();
+        await logInOn(speakerPage, USER);
+
+        const listenerPage = await listener.newPage();
+        await logInOn(listenerPage, MOVER);
+
+        // Both have to have reported a position before either can be placed on
+        // the map, and a bubble only reaches sockets whose position is known.
+        await expect(listenerPage.locator(".remoteCar")).toHaveCount(1, { timeout: 15000 });
+
+        await speakerPage.locator('input[name="hubMessage"]').fill("anyone up for Solaris?");
+        await speakerPage.locator('input[name="hubMessage"]').press("Enter");
+
+        // On the listener's screen it belongs to the other player's car.
+        await expect(listenerPage.locator(".remoteCar .bubble")).toContainText(
+            "anyone up for Solaris?",
+            { timeout: 10000 }
+        );
+        // And the speaker sees their own, over their own car.
+        await expect(speakerPage.locator(".playerCar .bubble")).toContainText(
+            "anyone up for Solaris?"
+        );
+
+        // The input clears, so the next message does not append to the last.
+        await expect(speakerPage.locator('input[name="hubMessage"]')).toHaveValue("");
+    } finally {
+        await speaker.close();
+        await listener.close();
+    }
+});
+
+// Typing "w" in the chat box must not also drive the car forwards.
+test("typing in the hub chat does not drive the car", async ({ page }) => {
+    await logIn(page);
+
+    const position = () => page.locator(".playerCar").getAttribute("style");
+    const before = await position();
+
+    await page.locator('input[name="hubMessage"]').fill("wasd");
+    await page.waitForTimeout(400);
+
+    expect(await position()).toBe(before);
+});
+
 test("a remote car that has never moved is not mirrored", async ({ browser }) => {
-    const watcher = await browser.newContext();
-    const mover = await browser.newContext();
+    const watcher = await contextWithOwnBucket(browser);
+    const mover = await contextWithOwnBucket(browser);
     try {
         const watcherPage = await watcher.newPage();
-        await watcherPage.goto("/");
-        await watcherPage.locator('input[name="email"]').fill(USER.email);
-        await watcherPage.locator('input[name="password"]').fill(USER.password);
-        await watcherPage.getByRole("button", { name: "Login" }).click();
-        await expect(watcherPage.locator(".containerInteractiveSpace")).toBeVisible();
+        await logInOn(watcherPage, USER);
 
         // A second player joins and never presses a key, so its car has no
         // `direction` at all. It must log in: since defect S4 was fixed, an
         // unauthenticated socket cannot broadcast a car, so anonymous visitors
         // no longer appear in the world.
         const moverPage = await mover.newPage();
-        await moverPage.goto("/");
-        await moverPage.locator('input[name="email"]').fill(MOVER.email);
-        await moverPage.locator('input[name="password"]').fill(MOVER.password);
-        await moverPage.getByRole("button", { name: "Login" }).click();
-        await expect(moverPage.locator(".containerInteractiveSpace")).toBeVisible();
+        await logInOn(moverPage, MOVER);
 
         const remoteCar = watcherPage.locator(".remoteCar svg").first();
         await expect(remoteCar).toBeVisible({ timeout: 15000 });

@@ -5,6 +5,7 @@
     import LoginScreen from "../components/LoginScreen.svelte";
     import { user } from "../stores/userStore.js";
     import TheatersListView from "../components/TheatersListView.svelte";
+    import SpeechBubble from "../art/SpeechBubble.svelte";
     import CreateEventScreen from "../components/CreateEventScreen.svelte";
     import { playerMovement } from "../stores/stateManagementStore.js";
     import AboutPage from "../components/AboutPage.svelte";
@@ -99,6 +100,7 @@
     }
 
     function handleConnect() {
+        socketId = socket.id;
         emitCarJoined();
     }
 
@@ -126,6 +128,42 @@
     }
 
     let cars = $state([]);
+
+    // Speech bubbles, keyed by the speaker's socket id. One per car: a second
+    // message replaces the first rather than stacking, which is what a bubble
+    // over a car can actually show.
+    let bubbles = $state({});
+    // The socket's own id, mirrored into state. Reading `socket.id` directly in
+    // the markup does not work: it is not reactive, and at first render the
+    // socket is still connecting, so the effect binds to `bubbles[undefined]`
+    // and never re-runs once the real id arrives. The id also changes on every
+    // reconnect, and logging in forces one.
+    let socketId = $state(socket.id);
+    let hubMessage = $state("");
+    const BUBBLE_LIFETIME_MS = 6000;
+    // Plain object, not $state: these are timer handles, never read by the
+    // markup, and nothing should re-render when one changes.
+    const bubbleTimers = {};
+
+    function showBubble({ id, text }) {
+        bubbles[id] = text;
+
+        // A second message from the same car replaces the first and restarts
+        // its clock, rather than the earlier timer clearing the newer bubble.
+        clearTimeout(bubbleTimers[id]);
+        bubbleTimers[id] = setTimeout(() => {
+            delete bubbles[id];
+            delete bubbleTimers[id];
+        }, BUBBLE_LIFETIME_MS);
+    }
+
+    function sendHubMessage() {
+        const text = hubMessage.trim();
+        if (!text) return;
+
+        socket.emit("hubMessage", { text });
+        hubMessage = "";
+    }
     let theaters = $state([]);
     // keys, keyDown and lastPositionBroadcast are read only by the animation
     // loop and the key handlers, never by the template, so they stay plain lets
@@ -172,6 +210,7 @@
             ["newCarUpdate", handleNewCarUpdate],
             ["newTheaterAdded", handleNewTheaterAdded],
             ["newJoinedTheater", handleNewJoinedTheater],
+            ["newHubMessage", showBubble],
             ["connect", handleConnect],
         ];
 
@@ -360,6 +399,9 @@
                             class="remoteCar"
                             style="transform: translate3d({car.coords.x}px, {car.coords.y}px, 0);"
                         >
+                            {#if bubbles[car.id]}
+                                <SpeechBubble text={bubbles[car.id]} />
+                            {/if}
                             <Car
                                 name={car.name}
                                 color={car.color}
@@ -382,11 +424,26 @@
                     {/each}
                     <StreetSign />
                 </div>
+                <div class="hubChat">
+                    <input
+                        name="hubMessage"
+                        type="text"
+                        maxlength="200"
+                        placeholder="Say something..."
+                        bind:value={hubMessage}
+                        onfocus={() => ($playerMovement = false)}
+                        onblur={() => ($playerMovement = true)}
+                        onkeydown={(event) => event.key === "Enter" && sendHubMessage()}
+                    />
+                </div>
                 <div class="playerLayer">
                     <div
                         class="playerCar"
                         style="transform: translate3d({playerCoords.x}px, {playerCoords.y}px, 0);"
                     >
+                        {#if bubbles[socketId]}
+                            <SpeechBubble text={bubbles[socketId]} />
+                        {/if}
                         <Car
                             name={playerName}
                             color={$user.playerColor}
@@ -564,6 +621,25 @@
         top: var(--scene-offset);
         will-change: transform;
     }
+    .hubChat {
+        position: absolute;
+        bottom: 8px;
+        left: 50%;
+        transform: translateX(-50%);
+        /* Above the world, below the panels that open over it. */
+        z-index: 6;
+    }
+
+    .hubChat input {
+        width: 320px;
+        max-width: 60vw;
+        padding: 6px 10px;
+        border: 2px solid #331b02;
+        border-radius: 10px;
+        font-family: inherit;
+        font-size: 13px;
+    }
+
     .playerLayer {
         width: calc(var(--stage-width) - 500px);
         height: 800px;

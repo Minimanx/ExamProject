@@ -73,12 +73,21 @@ export async function backfillModerationState() {
  * compound index says, so leaving it behind would silently pin the limit at 1 on
  * any database that ran the old version. Idempotent: a missing index is fine.
  */
+const INDEX_NOT_FOUND = 27;
+const NAMESPACE_NOT_FOUND = 26;
+
 export async function dropSupersededIndex(collection, name) {
     try {
         await collection.dropIndex(name);
     } catch (error) {
-        // 27 is IndexNotFound — the expected case on a fresh database.
-        if (error.code !== 27) {
+        // Both mean "there is nothing here to drop", and both are the ordinary
+        // case on a fresh database: the index is absent, or the collection it
+        // would live in has not been created yet. Only IndexNotFound is
+        // obvious. Missing NamespaceNotFound was not visible in a full test run,
+        // because some earlier file always created the collection first — it
+        // only appears on a genuinely empty database, which is to say on a first
+        // deploy.
+        if (error.code !== INDEX_NOT_FOUND && error.code !== NAMESPACE_NOT_FOUND) {
             throw error;
         }
     }
