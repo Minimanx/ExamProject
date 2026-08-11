@@ -74,7 +74,7 @@ describe("socket authentication (defect S4)", () => {
         try {
             const seen = await collect(watcher, "newCarJoined", () => {
                 anonymous.emit("carJoined", {
-                    coords: { x: 1, y: 2 },
+                    coords: { x: 60, y: 600 },
                     color: "#fff",
                     name: "ghost",
                     screen: 0,
@@ -97,7 +97,9 @@ describe("socket authentication (defect S4)", () => {
             await enterWorld(watcher);
             const seen = await collect(watcher, "newCarJoined", () => {
                 player.emit("carJoined", {
-                    coords: { x: 1, y: 2 },
+                    // A real place on the road: since Phase 4 the server
+                    // refuses a position outside the world it draws.
+                    coords: { x: 60, y: 600 },
                     color: "#fff",
                     name: "real",
                     screen: 0,
@@ -124,7 +126,7 @@ describe("socket identity (defect S3)", () => {
             const seen = await collect(watcher, "newCarPosition", () => {
                 player.emit("carPosition", {
                     id: "somebody-elses-socket-id",
-                    coords: { x: 9, y: 9 },
+                    coords: { x: 70, y: 600 },
                     direction: false,
                     screen: 0,
                 });

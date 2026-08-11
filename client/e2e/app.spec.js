@@ -258,6 +258,35 @@ test("driving moves the player car", async ({ page }) => {
     expect(await car.getAttribute("style")).not.toBe(before);
 });
 
+// Phase 4 gave the server the authoritative position and a speed limit. The
+// failure mode that matters is not a cheat getting through — it is an honest
+// player being corrected for driving normally, which would show as a car that
+// stutters or snaps backwards. Driving a long way and checking the distance
+// covered is what tells those apart: a corrected client would keep being pulled
+// back and cover far less ground.
+test("driving for a while is not fought by the server", async ({ page }) => {
+    await logIn(page);
+
+    const worldX = async () => {
+        const style = await page.locator(".playerCar").getAttribute("style");
+        const scroll = await page.locator(".world").getAttribute("style");
+        const player = Number(style.match(/translate3d\((-?[\d.]+)px/)[1]);
+        const offset = Number(scroll.match(/translate3d\((-?[\d.]+)px/)[1]);
+        return player - offset;
+    };
+
+    const before = await worldX();
+    await page.keyboard.down("d");
+    await page.waitForTimeout(1500);
+    await page.keyboard.up("d");
+    const covered = (await worldX()) - before;
+
+    // 250 px/s for 1.5s is 375px. Generous either side for frame timing and for
+    // the world's own right-hand edge, but far above what a fought client would
+    // manage.
+    expect(covered).toBeGreaterThan(200);
+});
+
 test("parking at a theater opens its info panel, and joining enters the theater", async ({
     page,
 }) => {

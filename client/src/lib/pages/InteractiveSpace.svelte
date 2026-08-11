@@ -99,6 +99,23 @@
         }
     }
 
+    /**
+     * Snap back to where the server says we are.
+     *
+     * The server holds the position and refuses a proposal it could not have
+     * reached. Ignoring a refusal would leave this client drawing a car
+     * somewhere nobody else sees it, so the correction is applied rather than
+     * argued with. `screen` is the scroll offset, so the world x is split back
+     * across the two the way the movement loop keeps them.
+     */
+    function handlePositionCorrection({ x, y }) {
+        if (!Number.isFinite(x) || !Number.isFinite(y)) return;
+
+        screenScrollAmount = Math.max(0, Math.min(x, screenScrollAmount));
+        playerCoords.x = x - screenScrollAmount;
+        playerCoords.y = y;
+    }
+
     function handleConnect() {
         socketId = socket.id;
         emitCarJoined();
@@ -211,6 +228,7 @@
             ["newTheaterAdded", handleNewTheaterAdded],
             ["newJoinedTheater", handleNewJoinedTheater],
             ["newHubMessage", showBubble],
+            ["positionCorrection", handlePositionCorrection],
             ["connect", handleConnect],
         ];
 

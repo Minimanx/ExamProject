@@ -1,4 +1,5 @@
 import { HubInstances } from "../world/instances.js";
+import { acceptMove } from "../world/movement.js";
 import { limits } from "../limits.js";
 const POSITION_THROTTLE_MS = 50;
 
@@ -48,6 +49,34 @@ function worldPosition({ coords, screen }) {
     return { x: coords.x + scroll, y: coords.y };
 }
 
+/**
+ * Take a proposed position, keep the one the server believes, answer whether it
+ * moved.
+ *
+ * The client integrates locally so driving stays responsive, and what it sends
+ * is a proposal. The server's copy is the position everything else reads —
+ * including who is close enough to hear a speech bubble.
+ */
+function applyProposedPosition(socket, coords, screen) {
+    const proposed = worldPosition({ coords, screen });
+    if (proposed === null) return false;
+
+    const { accepted, position } = acceptMove(
+        socket.data.worldPosition ?? null,
+        proposed,
+        Date.now()
+    );
+    socket.data.worldPosition = position;
+
+    if (!accepted) {
+        // Told where it really is, rather than left to drift away believing
+        // otherwise. A client that never corrects would keep sending refused
+        // positions and appear frozen to everyone else.
+        socket.emit("positionCorrection", { x: position.x, y: position.y });
+    }
+    return accepted;
+}
+
 function withinEarshot(a, b) {
     return Math.hypot(a.x - b.x, a.y - b.y) <= PROXIMITY_RADIUS;
 }
@@ -89,15 +118,10 @@ const socket = (io) => {
         socket.on("carPosition", ({ coords, direction, screen }) => {
             if (!isAuthenticated(socket)) return;
 
-            // Remembered so the server can decide who is close enough to hear a
-            // speech bubble. Deciding that in the client would mean sending
-            // every message to everyone and asking each client to discard what
-            // it should not see, which is a rendering convention rather than a
-            // range limit — a modified client simply keeps them.
-            const position = worldPosition({ coords, screen });
-            if (position !== null) {
-                socket.data.worldPosition = position;
-            }
+            // The server decides where this player is. What arrives is a
+            // proposal, and a refused one moves nobody — not the player, and not
+            // the range calculation that decides who hears their speech bubble.
+            if (!applyProposedPosition(socket, coords, screen)) return;
 
             const now = Date.now();
             if (now - lastPositionBroadcast < POSITION_THROTTLE_MS) return;
@@ -159,10 +183,7 @@ const socket = (io) => {
             // The spawn position counts. Recording only on movement would leave
             // two people who have just arrived unable to hear each other, which
             // is exactly when they would want to talk.
-            const position = worldPosition({ coords, screen });
-            if (position !== null) {
-                socket.data.worldPosition = position;
-            }
+            applyProposedPosition(socket, coords, screen);
 
             socket
                 .to(instanceId)

@@ -340,3 +340,101 @@ describe("hub instances", () => {
         }
     });
 });
+
+// Phase 4: positions are the server's, not the client's. The unit tests cover
+// the arithmetic; these cover that the socket actually applies it, and that a
+// refused client is told where it really is rather than drifting away unaware.
+describe("server-held positions", () => {
+    async function connectInWorld() {
+        const user = await registerUser();
+        const agent = request.agent(app);
+        const login = await agent
+            .post("/login")
+            .set("X-Forwarded-For", uniqueIp())
+            .send({ email: user.email, password: user.password });
+        const cookie = login.headers["set-cookie"].map((c) => c.split(";")[0]).join("; ");
+        const socket = await connect({ Cookie: cookie });
+        socket.emit("carJoined", {
+            coords: { x: 60, y: 600 },
+            color: "#fff",
+            name: "p",
+            screen: 0,
+        });
+        await new Promise((r) => setTimeout(r, 150));
+        return socket;
+    }
+
+    it("does not relay a teleport", async () => {
+        const watcher = await connectInWorld();
+        const cheat = await connectInWorld();
+
+        try {
+            const seen = await collect(watcher, "newCarPosition", () => {
+                cheat.emit("carPosition", { coords: { x: 0, y: 600 }, screen: 40000 });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            watcher.close();
+            cheat.close();
+        }
+    });
+
+    it("tells the refused client where it actually is", async () => {
+        const cheat = await connectInWorld();
+
+        try {
+            const corrections = await collect(cheat, "positionCorrection", () => {
+                cheat.emit("carPosition", { coords: { x: 0, y: 600 }, screen: 40000 });
+            });
+
+            expect(corrections).toHaveLength(1);
+            expect(corrections[0]).toMatchObject({ x: expect.any(Number), y: expect.any(Number) });
+            expect(corrections[0].x).toBeLessThan(1000);
+        } finally {
+            cheat.close();
+        }
+    });
+
+    it("relays an ordinary step", async () => {
+        const watcher = await connectInWorld();
+        const player = await connectInWorld();
+
+        try {
+            const seen = await collect(watcher, "newCarPosition", () => {
+                player.emit("carPosition", { coords: { x: 70, y: 600 }, screen: 0 });
+            });
+
+            expect(seen).toHaveLength(1);
+        } finally {
+            watcher.close();
+            player.close();
+        }
+    });
+
+    // The point of the whole exercise: a spoofed position was a way to hear
+    // conversations anywhere in the world.
+    it("does not let a spoofed position eavesdrop across the world", async () => {
+        const eavesdropper = await connectInWorld();
+        const speaker = await connectAt(100 + PROXIMITY_RADIUS * 6);
+
+        try {
+            // Claim to be standing next to them. The server keeps the position
+            // it accepted, which is back at the spawn point.
+            eavesdropper.emit("carPosition", {
+                coords: { x: 0, y: 600 },
+                screen: 100 + PROXIMITY_RADIUS * 6,
+            });
+            await new Promise((r) => setTimeout(r, 150));
+
+            const seen = await collect(eavesdropper, "newHubMessage", () => {
+                speaker.socket.emit("hubMessage", { text: "not for you" });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            eavesdropper.close();
+            speaker.socket.close();
+        }
+    });
+});
