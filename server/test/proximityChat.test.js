@@ -50,6 +50,19 @@ async function connectAt(worldX, worldY = 600) {
     const cookie = login.headers["set-cookie"].map((c) => c.split(";")[0]).join("; ");
     const socket = await connect({ Cookie: cookie });
 
+    // Entering the world is its own step, and a real client always takes it:
+    // `carJoined` is what puts a car in the hub, and `carPosition` only moves
+    // one that is already there. Skipping it here tested a path no client takes.
+    await new Promise((resolve) => {
+        socket.once("hubAssigned", resolve);
+        socket.emit("carJoined", {
+            coords: { x: 0, y: worldY },
+            color: "#fff",
+            name: user.username,
+            screen: worldX,
+        });
+    });
+
     // The client reports a screen-space x plus the scroll offset, so world x is
     // their sum. Reporting it all as scroll keeps the arithmetic obvious here.
     socket.emit("carPosition", { coords: { x: 0, y: worldY }, direction: false, screen: worldX });
@@ -436,6 +449,52 @@ describe("server-held positions", () => {
         } finally {
             eavesdropper.close();
             speaker.socket.close();
+        }
+    });
+
+    // Walking into a theater takes your car out of the world — `joinedTheater`
+    // removes it from the grid and tells everyone watching. What it does not
+    // clear is the last position that car was standing at, and delivery walked
+    // every socket on the server comparing exactly that. So you sat down to
+    // watch a film and kept receiving speech bubbles from whoever happened to be
+    // parked near the space you left.
+    it("stops reaching someone once they have gone into a theater", async () => {
+        const filmgoer = await connectAt(100);
+        const speaker = await connectAt(120);
+
+        try {
+            filmgoer.socket.emit("joinedTheater");
+            await new Promise((r) => setTimeout(r, 150));
+
+            const seen = await collect(filmgoer.socket, "newHubMessage", () => {
+                speaker.socket.emit("hubMessage", { text: "still out here" });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            filmgoer.socket.close();
+            speaker.socket.close();
+        }
+    });
+
+    // The same hole from the other side: someone sitting in a theater is not
+    // standing in the hub, so nothing they say belongs there.
+    it("does not let someone inside a theater speak into the hub", async () => {
+        const listener = await connectAt(100);
+        const filmgoer = await connectAt(120);
+
+        try {
+            filmgoer.socket.emit("joinedTheater");
+            await new Promise((r) => setTimeout(r, 150));
+
+            const seen = await collect(listener.socket, "newHubMessage", () => {
+                filmgoer.socket.emit("hubMessage", { text: "from inside the theater" });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            listener.socket.close();
+            filmgoer.socket.close();
         }
     });
 });

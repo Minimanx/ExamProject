@@ -147,10 +147,6 @@ function forgetPlayer(io, socket) {
     socket.data.visibleTo = new Set();
 }
 
-function withinEarshot(a, b) {
-    return Math.hypot(a.x - b.x, a.y - b.y) <= PROXIMITY_RADIUS;
-}
-
 /** Car events are only meaningful from a logged-in player. See defect S4. */
 function isAuthenticated(socket) {
     return socket.request.session?.loggedIn === true;
@@ -253,9 +249,14 @@ const socket = (io) => {
             socket.emit("positionCorrection", { x: arrival.x, y: arrival.y });
         });
 
-        socket.on("hubMessage", async ({ text } = {}) => {
+        socket.on("hubMessage", ({ text } = {}) => {
             if (!isAuthenticated(socket)) return;
             if (typeof text !== "string") return;
+
+            // Standing in the hub is what makes a speech bubble mean anything.
+            // Someone who has walked into a theater has left the world — their
+            // car is gone from it — so they neither speak into it nor hear it.
+            if (instanceRoom(socket) === null) return;
 
             const message = text.trim();
             if (!message || message.length > MAX_MESSAGE_LENGTH) return;
@@ -281,11 +282,15 @@ const socket = (io) => {
 
             // The speaker is included: otherwise you cannot tell whether what
             // you said went out at all.
-            for (const listener of await io.fetchSockets()) {
-                const listenerAt = listener.data.worldPosition;
-                if (listenerAt && withinEarshot(speakerAt, listenerAt)) {
-                    listener.emit("newHubMessage", payload);
-                }
+            socket.emit("newHubMessage", payload);
+
+            // Asked of the grid rather than by walking every socket on the
+            // server and measuring each one. The grid holds exactly the players
+            // who are in the world, which is both the faster question and the
+            // right one — the sweep it replaces also reached people sitting
+            // inside a theater, who still carried the position they parked at.
+            for (const listenerId of worldGrid.near(speakerAt, PROXIMITY_RADIUS, socket.id)) {
+                io.sockets.sockets.get(listenerId)?.emit("newHubMessage", payload);
             }
         });
 
