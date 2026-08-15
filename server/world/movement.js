@@ -87,7 +87,15 @@ export function acceptMove(from, proposed, now) {
     }
 
     if (from === null) {
-        return { accepted: true, position: { x: proposed.x, y: proposed.y, at: now } };
+        // Arriving with a full bank rather than an empty one. Someone who has
+        // just joined has not been moving, so by definition they have earned the
+        // whole carry-over — and starting them at zero made their very first
+        // report the one most likely to be refused, which snaps the car back to
+        // the spawn point in front of a brand new player.
+        return {
+            accepted: true,
+            position: { x: proposed.x, y: proposed.y, at: now - MAX_BANKED_SECONDS * 1000 },
+        };
     }
 
     // The stamp is the server's own clock, so this is not a client lying about

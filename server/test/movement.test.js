@@ -95,6 +95,29 @@ describe("acceptMove", () => {
         expect(result.accepted).toBe(false);
     });
 
+    // Someone who has just arrived has not been moving, so by definition they
+    // have earned the full carry-over. Starting them with an empty bank is what
+    // made the first report after joining the one most likely to be refused —
+    // and a refusal there snaps the car back to the spawn point, which is the
+    // first thing a new player would see.
+    it("lets a player who just joined move immediately", () => {
+        const joined = acceptMove(null, { x: 60, y: 600 }, 1_000_000);
+
+        // A report 60ms later carrying a burst of frames' worth of movement:
+        // more than 60ms of travel, well within a second's banked budget.
+        const firstStep = acceptMove(joined.position, { x: 88, y: 572 }, 1_000_060);
+
+        expect(firstStep.accepted).toBe(true);
+    });
+
+    it("still refuses a joined player teleporting across the world", () => {
+        const joined = acceptMove(null, { x: 60, y: 600 }, 1_000_000);
+
+        const jump = acceptMove(joined.position, { x: 4000, y: 600 }, 1_000_060);
+
+        expect(jump.accepted).toBe(false);
+    });
+
     it("gives a first move the benefit of the doubt", () => {
         const result = acceptMove(null, { x: 900, y: 600 }, 1_000_000);
 

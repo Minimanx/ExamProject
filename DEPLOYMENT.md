@@ -381,6 +381,18 @@ status follows from it:
 Clients must branch on `response.ok` or on `code`, never on an exact status:
 `CONFLICT` is a 400 today and is expected to become 409.
 
+## Checking CI
+
+```bash
+./scripts/ci-status.sh            # the run for HEAD
+./scripts/ci-status.sh <sha>      # the run for a particular commit
+```
+
+It waits for the run belonging to that commit, then prints every job and exits
+non-zero if any failed. Asking for "the latest run" instead returns whatever
+exists at that moment, which right after a push is usually the *previous* one —
+that is how a failing run once got reported as passing.
+
 ## Reading the logs
 
 The backend writes one JSON object per line. Every line carries a `level`
