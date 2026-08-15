@@ -385,8 +385,10 @@ const socket = (io) => {
         socket.on("disconnect", () => {
             forgetPlayer(io, socket);
             hub.leave(socket.id);
-            // The strip is shared by everyone, instanced or not.
-            io.emit("newTheaterAdded");
+            // Deliberately does not announce the strip as changed. A disconnect
+            // is not a change to it; freeing a seat is, and chatSocket says so
+            // from the code that frees one. Announcing it here made every closed
+            // tab cost a listing request from every connected client.
         });
     });
 };
