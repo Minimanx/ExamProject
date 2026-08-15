@@ -2,24 +2,26 @@
     /**
      * The right-hand panel every screen in the world opens into.
      *
-     * Five components carried their own copy of this chrome — the same position,
-     * the same borders, the same colours, the same pinned Back button. That is
-     * five places to keep in step, and it had already drifted once: the friends
-     * screen arrived as a plain white box floating over pixel art, because a
-     * copy is easy to forget to make.
+     * Five components carried their own copy of this frame — the same position,
+     * size, borders, colours, and the same Back button pinned to the same
+     * corner. That is five places to keep in step, and it had already drifted
+     * once: the friends screen arrived as a plain white box floating over pixel
+     * art, because a copy is easy to forget to make.
      *
-     * The panel owns the frame and the way out. What goes inside is the caller's.
+     * It owns the frame and the way out, and deliberately nothing else. The
+     * screens inside lay themselves out differently — a scrolling list, a
+     * centred form, a spread of sections — and folding those into props here
+     * would trade five copies of some CSS for one component with a flag per
+     * caller.
      */
     let { title = "", onBack = null, backLabel = "Back", children } = $props();
 </script>
 
-<div class="panel">
+<div class="panel" class:hasBack={onBack}>
     {#if title}
         <h2>{title}</h2>
     {/if}
-    <div class="scroller">
-        {@render children()}
-    </div>
+    {@render children()}
 </div>
 
 {#if onBack}
@@ -40,22 +42,18 @@
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
-        align-items: stretch;
-        /* Clear of the Back button, which is pinned to the bottom. */
-        padding: 12px 12px 80px;
-        gap: 8px;
     }
 
-    /* Only the contents scroll, so a heading stays put however long the list is. */
-    .scroller {
-        overflow-y: auto;
-        display: flex;
-        flex-direction: column;
-        gap: 8px;
+    /* The padding exists because of the button, so it comes with it. A panel
+       without a way out — the theater sign you drive up to, which closes when
+       you drive away — has nothing down there to clear. */
+    .hasBack {
+        padding-bottom: 80px;
     }
 
     h2 {
         margin: 0;
+        padding: 12px 12px 0;
         font-size: 22px;
         text-align: center;
     }

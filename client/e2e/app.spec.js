@@ -845,15 +845,9 @@ test("creating an event: search, select a movie, and submit", async ({ page }) =
     await logIn(page);
     await page.getByRole("button", { name: "Create Event" }).first().click();
 
-    // Two buttons are labelled "Create Event" and both carry
-    // id="addTheaterButton": the one in the scene that opens this panel, and
-    // the one inside it that submits. Scope to the panel holding the form.
-    // Containers nest, so filtering matches the outer scene container too;
-    // document order puts the innermost (the panel) last.
-    const panel = page
-        .locator("div.container")
-        .filter({ has: page.locator('input[name="eventName"]') })
-        .last();
+    // The submit button has its own id now, so no scoping gymnastics: the one
+    // in the scene opens the form, this one submits it.
+    const panel = page.locator(".panel").filter({ has: page.locator('input[name="eventName"]') });
 
     await page.locator('input[name="eventName"]').fill("Runes Night");
     await page.locator('input[name="searchMovie"]').first().fill("interstellar");
@@ -876,7 +870,7 @@ test("creating an event: search, select a movie, and submit", async ({ page }) =
     await page.locator('input[name="startTime"]').fill(`${hh}:${mm}`);
     await page.locator('input[name="amountOfSpaces"]').fill("10");
 
-    await panel.getByRole("button", { name: "Create Event" }).click();
+    await page.locator("#submitEventButton").click();
     await expect(page.locator("._toastContainer")).toContainText(
         /Event Created|already have an ongoing event/i
     );
@@ -917,10 +911,7 @@ test("creating a private event shows an invite link exactly once", async ({ page
     await logIn(page, host);
     await page.getByRole("button", { name: "Create Event" }).first().click();
 
-    const panel = page
-        .locator("div.container")
-        .filter({ has: page.locator('input[name="eventName"]') })
-        .last();
+    const panel = page.locator(".panel").filter({ has: page.locator('input[name="eventName"]') });
 
     await page.locator('input[name="eventName"]').fill("Private Night");
     await page.locator('input[name="searchMovie"]').first().fill("solaris");
@@ -938,7 +929,7 @@ test("creating a private event shows an invite link exactly once", async ({ page
     await page.locator('input[name="amountOfSpaces"]').fill("10");
     await panel.locator("#passwordCheckbox").check();
 
-    await panel.getByRole("button", { name: "Create Event" }).click();
+    await page.locator("#submitEventButton").click();
 
     const link = panel.locator('input[name="inviteLink"]');
     await expect(link).toBeVisible();

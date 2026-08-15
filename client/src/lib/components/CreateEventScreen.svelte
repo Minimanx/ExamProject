@@ -1,4 +1,5 @@
 <script>
+    import Panel from "./Panel.svelte";
     import { onDestroy } from "svelte";
     import { success, error } from "./toasts/toastThemes.js";
     import { Pulse } from "svelte-loading-spinners";
@@ -114,94 +115,101 @@
     }
 </script>
 
-<div class="container">
-    <div>
-        <label for="eventName">Event name</label>
-        <input
-            name="eventName"
-            type="text"
-            bind:value={eventName}
-            onfocus={() => ($playerMovement = false)}
-            onblur={() => ($playerMovement = true)}
-            maxlength="18"
-            placeholder="Max 18 chars..."
-        />
-    </div>
-
-    <div>
-        <label for="searchMovie">Search for a movie</label>
-        <input
-            name="searchMovie"
-            type="text"
-            bind:value={searchMovieName}
-            onchange={searchMovie}
-            onfocus={() => ($playerMovement = false)}
-            onblur={() => ($playerMovement = true)}
-            placeholder="Type movie here..."
-        />
-    </div>
-
-    <div class="movieSearchContainer">
-        {#if loadingMovieSearch}
-            <div id="loadingSpinner">
-                <Pulse size="80" color="aqua" unit="px" duration="1s" />
-            </div>
-        {/if}
-        {#each movies as movie (movie.imdbID)}
-            <ul
-                onclick={() => (chosenMovieID = movie.imdbID)}
-                class={movie.imdbID === chosenMovieID ? "selectedMovie" : ""}
-            >
-                <li id="imageItem">
-                    <img
-                        src={movie.Poster !== "N/A"
-                            ? movie.Poster
-                            : "https://www.tradeinn.com/f/13772/137720122/jibbitz-question-mark.jpg"}
-                        alt="poster"
-                    />
-                </li>
-                <li>
-                    {movie.Title}
-                </li>
-                <li></li>
-            </ul>
-        {/each}
-    </div>
-
-    <div class="inputContainer">
-        <label for="startTime">Time of start</label>
-        <input name="startTime" type="time" bind:value={startTime} />
-    </div>
-
-    <div class="inputContainer">
-        <label for="amountOfSpaces">Amount of spaces</label>
-        <input
-            id="amountOfSpaceInput"
-            name="amountOfSpaces"
-            type="number"
-            bind:value={amountOfSpaces}
-            max="99"
-            min="1"
-            placeholder="#"
-        />
-    </div>
-
-    <div class="passwordInputs">
-        <label for="privateEvent">Private event?</label>
-        <input id="passwordCheckbox" name="privateEvent" type="checkbox" bind:checked={isPrivate} />
-    </div>
-
-    {#if inviteLink}
-        <div class="inviteLink">
-            <label for="inviteLinkInput">Share this link — it is not shown again</label>
-            <input id="inviteLinkInput" name="inviteLink" readonly value={inviteLink} />
+<Panel onBack={back} backLabel={inviteLink ? "Done" : "Back"}>
+    <div class="form">
+        <div>
+            <label for="eventName">Event name</label>
+            <input
+                name="eventName"
+                type="text"
+                bind:value={eventName}
+                onfocus={() => ($playerMovement = false)}
+                onblur={() => ($playerMovement = true)}
+                maxlength="18"
+                placeholder="Max 18 chars..."
+            />
         </div>
-        <button class="menuButton" id="backButton" onclick={back}>Done</button>
-    {:else}
-        <button class="menuButton" id="addTheaterButton" onclick={createEvent}>Create Event</button>
-        <button class="menuButton" id="backButton" onclick={back}>Back</button>
-    {/if}
-</div>
+
+        <div>
+            <label for="searchMovie">Search for a movie</label>
+            <input
+                name="searchMovie"
+                type="text"
+                bind:value={searchMovieName}
+                onchange={searchMovie}
+                onfocus={() => ($playerMovement = false)}
+                onblur={() => ($playerMovement = true)}
+                placeholder="Type movie here..."
+            />
+        </div>
+
+        <div class="movieSearchContainer">
+            {#if loadingMovieSearch}
+                <div id="loadingSpinner">
+                    <Pulse size="80" color="aqua" unit="px" duration="1s" />
+                </div>
+            {/if}
+            {#each movies as movie (movie.imdbID)}
+                <ul
+                    onclick={() => (chosenMovieID = movie.imdbID)}
+                    class={movie.imdbID === chosenMovieID ? "selectedMovie" : ""}
+                >
+                    <li id="imageItem">
+                        <img
+                            src={movie.Poster !== "N/A"
+                                ? movie.Poster
+                                : "https://www.tradeinn.com/f/13772/137720122/jibbitz-question-mark.jpg"}
+                            alt="poster"
+                        />
+                    </li>
+                    <li>
+                        {movie.Title}
+                    </li>
+                    <li></li>
+                </ul>
+            {/each}
+        </div>
+
+        <div class="inputContainer">
+            <label for="startTime">Time of start</label>
+            <input name="startTime" type="time" bind:value={startTime} />
+        </div>
+
+        <div class="inputContainer">
+            <label for="amountOfSpaces">Amount of spaces</label>
+            <input
+                id="amountOfSpaceInput"
+                name="amountOfSpaces"
+                type="number"
+                bind:value={amountOfSpaces}
+                max="99"
+                min="1"
+                placeholder="#"
+            />
+        </div>
+
+        <div class="passwordInputs">
+            <label for="privateEvent">Private event?</label>
+            <input
+                id="passwordCheckbox"
+                name="privateEvent"
+                type="checkbox"
+                bind:checked={isPrivate}
+            />
+        </div>
+
+        {#if inviteLink}
+            <div class="inviteLink">
+                <label for="inviteLinkInput">Share this link — it is not shown again</label>
+                <input id="inviteLinkInput" name="inviteLink" readonly value={inviteLink} />
+            </div>
+        {:else}
+            <button class="menuButton" id="submitEventButton" onclick={createEvent}
+                >Create Event</button
+            >
+        {/if}
+    </div>
+</Panel>
 
 <style>
     #loadingSpinner {
@@ -277,23 +285,18 @@
     ul:active {
         background-color: aqua;
     }
-    .container {
-        position: fixed;
-        background-color: rgb(241, 241, 241);
-        z-index: 100;
-        right: 0;
-        top: 80px;
-        height: calc(var(--stage-height) - 80px);
-        width: 500px;
-        border-top: 3px solid rgb(27, 27, 27);
-        border-left: 3px solid rgb(27, 27, 27);
-        box-sizing: border-box;
+    /* The panel owns the frame; this is how the form sits in it — centred and
+       spread down the column, as it was when this screen carried its own copy. */
+    .form {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
         display: flex;
         flex-direction: column;
         align-items: center;
-        text-align: center;
         justify-content: space-around;
-        padding-bottom: 80px;
+        text-align: center;
+        padding: 0 12px;
     }
     .menuButton {
         position: fixed;
@@ -312,16 +315,14 @@
         color: rgb(85, 85, 85);
         cursor: pointer;
     }
-    #addTheaterButton {
+    /* Its own id. The button in the scene that opens this form also carried
+       "addTheaterButton", so while the form was open two elements shared one id
+       — which breaks getElementById, label association and assistive
+       navigation, and forced tests into contortions to say which one they
+       meant. */
+    #submitEventButton {
         font-size: 20px;
         right: 253px;
-        bottom: 0px;
-        height: 60px;
-        width: 235px;
-    }
-    #backButton {
-        font-size: 20px;
-        right: 10px;
         bottom: 0px;
         height: 60px;
         width: 235px;

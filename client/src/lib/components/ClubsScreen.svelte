@@ -142,109 +142,134 @@
 </script>
 
 <Panel title="Film clubs" onBack={() => (clubsBool = false)}>
-    {#if loading}
-        <p class="empty">Loading...</p>
-    {:else if creating}
-        <label for="clubName">Name</label>
-        <input id="clubName" name="clubName" bind:value={name} maxlength="40" {...holdMovement} />
-
-        <label for="clubDescription">Description</label>
-        <input
-            id="clubDescription"
-            name="clubDescription"
-            bind:value={description}
-            maxlength="400"
-            {...holdMovement}
-        />
-
-        <label for="clubWeekday">Meets</label>
-        <div class="row">
-            <select id="clubWeekday" name="clubWeekday" bind:value={weekday} {...holdMovement}>
-                {#each WEEKDAYS as day, index (day)}
-                    <option value={index}>{day}</option>
-                {/each}
-            </select>
+    <div class="list">
+        {#if loading}
+            <p class="empty">Loading...</p>
+        {:else if creating}
+            <label for="clubName">Name</label>
             <input
-                name="clubTime"
-                type="time"
-                bind:value={timeOfDay}
-                aria-label="Time the club meets"
+                id="clubName"
+                name="clubName"
+                bind:value={name}
+                maxlength="40"
                 {...holdMovement}
             />
-        </div>
-        <p class="hint">Times are {timeZone}, and stay that way through the clock changes.</p>
 
-        <label class="checkRow" for="clubPublic">
-            <input id="clubPublic" name="clubPublic" type="checkbox" bind:checked={isPublic} />
-            Listed publicly
-        </label>
+            <label for="clubDescription">Description</label>
+            <input
+                id="clubDescription"
+                name="clubDescription"
+                bind:value={description}
+                maxlength="400"
+                {...holdMovement}
+            />
 
-        <div class="row">
-            <button class="rowButton" onclick={create}>Create club</button>
-            <button class="rowButton" onclick={() => (creating = false)}>Cancel</button>
-        </div>
-    {:else}
-        <h3>Yours</h3>
-        {#if mine.length === 0}
-            <p class="empty">You are not in a club yet.</p>
+            <label for="clubWeekday">Meets</label>
+            <div class="row">
+                <select id="clubWeekday" name="clubWeekday" bind:value={weekday} {...holdMovement}>
+                    {#each WEEKDAYS as day, index (day)}
+                        <option value={index}>{day}</option>
+                    {/each}
+                </select>
+                <input
+                    name="clubTime"
+                    type="time"
+                    bind:value={timeOfDay}
+                    aria-label="Time the club meets"
+                    {...holdMovement}
+                />
+            </div>
+            <p class="hint">Times are {timeZone}, and stay that way through the clock changes.</p>
+
+            <label class="checkRow" for="clubPublic">
+                <input id="clubPublic" name="clubPublic" type="checkbox" bind:checked={isPublic} />
+                Listed publicly
+            </label>
+
+            <div class="row">
+                <button class="rowButton" onclick={create}>Create club</button>
+                <button class="rowButton" onclick={() => (creating = false)}>Cancel</button>
+            </div>
         {:else}
-            <ul>
-                {#each mine as club (club.id)}
-                    <li>
-                        <div class="clubText">
-                            <a
-                                href={resolve(`/clubs/${club.slug}`)}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                {club.name}
-                            </a>
-                            <span class="detail">{describeMeeting(club.schedule, timeZone)}</span>
-                        </div>
-                        <span class="role">{club.myRole}</span>
-                        {#if isSoleOwner(club)}
-                            <button class="rowButton" onclick={() => remove(club)}> Delete </button>
-                        {:else}
-                            <button class="rowButton" onclick={() => leave(club)}>Leave</button>
-                        {/if}
-                    </li>
-                {/each}
-            </ul>
-        {/if}
+            <h3>Yours</h3>
+            {#if mine.length === 0}
+                <p class="empty">You are not in a club yet.</p>
+            {:else}
+                <ul>
+                    {#each mine as club (club.id)}
+                        <li>
+                            <div class="clubText">
+                                <a
+                                    href={resolve(`/clubs/${club.slug}`)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    {club.name}
+                                </a>
+                                <span class="detail"
+                                    >{describeMeeting(club.schedule, timeZone)}</span
+                                >
+                            </div>
+                            <span class="role">{club.myRole}</span>
+                            {#if isSoleOwner(club)}
+                                <button class="rowButton" onclick={() => remove(club)}>
+                                    Delete
+                                </button>
+                            {:else}
+                                <button class="rowButton" onclick={() => leave(club)}>Leave</button>
+                            {/if}
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
 
-        <h3>Open to join</h3>
-        {#if discoverable.length === 0}
-            <p class="empty">Nothing else is public right now.</p>
-        {:else}
-            <ul>
-                {#each discoverable as club (club.id)}
-                    <li>
-                        <div class="clubText">
-                            <a
-                                href={resolve(`/clubs/${club.slug}`)}
-                                target="_blank"
-                                rel="noreferrer"
-                            >
-                                {club.name}
-                            </a>
-                            <span class="detail">
-                                {describeMeeting(club.schedule, timeZone)} · {club.members.length}
-                                {club.members.length === 1 ? "member" : "members"}
-                            </span>
-                        </div>
-                        <button class="rowButton" onclick={() => join(club)}>Join</button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
+            <h3>Open to join</h3>
+            {#if discoverable.length === 0}
+                <p class="empty">Nothing else is public right now.</p>
+            {:else}
+                <ul>
+                    {#each discoverable as club (club.id)}
+                        <li>
+                            <div class="clubText">
+                                <a
+                                    href={resolve(`/clubs/${club.slug}`)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                >
+                                    {club.name}
+                                </a>
+                                <span class="detail">
+                                    {describeMeeting(club.schedule, timeZone)} · {club.members
+                                        .length}
+                                    {club.members.length === 1 ? "member" : "members"}
+                                </span>
+                            </div>
+                            <button class="rowButton" onclick={() => join(club)}>Join</button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
 
-        <button class="rowButton startClub" onclick={() => (creating = true)}>
-            Start a club
-        </button>
-    {/if}
-</Panel>
+            <button class="rowButton startClub" onclick={() => (creating = true)}>
+                Start a club
+            </button>
+        {/if}
+    </div></Panel
+>
 
 <style>
+    /* The panel owns the frame; this is how these particular contents sit in
+       it — a column that scrolls when there are more clubs or friends than fit. */
+    .list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+    }
+
     h3 {
         margin: 8px 0 0;
         font-size: 14px;

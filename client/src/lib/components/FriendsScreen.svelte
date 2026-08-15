@@ -112,80 +112,94 @@
 </script>
 
 <Panel title="Friends" onBack={() => (friendsBool = false)}>
-    <div class="addFriend">
-        <input
-            name="friendUsername"
-            type="text"
-            bind:value={username}
-            onfocus={() => ($playerMovement = false)}
-            onblur={() => ($playerMovement = true)}
-            placeholder="Add by username..."
-            maxlength="16"
-        />
-        <button class="rowButton" onclick={add}>Add</button>
-    </div>
+    <div class="list">
+        <div class="addFriend">
+            <input
+                name="friendUsername"
+                type="text"
+                bind:value={username}
+                onfocus={() => ($playerMovement = false)}
+                onblur={() => ($playerMovement = true)}
+                placeholder="Add by username..."
+                maxlength="16"
+            />
+            <button class="rowButton" onclick={add}>Add</button>
+        </div>
 
-    {#if loading}
-        <p class="empty">Loading...</p>
-    {:else}
-        {#if incoming.length > 0}
-            <h3>Wants to be your friend</h3>
-            <ul>
-                {#each incoming as person (person.id)}
-                    <li>
-                        <span class="name">{person.username}</span>
-                        <button class="rowButton" onclick={() => answer(person.id, true)}>
-                            Accept
-                        </button>
-                        <button class="rowButton" onclick={() => answer(person.id, false)}>
-                            Decline
-                        </button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
-
-        <h3>Friends</h3>
-        {#if friends.length === 0}
-            <p class="empty">Nobody yet. Add someone by username above.</p>
+        {#if loading}
+            <p class="empty">Loading...</p>
         {:else}
-            <ul>
-                {#each friends as person (person.id)}
-                    <li>
-                        <span class="presence" class:online={person.online}></span>
-                        <span class="name">{person.username}</span>
-                        <button
-                            class="rowButton"
-                            disabled={!person.online}
-                            onclick={() => joinFriend(person.id)}
-                        >
-                            Join
-                        </button>
-                        <button class="rowButton" onclick={() => remove(person.id)}>
-                            Remove
-                        </button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
+            {#if incoming.length > 0}
+                <h3>Wants to be your friend</h3>
+                <ul>
+                    {#each incoming as person (person.id)}
+                        <li>
+                            <span class="name">{person.username}</span>
+                            <button class="rowButton" onclick={() => answer(person.id, true)}>
+                                Accept
+                            </button>
+                            <button class="rowButton" onclick={() => answer(person.id, false)}>
+                                Decline
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
 
-        {#if outgoing.length > 0}
-            <h3>Asked</h3>
-            <ul>
-                {#each outgoing as person (person.id)}
-                    <li>
-                        <span class="name">{person.username}</span>
-                        <button class="rowButton" onclick={() => remove(person.id)}>
-                            Cancel
-                        </button>
-                    </li>
-                {/each}
-            </ul>
+            <h3>Friends</h3>
+            {#if friends.length === 0}
+                <p class="empty">Nobody yet. Add someone by username above.</p>
+            {:else}
+                <ul>
+                    {#each friends as person (person.id)}
+                        <li>
+                            <span class="presence" class:online={person.online}></span>
+                            <span class="name">{person.username}</span>
+                            <button
+                                class="rowButton"
+                                disabled={!person.online}
+                                onclick={() => joinFriend(person.id)}
+                            >
+                                Join
+                            </button>
+                            <button class="rowButton" onclick={() => remove(person.id)}>
+                                Remove
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
+
+            {#if outgoing.length > 0}
+                <h3>Asked</h3>
+                <ul>
+                    {#each outgoing as person (person.id)}
+                        <li>
+                            <span class="name">{person.username}</span>
+                            <button class="rowButton" onclick={() => remove(person.id)}>
+                                Cancel
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
         {/if}
-    {/if}
-</Panel>
+    </div></Panel
+>
 
 <style>
+    /* The panel owns the frame; this is how these particular contents sit in
+       it — a column that scrolls when there are more clubs or friends than fit. */
+    .list {
+        flex: 1;
+        min-height: 0;
+        overflow-y: auto;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        padding: 12px;
+    }
+
     /* The same panel every other screen uses: it takes over the right-hand
        column rather than floating over the world in a different visual
        language. */
