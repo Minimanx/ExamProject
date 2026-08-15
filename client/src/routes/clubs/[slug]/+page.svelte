@@ -30,7 +30,9 @@
     <meta name="description" content={club.description || `${club.name} on FlixDrive`} />
 </svelte:head>
 
-<article class="club">
+<!-- A landmark, because this page is not inside the app shell that
+     normally provides one. -->
+<main class="club">
     <h1>{club.name}</h1>
     {#if club.description}
         <p class="description">{club.description}</p>
@@ -62,7 +64,7 @@
     </section>
 
     <a class="enter" href={resolve("/")}>Enter FlixDrive</a>
-</article>
+</main>
 
 <style>
     /* A standalone page, not one of the app's panels. The body is dark with
@@ -70,6 +72,7 @@
        own light background — so a page rendered straight onto it came out
        near-black on near-black. */
     .club {
+        display: block;
         max-width: 640px;
         margin: 0 auto;
         padding: 40px 20px 64px;
@@ -146,6 +149,7 @@
 
     @media (max-width: 480px) {
         .club {
+            display: block;
             padding: 24px 16px 48px;
         }
 

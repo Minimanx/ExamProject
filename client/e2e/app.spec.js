@@ -728,6 +728,13 @@ test("creating a private event shows an invite link exactly once", async ({ page
     const link = panel.locator('input[name="inviteLink"]');
     await expect(link).toBeVisible();
     expect(await link.inputValue()).toMatch(/\?theater=[a-f0-9]{24}&key=[0-9a-f]{16}$/);
+
+    // The key is shown exactly once and never again, so a box that spills out of
+    // its panel is not a cosmetic problem — it is the only copy, unreadable.
+    const box = await link.boundingBox();
+    const within = await panel.boundingBox();
+    expect(box.x).toBeGreaterThanOrEqual(within.x - 1);
+    expect(box.x + box.width).toBeLessThanOrEqual(within.x + within.width + 1);
 });
 
 test("unknown paths fall back to the scene", async ({ page }) => {
