@@ -103,3 +103,34 @@ export async function liveOccupants(theaterId) {
     const sockets = await socketServer.in(theaterId).fetchSockets();
     return new Set(sockets.map((socket) => socket.data.userID).filter(Boolean));
 }
+
+/**
+ * Every theater's live occupants at once, keyed by theater id.
+ *
+ * The same answer as calling `liveOccupants` for each theater, from one pass
+ * instead of one adapter round-trip per theater. That mattered because the
+ * listing — a page load, and again on every debounced search keystroke — asked
+ * per theater and awaited each in turn, so its latency grew with the number of
+ * events on the strip for a question about a few dozen sockets.
+ *
+ * A theater nobody is in is absent from the map rather than present and empty;
+ * the caller reads a missing key as an empty set. Null still means "cannot
+ * tell", for the reason given above.
+ */
+export function occupantsByTheater() {
+    if (socketServer === null) {
+        return null;
+    }
+
+    const byTheater = new Map();
+    for (const socket of socketServer.sockets.sockets.values()) {
+        const { theaterId, userID } = socket.data;
+        if (!theaterId || !userID) {
+            continue;
+        }
+        const occupants = byTheater.get(theaterId) ?? new Set();
+        occupants.add(userID);
+        byTheater.set(theaterId, occupants);
+    }
+    return byTheater;
+}

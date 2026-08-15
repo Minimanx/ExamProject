@@ -15,7 +15,7 @@
 import crypto from "crypto";
 import db from "../database/createConnection.js";
 import { ObjectId } from "mongodb";
-import { liveOccupants } from "../socketios/presence.js";
+import { liveOccupants, occupantsByTheater } from "../socketios/presence.js";
 
 // A slot conflict means another request won the gap between reading the list
 // and inserting. Retrying recomputes against the new state; the cap is there so
@@ -30,6 +30,9 @@ const DUPLICATE_KEY = 11000;
  * only just joined has no socket yet and must not be swept.
  */
 const OCCUPANT_GRACE_MS = 60 * 1000;
+
+/** Shared because a theater nobody is in is the common case, and it is read-only. */
+const NOBODY = new Set();
 
 export class OwnerConflictError extends Error {}
 export class NoFreeSlotError extends Error {}
@@ -87,12 +90,7 @@ export async function occupantsOf(theater) {
         return stored;
     }
 
-    const joinedSince = Date.now() - OCCUPANT_GRACE_MS;
-    const present = stored.filter(
-        (occupant) =>
-            live.has(occupant?.userID) || new Date(occupant?.joinedAt ?? 0).getTime() > joinedSince
-    );
-
+    const present = stillPresent(stored, live);
     if (present.length !== stored.length) {
         await db.theaters.updateOne(
             { _id: theater._id },
@@ -100,6 +98,64 @@ export async function occupantsOf(theater) {
         );
     }
     return present;
+}
+
+/**
+ * Which stored occupants to keep, given who is connected.
+ *
+ * The decision itself, with no idea where the answer about connections came
+ * from — one theater's room or a sweep of every socket. Both callers below need
+ * it to be the same decision.
+ */
+function stillPresent(stored, live) {
+    const joinedSince = Date.now() - OCCUPANT_GRACE_MS;
+    return stored.filter(
+        (occupant) =>
+            live.has(occupant?.userID) || new Date(occupant?.joinedAt ?? 0).getTime() > joinedSince
+    );
+}
+
+/**
+ * Reconcile a whole listing against one snapshot of who is connected.
+ *
+ * `occupantsOf` answers for one theater and costs one adapter round-trip plus
+ * one write. The listing called it in a loop, so the hottest endpoint in the app
+ * paid both per theater, in sequence — for a question that a single pass over a
+ * few dozen sockets answers for all of them at once. The sweeps that follow are
+ * one write rather than one per theater, for the same reason.
+ */
+async function reconcileOccupancy(theaters) {
+    const byTheater = occupantsByTheater();
+
+    if (byTheater === null) {
+        // Nothing to reconcile against. Normalising still matters: an old
+        // document has no occupant list, and hasSpace counts one.
+        for (const theater of theaters) {
+            theater.usersInsideTheater ??= [];
+        }
+        return;
+    }
+
+    const sweeps = [];
+    for (const theater of theaters) {
+        const stored = theater.usersInsideTheater ?? [];
+        const live = byTheater.get(theater._id.toString()) ?? NOBODY;
+        const present = stillPresent(stored, live);
+
+        theater.usersInsideTheater = present;
+        if (present.length !== stored.length) {
+            sweeps.push({
+                updateOne: {
+                    filter: { _id: theater._id },
+                    update: { $set: { usersInsideTheater: present } },
+                },
+            });
+        }
+    }
+
+    if (sweeps.length > 0) {
+        await db.theaters.bulkWrite(sweeps);
+    }
 }
 
 /**
@@ -150,9 +206,7 @@ export async function listTheaters(log, { q, hasSpace, startingWithin } = {}) {
         .find(filter, { projection: { password: 0, ownerID: 0, lobbyKey: 0 } })
         .toArray();
 
-    for (const theater of theaters) {
-        theater.usersInsideTheater = await occupantsOf(theater);
-    }
+    await reconcileOccupancy(theaters);
 
     // Applied after reconciliation, not in the query: a theater whose seats are
     // held by ghosts is not full, and only the sweep knows that. See defect C5.

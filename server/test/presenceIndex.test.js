@@ -1,5 +1,11 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { registerSocketServer, isOnline, whereIs, onlineUserIds } from "../socketios/presence.js";
+import {
+    registerSocketServer,
+    isOnline,
+    whereIs,
+    onlineUserIds,
+    occupantsByTheater,
+} from "../socketios/presence.js";
 
 // Presence answers "is this user online" by walking every connected socket, and
 // a friend list asked it once per friend — so loading one was O(friends x
@@ -68,5 +74,59 @@ describe("presence", () => {
         registerSocketServer(fakeIo([fakeSocket("s1", "user-a"), fakeSocket("s2", "user-a")]));
 
         expect(onlineUserIds()).toEqual(new Set(["user-a"]));
+    });
+});
+
+// The theater listing needs "who is really inside" for every theater at once.
+// Asking room by room is one adapter round-trip per theater, on a page that
+// loads on every visit and again on every debounced search keystroke.
+//
+// A socket inside a theater carries both fields, set together when it joins —
+// see chatSocket — so the fake sets them the same way.
+function fakeOccupant(id, userID, theaterId) {
+    return fakeSocket(id, userID, { userID, theaterId });
+}
+
+describe("occupantsByTheater", () => {
+    beforeEach(() => {
+        registerSocketServer(null);
+    });
+
+    // Null, not an empty map: "nobody is in any theater" and "there is nothing
+    // to ask" must not look alike, or a listing during startup would sweep every
+    // occupant out of every theater. Same contract as liveOccupants.
+    it("cannot tell when there is no socket server", () => {
+        expect(occupantsByTheater()).toBe(null);
+    });
+
+    it("groups everyone inside a theater by which one", () => {
+        registerSocketServer(
+            fakeIo([
+                fakeOccupant("s1", "user-a", "t1"),
+                fakeOccupant("s2", "user-b", "t1"),
+                fakeOccupant("s3", "user-c", "t2"),
+            ])
+        );
+
+        expect(occupantsByTheater()).toEqual(
+            new Map([
+                ["t1", new Set(["user-a", "user-b"])],
+                ["t2", new Set(["user-c"])],
+            ])
+        );
+    });
+
+    it("leaves out anyone driving around outside", () => {
+        registerSocketServer(
+            fakeIo([fakeSocket("s1", "user-a"), fakeOccupant("s2", "user-b", "t1")])
+        );
+
+        expect(occupantsByTheater()).toEqual(new Map([["t1", new Set(["user-b"])]]));
+    });
+
+    it("ignores a socket that has a room but no user", () => {
+        registerSocketServer(fakeIo([fakeSocket("s1", null, { theaterId: "t1" })]));
+
+        expect(occupantsByTheater()).toEqual(new Map());
     });
 });
