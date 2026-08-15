@@ -1,5 +1,6 @@
 <script>
     import { onMount } from "svelte";
+    import { resolve } from "$app/paths";
     import { apiFetch, createSocket } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { error, success } from "../components/toasts/toastThemes.js";
@@ -17,11 +18,26 @@
     let sendMessageButton = $state();
     let scrollContainer = $state();
     let currentTime = $state(new Date());
+    /** Why the theater could not be shown, if it could not. */
+    let loadFailure = $state("");
+
+    /**
+     * How much backscroll the chat keeps.
+     *
+     * Enough that nobody scrolls past it during a film, and few enough that a
+     * three-hour showing does not accumulate a DOM node per message all evening.
+     */
+    const MAX_VISIBLE_MESSAGES = 200;
     // Animation-frame handle only, never read in the template.
     let scrollFrameId;
 
     function handleNewMessage({ text, username, color }) {
-        messages = [...messages, { text, time: new Date(), username, color }];
+        // Capped. A showing runs for hours with the chat open, and every message
+        // was kept forever — both in memory and as a DOM node, so a busy lobby
+        // slowly turned into thousands of them.
+        messages = [...messages, { text, time: new Date(), username, color }].slice(
+            -MAX_VISIBLE_MESSAGES
+        );
 
         cancelAnimationFrame(scrollFrameId);
         scrollFrameId = requestAnimationFrame(() => {
@@ -55,6 +71,14 @@
             const response = await apiFetch("/theaters/" + id);
             const result = await response.json();
             if (!active) return;
+
+            // Checked, because a theater that has closed or one you are not
+            // allowed into answers with an error — and reading `data` off it
+            // left the page spinning forever with nothing to say and no way out.
+            if (!response.ok) {
+                loadFailure = result.message || "That theater could not be opened.";
+                return;
+            }
 
             theater = result.data;
             updateElapsedTime();
@@ -221,6 +245,12 @@
                 </form>
             </div>
         </div>
+    {:else if loadFailure}
+        <div class="theaterFailure" role="alert">
+            <p>Could not open this theater.</p>
+            <p class="detail">{loadFailure}</p>
+            <a class="backToWorld" href={resolve("/")}>Back to the world</a>
+        </div>
     {:else}
         <div id="loadingSpinner">
             <Pulse size="80" color="aqua" unit="px" duration="1s" />
@@ -329,6 +359,43 @@
     .liveChat::-webkit-scrollbar {
         display: none;
     }
+    .theaterFailure {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 12px;
+        width: 100%;
+        height: var(--stage-height);
+        background-color: rgb(225, 241, 255);
+        text-align: center;
+    }
+
+    .theaterFailure p {
+        margin: 0;
+        font-size: 18px;
+    }
+
+    .theaterFailure .detail {
+        font-size: 13px;
+        color: rgb(90, 90, 90);
+    }
+
+    .backToWorld {
+        margin-top: 8px;
+        padding: 12px 18px;
+        font-size: 15px;
+        color: rgb(27, 27, 27);
+        background-color: rgb(228, 228, 228);
+        border: 4px solid rgb(204, 204, 204);
+    }
+
+    .backToWorld:hover {
+        background-color: rgb(204, 204, 204);
+        border-color: rgb(189, 189, 189);
+        text-decoration: none;
+    }
+
     .movieInfoContainer {
         height: var(--stage-height);
         width: calc(var(--stage-width) - 500px);

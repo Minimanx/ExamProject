@@ -2,18 +2,11 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { app } from "../app.js";
 import db from "../database/createConnection.js";
-import { registerUser, loginAgent } from "./helpers.js";
+import { loggedIn } from "./helpers.js";
 
 // Phase 5: film clubs. The spec calls this the retention centrepiece — people
 // stay for groups — so the parts that decide who may do what are the parts worth
 // testing hardest.
-async function loggedIn() {
-    const user = await registerUser();
-    const agent = await loginAgent(user);
-    const stored = await db.users.findOne({ email: user.email.toLowerCase() });
-    return { agent, user, userID: stored._id.toString() };
-}
-
 function validClub(overrides = {}) {
     return {
         name: "Thursday Noir",

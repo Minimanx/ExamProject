@@ -76,3 +76,34 @@ export function mockOmdb(fetchMock, payload) {
         json: async () => payload,
     });
 }
+
+/**
+ * A logged-in user, their agent, and their id.
+ *
+ * Four test files had their own copy of this under two different names, which
+ * is four places to update when the login flow changes.
+ */
+export async function loggedIn(overrides = {}) {
+    const user = await registerUser(overrides);
+    const agent = await loginAgent(user);
+    const stored = await db.users.findOne({ email: user.email.toLowerCase() });
+    return { agent, user, userID: stored._id.toString() };
+}
+
+/**
+ * The cookie a socket needs to carry a real session.
+ *
+ * `loginAgent` keeps its cookies in a jar the socket cannot read, so a socket
+ * test has to log in itself and take the header.
+ */
+export async function sessionCookieFor(user) {
+    const login = await request(app)
+        .post("/login")
+        .set("X-Forwarded-For", uniqueIp())
+        .send({ email: user.email, password: user.password });
+
+    if (login.status !== 200) {
+        throw new Error(`sessionCookieFor failed: ${login.status}`);
+    }
+    return login.headers["set-cookie"].map((cookie) => cookie.split(";")[0]).join("; ");
+}

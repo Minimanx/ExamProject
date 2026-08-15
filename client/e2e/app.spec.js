@@ -272,6 +272,31 @@ test("the retry button actually retries", async ({ page }) => {
     await expect(page.locator(".containerInteractiveSpace")).toBeVisible({ timeout: 15000 });
 });
 
+// The theater page had the same fault the world did: nothing checked the
+// response, so a theater that has closed, or one you are not allowed into,
+// left the page spinning forever with no explanation and no way back.
+test("a theater that cannot be loaded says so and offers a way out", async ({ page }) => {
+    await logIn(page);
+    // Scoped to the API. A bare "**/theaters/*" also matches the page's own
+    // navigation, so the browser renders the JSON instead of the app.
+    await page.route(`${API}/theaters/*`, (route) =>
+        route.fulfill({
+            status: 404,
+            contentType: "application/json",
+            body: JSON.stringify({ message: "Theater not found", code: "NOT_FOUND" }),
+        })
+    );
+
+    await page.goto("/theaters/000000000000000000000009");
+
+    await expect(page.getByText(/could not open/i)).toBeVisible({ timeout: 15000 });
+    const back = page.getByRole("link", { name: /back to the world/i });
+    await expect(back).toBeVisible();
+
+    await back.click();
+    await expect(page.locator(".containerInteractiveSpace")).toBeVisible();
+});
+
 // The login overlay stops the mouse, because it is a box on top of everything.
 // It does nothing about the keyboard: tab out of the password field and you land
 // in the hub chat behind it, type a message, press Enter, and nothing happens

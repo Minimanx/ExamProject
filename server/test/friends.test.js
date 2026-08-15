@@ -2,18 +2,11 @@ import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { app } from "../app.js";
 import db from "../database/createConnection.js";
-import { registerUser, loginAgent } from "./helpers.js";
+import { loggedIn } from "./helpers.js";
 
 // Phase 5: friends. A friendship is symmetric, so it is one row describing the
 // pair rather than two rows describing directions — see the plan for why the
 // unique index is what forces that choice.
-async function loggedIn(overrides) {
-    const user = await registerUser(overrides);
-    const agent = await loginAgent(user);
-    const stored = await db.users.findOne({ email: user.email.toLowerCase() });
-    return { agent, user, userID: stored._id.toString() };
-}
-
 describe("requesting a friend", () => {
     it("creates a pending request", async () => {
         const asker = await loggedIn();

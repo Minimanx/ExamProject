@@ -4,6 +4,7 @@ import "dotenv/config";
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import { sendError } from "../errors.js";
+import { requireSession } from "./requireSession.js";
 import { limits } from "../limits.js";
 import { validateBody, validateQuery } from "../validate.js";
 import { createTheaterSchema, joinTheaterSchema, theaterListingSchema } from "../schemas.js";
@@ -13,14 +14,6 @@ const router = Router();
 // Every route that needs a session used to open with the same three lines, and
 // the message differed by route, which is why one said "Must be logged in" and
 // another "Must be logged in to create a new event".
-const requireSession = (message) => (req, res, next) => {
-    if (!req.session.loggedIn) {
-        sendError(res, "UNAUTHENTICATED", message);
-        return;
-    }
-    next();
-};
-
 // The id is a path parameter, so it never reaches the body schema. A malformed
 // one is a bad request; a well-formed one that matches nothing is a 404 — it
 // used to be a 404 on GET and a 400 on PATCH and DELETE.

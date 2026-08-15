@@ -1,18 +1,11 @@
 import { Router } from "express";
 import { sendError } from "../errors.js";
+import { requireSession } from "./requireSession.js";
 import { validateBody } from "../validate.js";
 import { createClubSchema, clubRoleSchema } from "../schemas.js";
 import * as clubs from "../services/clubService.js";
 
 const router = Router();
-
-const requireSession = (message) => (req, res, next) => {
-    if (!req.session.loggedIn) {
-        sendError(res, "UNAUTHENTICATED", message);
-        return;
-    }
-    next();
-};
 
 /** Load the club named in the path along with the caller's standing in it. */
 function loadClub({ atLeast } = {}) {

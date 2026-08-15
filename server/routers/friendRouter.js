@@ -1,20 +1,13 @@
 import { Router } from "express";
 import db from "../database/createConnection.js";
 import { sendError } from "../errors.js";
+import { requireSession } from "./requireSession.js";
 import { validateBody } from "../validate.js";
 import { friendRequestSchema, friendAnswerSchema } from "../schemas.js";
 import { onlineUserIds, whereIs } from "../socketios/presence.js";
 import * as friends from "../services/friendService.js";
 
 const router = Router();
-
-const requireSession = (message) => (req, res, next) => {
-    if (!req.session.loggedIn) {
-        sendError(res, "UNAUTHENTICATED", message);
-        return;
-    }
-    next();
-};
 
 /** Load the friendship named in the path, or answer for its absence. */
 async function loadFriendship(req, res) {
