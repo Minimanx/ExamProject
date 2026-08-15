@@ -79,6 +79,12 @@ async function leaveTheater(socket, io) {
         username: "System",
         color: "#646464",
     });
+
+    // The strip shows how many seats each theater has left, and one has just
+    // come back. Said from here, where the seat is actually freed, rather than
+    // from every disconnect — which announced a change on connections that had
+    // never been in a theater, and stayed silent when someone walked out of one.
+    io.emit("newTheaterAdded");
     socket.request.session.theater = undefined;
     socket.request.session.save();
 }

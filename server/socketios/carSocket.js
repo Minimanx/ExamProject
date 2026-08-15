@@ -136,6 +136,20 @@ function reconcileInterest(io, socket, position) {
     socket.data.visibleTo = visible;
 }
 
+/**
+ * Send to everyone who can currently see this player, and nobody else.
+ *
+ * The instance room is the wrong audience for anything about one car. It is
+ * everyone in the hub, most of whom have never been told this car exists — so
+ * they discard the message — while the point of interest management is that
+ * they are not told in the first place.
+ */
+function emitToWatchers(io, socket, event, payload) {
+    for (const watcherId of socket.data.visibleTo ?? []) {
+        io.sockets.sockets.get(watcherId)?.emit(event, payload);
+    }
+}
+
 /** Take a player out of the world and tell whoever could see them. */
 function forgetPlayer(io, socket) {
     for (const watcherId of socket.data.visibleTo ?? []) {
@@ -145,10 +159,6 @@ function forgetPlayer(io, socket) {
     }
     worldGrid.remove(socket.id);
     socket.data.visibleTo = new Set();
-}
-
-function withinEarshot(a, b) {
-    return Math.hypot(a.x - b.x, a.y - b.y) <= PROXIMITY_RADIUS;
 }
 
 /** Car events are only meaningful from a logged-in player. See defect S4. */
@@ -206,11 +216,12 @@ const socket = (io) => {
             // Only the players who can see this one: the exit criterion for this
             // phase is precisely that a client receives nothing for players it
             // cannot see.
-            for (const watcherId of socket.data.visibleTo) {
-                io.sockets.sockets
-                    .get(watcherId)
-                    ?.emit("newCarPosition", { id: socket.id, coords, direction, screen });
-            }
+            emitToWatchers(io, socket, "newCarPosition", {
+                id: socket.id,
+                coords,
+                direction,
+                screen,
+            });
         });
 
         /**
@@ -253,9 +264,14 @@ const socket = (io) => {
             socket.emit("positionCorrection", { x: arrival.x, y: arrival.y });
         });
 
-        socket.on("hubMessage", async ({ text } = {}) => {
+        socket.on("hubMessage", ({ text } = {}) => {
             if (!isAuthenticated(socket)) return;
             if (typeof text !== "string") return;
+
+            // Standing in the hub is what makes a speech bubble mean anything.
+            // Someone who has walked into a theater has left the world — their
+            // car is gone from it — so they neither speak into it nor hear it.
+            if (instanceRoom(socket) === null) return;
 
             const message = text.trim();
             if (!message || message.length > MAX_MESSAGE_LENGTH) return;
@@ -281,11 +297,15 @@ const socket = (io) => {
 
             // The speaker is included: otherwise you cannot tell whether what
             // you said went out at all.
-            for (const listener of await io.fetchSockets()) {
-                const listenerAt = listener.data.worldPosition;
-                if (listenerAt && withinEarshot(speakerAt, listenerAt)) {
-                    listener.emit("newHubMessage", payload);
-                }
+            socket.emit("newHubMessage", payload);
+
+            // Asked of the grid rather than by walking every socket on the
+            // server and measuring each one. The grid holds exactly the players
+            // who are in the world, which is both the faster question and the
+            // right one — the sweep it replaces also reached people sitting
+            // inside a theater, who still carried the position they parked at.
+            for (const listenerId of worldGrid.near(speakerAt, PROXIMITY_RADIUS, socket.id)) {
+                io.sockets.sockets.get(listenerId)?.emit("newHubMessage", payload);
             }
         });
 
@@ -317,18 +337,29 @@ const socket = (io) => {
             }
         });
 
+        // Both of these keep socket.data.car in step. It is the only record of
+        // what a car looks like once the carJoined that described it is gone, so
+        // leaving it at the joining description meant repainting your car out of
+        // sight and then driving over in the old colour.
         socket.on("carUpdate", ({ name, color }) => {
             if (!isAuthenticated(socket)) return;
-            const room = instanceRoom(socket);
-            if (room === null) return;
-            socket.to(room).emit("newCarUpdate", { id: socket.id, name, color });
+            if (instanceRoom(socket) === null) return;
+
+            if (socket.data.car) {
+                socket.data.car.name = name;
+                socket.data.car.color = color;
+            }
+            emitToWatchers(io, socket, "newCarUpdate", { id: socket.id, name, color });
         });
 
         socket.on("colorChanged", ({ color }) => {
             if (!isAuthenticated(socket)) return;
-            const room = instanceRoom(socket);
-            if (room === null) return;
-            socket.to(room).emit("newColorChanged", { id: socket.id, color });
+            if (instanceRoom(socket) === null) return;
+
+            if (socket.data.car) {
+                socket.data.car.color = color;
+            }
+            emitToWatchers(io, socket, "newColorChanged", { id: socket.id, color });
         });
 
         socket.on("theaterAdded", () => {
@@ -354,8 +385,10 @@ const socket = (io) => {
         socket.on("disconnect", () => {
             forgetPlayer(io, socket);
             hub.leave(socket.id);
-            // The strip is shared by everyone, instanced or not.
-            io.emit("newTheaterAdded");
+            // Deliberately does not announce the strip as changed. A disconnect
+            // is not a change to it; freeing a seat is, and chatSocket says so
+            // from the code that frees one. Announcing it here made every closed
+            // tab cost a listing request from every connected client.
         });
     });
 };
