@@ -6,6 +6,7 @@
     import { user, reconcileSession } from "../stores/userStore.js";
     import TheatersListView from "../components/TheatersListView.svelte";
     import FriendsScreen from "../components/FriendsScreen.svelte";
+    import ClubsScreen from "../components/ClubsScreen.svelte";
     import SpeechBubble from "../art/SpeechBubble.svelte";
     import CreateEventScreen from "../components/CreateEventScreen.svelte";
     import { playerMovement } from "../stores/stateManagementStore.js";
@@ -205,6 +206,7 @@
     let canvasLength = $state(1000);
     let createEventBool = $state(false);
     let friendsBool = $state(false);
+    let clubsBool = $state(false);
     let aboutPageBool = $state(false);
     // Not read by the template, but highestPosition derives from it — a $derived
     // only recomputes when its reactive dependencies change, so this must be
@@ -540,6 +542,9 @@
             {#if friendsBool === true}
                 <FriendsScreen bind:friendsBool {socket} />
             {/if}
+            {#if clubsBool === true}
+                <ClubsScreen bind:clubsBool />
+            {/if}
             <button class="menuButton" id="addTheaterButton" onclick={createEvent}
                 >Create Event</button
             >
@@ -547,6 +552,9 @@
             >
             <button class="menuButton" id="friendsButton" onclick={() => (friendsBool = true)}
                 >Friends</button
+            >
+            <button class="menuButton" id="clubsButton" onclick={() => (clubsBool = true)}
+                >Clubs</button
             >
         </div>
     </div>
@@ -632,10 +640,17 @@
        reserves room for both. */
     #friendsButton {
         font-size: 20px;
+        right: 253px;
+        bottom: 64px;
+        height: 56px;
+        width: 235px;
+    }
+    #clubsButton {
+        font-size: 20px;
         right: 10px;
         bottom: 64px;
         height: 56px;
-        width: 478px;
+        width: 235px;
     }
     #addTheaterButton {
         font-size: 20px;

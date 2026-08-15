@@ -361,6 +361,11 @@ receives position updates for players it can see.~~ **MET 2026-08-11.**
 **Exit criteria:** ~~a club can hold a recurring film night with a stable membership and a
 public page.~~ **MET 2026-08-11.**
 
+**Interface, added 2026-08-15.** The club work above shipped as seven endpoints with
+nothing calling them: no way to create a club, browse, join or leave, and a public page
+reachable only by someone who already had the slug — the opposite of discovery. There is
+now an in-app panel and a public `/clubs` directory, both tested end to end.
+
 **Not built:** club-owned spaces and club history. Both depend on a club owning theaters,
 which is Phase 8's entitlement work — a club's right to hold a space is exactly the kind of
 thing the spec says must be server-enforced from an entitlements service rather than

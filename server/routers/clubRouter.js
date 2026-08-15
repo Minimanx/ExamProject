@@ -55,6 +55,11 @@ router.get("/clubs", async (req, res) => {
     res.status(200).send({ data: await clubs.listPublic() });
 });
 
+// Declared before /clubs/:slug, which would otherwise swallow "mine" as a slug.
+router.get("/clubs/mine", requireSession("Must be logged in"), async (req, res) => {
+    res.status(200).send({ data: await clubs.listFor(req.session.userID.toString()) });
+});
+
 router.get("/clubs/:slug", async (req, res) => {
     const club = await clubs.findBySlug(req.params.slug);
     if (club === null) {

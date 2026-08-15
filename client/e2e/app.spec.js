@@ -564,6 +564,107 @@ test("adding a friend, from request through to accepted", async ({ browser }) =>
     }
 });
 
+// Clubs had seven endpoints and no interface: no way to create one, browse
+// them, join or leave. The public page existed but could only be reached by
+// somebody who already had the slug, which is the opposite of discovery.
+test("a club can be started, found and joined without leaving the app", async ({ browser }) => {
+    const founderContext = await contextWithOwnBucket(browser);
+    const joinerContext = await contextWithOwnBucket(browser);
+    try {
+        const founder = {
+            email: `founder-${RUN}@example.com`,
+            username: `founder${RUN}`,
+            password: "password123",
+        };
+        const page = await founderContext.newPage();
+        await page.request.post(`${API}/users`, {
+            data: { ...founder, passwordRepeat: founder.password },
+            failOnStatusCode: false,
+        });
+        await logInOn(page, founder);
+
+        await page.getByRole("button", { name: "Clubs" }).click();
+        await expect(page.getByText("You are not in a club yet.")).toBeVisible();
+
+        await page.getByRole("button", { name: "Start a club" }).click();
+        await page.locator('input[name="clubName"]').fill(`Tuesday Westerns ${RUN}`);
+        await page.locator('input[name="clubDescription"]').fill("Horses, dust, silence.");
+        await page.locator('select[name="clubWeekday"]').selectOption("2");
+        await page.locator('input[name="clubTime"]').fill("19:30");
+        await page.getByRole("button", { name: "Create club" }).click();
+
+        await expect(page.getByText(`Tuesday Westerns ${RUN}`)).toBeVisible();
+        await expect(page.getByText("Tuesdays at 19:30", { exact: false })).toBeVisible();
+
+        // Someone else finds it in the same panel and joins.
+        const joinerPage = await joinerContext.newPage();
+        await logInOn(joinerPage, MOVER);
+        await joinerPage.getByRole("button", { name: "Clubs" }).click();
+
+        const row = joinerPage
+            .locator("li")
+            .filter({ hasText: `Tuesday Westerns ${RUN}` })
+            .first();
+        await row.getByRole("button", { name: "Join" }).click();
+
+        // It moves from "open to join" into "yours", as a member.
+        await expect(joinerPage.getByText("member", { exact: false }).first()).toBeVisible();
+        await expect(row.getByRole("button", { name: "Leave" })).toBeVisible();
+
+        // The sole owner is offered Delete rather than Leave: the server always
+        // refuses to let the last owner go, so the other button never works.
+        const ownersRow = page
+            .locator("li")
+            .filter({ hasText: `Tuesday Westerns ${RUN}` })
+            .first();
+        await expect(ownersRow.getByRole("button", { name: "Delete" })).toBeVisible();
+        await expect(ownersRow.getByRole("button", { name: "Leave" })).toHaveCount(0);
+
+        // And the club states its schedule without repeating the reader's own
+        // timezone back at them.
+        await expect(page.getByText("Tuesdays at 19:30", { exact: true })).toBeVisible();
+    } finally {
+        await founderContext.close();
+        await joinerContext.close();
+    }
+});
+
+// The directory is the other half of discovery: a page worth linking to that
+// lists what is on, rendered by the server so it means something to whatever
+// fetches it first.
+test("the public club directory lists clubs and links to them", async ({ page, request }) => {
+    const owner = {
+        email: `directory-${RUN}@example.com`,
+        username: `direct${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...owner, passwordRepeat: owner.password },
+        failOnStatusCode: false,
+    });
+    await logIn(page, owner);
+    const created = await page.request.post(`${API}/clubs`, {
+        data: {
+            name: `Directory Club ${RUN}`,
+            description: "Listed for all to see.",
+            isPublic: true,
+            schedule: { weekday: 5, hour: 21, minute: 0, timeZone: "Europe/Copenhagen" },
+        },
+        failOnStatusCode: false,
+    });
+    const { slug } = (await created.json()).data;
+
+    const html = await (await page.request.get("/clubs")).text();
+    expect(html).toContain(`Directory Club ${RUN}`);
+    expect(html).toContain("Fridays at 21:00");
+
+    await page.goto("/clubs");
+    await page.getByRole("link", { name: `Directory Club ${RUN}` }).click();
+
+    await expect(page).toHaveURL(new RegExp(`/clubs/${slug}$`));
+    await expect(page.getByRole("heading", { name: `Directory Club ${RUN}` })).toBeVisible();
+});
+
 // Phase 5: the spec named club discovery as "where SvelteKit's SSR starts paying
 // rent". A page that only renders once JavaScript runs is worth nothing to
 // whatever fetches a shared link first, so what matters is that the HTML the

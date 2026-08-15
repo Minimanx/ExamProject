@@ -150,6 +150,10 @@ export async function present(club) {
         slug: club.slug,
         description: club.description,
         isPublic: club.isPublic,
+        // Both: the sentence for anything that cannot compute one (a crawler
+        // reading the page's HTML), and the parts, so a client that knows the
+        // reader's own timezone can leave it out when it matches.
+        schedule: club.schedule ?? null,
         scheduleText: describeSchedule(club.schedule ?? null),
         nextMeeting: club.schedule ? nextOccurrence(club.schedule).toISOString() : null,
         members: memberships.map((row) => ({
@@ -158,6 +162,34 @@ export async function present(club) {
             role: row.role,
         })),
     };
+}
+
+/**
+ * The clubs one person belongs to, with their standing in each.
+ *
+ * A separate question from the directory: that answers "what exists", and a
+ * member needs "where do I belong" without reading every club's roster to work
+ * it out. Private clubs they are in are included — being a member is what makes
+ * one visible, not it being public.
+ */
+export async function listFor(userID) {
+    const memberships = await db.clubMembers.find({ userID }).toArray();
+    if (memberships.length === 0) {
+        return [];
+    }
+
+    const roleOf = new Map(memberships.map((row) => [row.clubID, row.role]));
+    const clubs = await db.clubs
+        .find({ _id: { $in: memberships.map((row) => new ObjectId(row.clubID)) } })
+        .sort({ createdAt: 1 })
+        .toArray();
+
+    return Promise.all(
+        clubs.map(async (club) => ({
+            ...(await present(club)),
+            myRole: roleOf.get(club._id.toString()),
+        }))
+    );
 }
 
 export async function listPublic() {

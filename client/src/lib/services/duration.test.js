@@ -1,5 +1,6 @@
 import { describe, it, expect } from "vitest";
 import { formatDuration, formatTimeOfDay } from "./duration.js";
+import { describeMeeting } from "./clubSchedule.js";
 
 // DEFECT C2 (roadmap spec §5): the three countdowns in InsideTheater.svelte
 // each turned a duration into hh:mm:ss by constructing `new Date(duration)` —
@@ -86,5 +87,39 @@ describe("formatTimeOfDay", () => {
 
     it("renders nothing rather than 'Invalid Date' for a missing time", () => {
         expect(formatTimeOfDay(undefined)).toBe("");
+    });
+});
+
+// A club's schedule is stated in its own timezone, which is what makes it mean
+// the same thing after the clocks change. Naming that zone is essential when it
+// is not the reader's and noise when it is — "Tuesdays at 19:30
+// (Europe/Copenhagen)" tells a Copenhagen reader nothing they did not know, and
+// costs a line of wrapping to say it.
+describe("describeMeeting", () => {
+    const schedule = { weekday: 2, hour: 19, minute: 30, timeZone: "Europe/Copenhagen" };
+
+    it("leaves out the zone when it is the reader's own", () => {
+        expect(describeMeeting(schedule, "Europe/Copenhagen")).toBe("Tuesdays at 19:30");
+    });
+
+    it("names the zone when it is somewhere else", () => {
+        expect(describeMeeting(schedule, "America/New_York")).toBe(
+            "Tuesdays at 19:30 (Europe/Copenhagen)"
+        );
+    });
+
+    it("pads a single-digit hour and minute", () => {
+        expect(describeMeeting({ ...schedule, hour: 9, minute: 5 }, "Europe/Copenhagen")).toBe(
+            "Tuesdays at 09:05"
+        );
+    });
+
+    it("says so when there is no regular meeting", () => {
+        expect(describeMeeting(null, "Europe/Copenhagen")).toBe("No regular meeting");
+    });
+
+    // A zone it cannot resolve is not a reason to render nothing.
+    it("falls back to naming the zone when the reader's is unknown", () => {
+        expect(describeMeeting(schedule, undefined)).toBe("Tuesdays at 19:30 (Europe/Copenhagen)");
     });
 });

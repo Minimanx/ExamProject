@@ -336,6 +336,29 @@ describe("reading a club", () => {
         expect(JSON.stringify(response.body)).not.toContain(owner.user.email);
     });
 
+    // The directory is the discovery surface: without it a club page can only be
+    // reached by someone who already has the link.
+    it("tells the directory when each club next meets", async () => {
+        const owner = await loggedIn();
+        await clubOwnedBy(owner);
+
+        const response = await request(app).get("/clubs");
+
+        expect(response.body.data[0].scheduleText).toContain("Thursdays at 20:00");
+        expect(new Date(response.body.data[0].nextMeeting).getTime()).toBeGreaterThan(Date.now());
+    });
+
+    it("tells the directory how many members each club has", async () => {
+        const owner = await loggedIn();
+        const joiner = await loggedIn();
+        const club = await clubOwnedBy(owner);
+        await joiner.agent.post(`/clubs/${club.id}/members`).send({});
+
+        const response = await request(app).get("/clubs");
+
+        expect(response.body.data[0].members).toHaveLength(2);
+    });
+
     it("lists public clubs, and only public ones", async () => {
         const owner = await loggedIn();
         await clubOwnedBy(owner, { name: "Open Club" });
@@ -346,5 +369,50 @@ describe("reading a club", () => {
 
         expect(response.status).toBe(200);
         expect(response.body.data.map((club) => club.name)).toEqual(["Open Club"]);
+    });
+});
+
+// Which clubs you are in is its own question — the directory answers "what
+// exists", and a member needs "where do I belong" without reading every club's
+// roster to find out.
+describe("my clubs", () => {
+    it("lists the clubs I am in, with my role in each", async () => {
+        const me = await loggedIn();
+        const other = await loggedIn();
+        const mine = await clubOwnedBy(me, { name: "Mine" });
+        const theirs = await clubOwnedBy(other, { name: "Theirs" });
+        await me.agent.post(`/clubs/${theirs.id}/members`).send({});
+
+        const response = await me.agent.get("/clubs/mine");
+
+        expect(response.status).toBe(200);
+        const byName = Object.fromEntries(
+            response.body.data.map((club) => [club.name, club.myRole])
+        );
+        expect(byName).toEqual({ Mine: "owner", Theirs: "member" });
+        expect(mine.id).toBeTruthy();
+    });
+
+    it("includes a private club I belong to", async () => {
+        const me = await loggedIn();
+        await clubOwnedBy(me, { name: "Secret", isPublic: false });
+
+        const response = await me.agent.get("/clubs/mine");
+
+        expect(response.body.data.map((club) => club.name)).toEqual(["Secret"]);
+    });
+
+    it("is empty for someone in no clubs", async () => {
+        const me = await loggedIn();
+
+        const response = await me.agent.get("/clubs/mine");
+
+        expect(response.body.data).toEqual([]);
+    });
+
+    it("requires a session", async () => {
+        const response = await request(app).get("/clubs/mine");
+
+        expect(response.status).toBe(401);
     });
 });
