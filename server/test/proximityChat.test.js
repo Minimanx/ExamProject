@@ -576,6 +576,121 @@ describe("spatial interest management", () => {
         }
     });
 
+    // Everything a car does, not just where it is. Repainting a car and renaming
+    // one went to the whole instance, so a client was told about the appearance
+    // of cars it had never been told existed — and would be told about again,
+    // from scratch, if it ever drove close enough to see one.
+    it("does not send a colour change from someone across the world", async () => {
+        const watcher = await joinAt(0);
+        const distant = await joinAt(6000);
+
+        try {
+            const seen = await collect(watcher, "newColorChanged", () => {
+                distant.emit("colorChanged", { color: "#ff0000" });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            watcher.close();
+            distant.close();
+        }
+    });
+
+    it("sends a colour change from someone nearby", async () => {
+        const watcher = await joinAt(0);
+        const neighbour = await joinAt(200);
+
+        try {
+            const seen = await collect(watcher, "newColorChanged", () => {
+                neighbour.emit("colorChanged", { color: "#ff0000" });
+            });
+
+            expect(seen.map((change) => change.color)).toEqual(["#ff0000"]);
+        } finally {
+            watcher.close();
+            neighbour.close();
+        }
+    });
+
+    it("does not send a name change from someone across the world", async () => {
+        const watcher = await joinAt(0);
+        const distant = await joinAt(6000);
+
+        try {
+            const seen = await collect(watcher, "newCarUpdate", () => {
+                distant.emit("carUpdate", { name: "far away", color: "#00ff00" });
+            });
+
+            expect(seen).toEqual([]);
+        } finally {
+            watcher.close();
+            distant.close();
+        }
+    });
+
+    it("sends a name change from someone nearby", async () => {
+        const watcher = await joinAt(0);
+        const neighbour = await joinAt(200);
+
+        try {
+            const seen = await collect(watcher, "newCarUpdate", () => {
+                neighbour.emit("carUpdate", { name: "next door", color: "#00ff00" });
+            });
+
+            expect(seen.map((change) => change.name)).toEqual(["next door"]);
+        } finally {
+            watcher.close();
+            neighbour.close();
+        }
+    });
+
+    // A car is described from what the server remembers of it, which was
+    // whatever it looked like when it joined. Repaint it out of sight and drive
+    // over, and you arrived in the old colour: the change had been broadcast to
+    // people who had never heard of your car and discarded it, and the
+    // description they were finally given still said blue.
+    it("describes a car by its current colour when it comes into view", async () => {
+        const watcher = await joinAt(0);
+        const arriving = await joinAt(1400);
+
+        try {
+            arriving.emit("colorChanged", { color: "#123456" });
+            await new Promise((r) => setTimeout(r, 100));
+
+            const seen = [];
+            watcher.on("newCarJoined", (payload) => seen.push(payload));
+            await driveTo(arriving, 1400, 700);
+            watcher.off("newCarJoined");
+
+            expect(seen.length).toBeGreaterThan(0);
+            expect(seen.at(-1).color).toBe("#123456");
+        } finally {
+            watcher.close();
+            arriving.close();
+        }
+    });
+
+    it("describes a car by its current name when it comes into view", async () => {
+        const watcher = await joinAt(0);
+        const arriving = await joinAt(1400);
+
+        try {
+            arriving.emit("carUpdate", { name: "renamed", color: "#654321" });
+            await new Promise((r) => setTimeout(r, 100));
+
+            const seen = [];
+            watcher.on("newCarJoined", (payload) => seen.push(payload));
+            await driveTo(arriving, 1400, 700);
+            watcher.off("newCarJoined");
+
+            expect(seen.length).toBeGreaterThan(0);
+            expect(seen.at(-1).name).toBe("renamed");
+        } finally {
+            watcher.close();
+            arriving.close();
+        }
+    });
+
     // Without this the car simply never appears: a client is told about people
     // present when it joined and nobody who arrives later.
     it("announces someone who drives into view", async () => {

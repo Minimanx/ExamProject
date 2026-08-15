@@ -405,9 +405,13 @@
         const { data } = await response.json();
         theaters = data;
 
-        occupiedSlots = theaters.length
-            ? [...theaters].sort((a, b) => b.position - a.position)[0].position + 1
-            : 0;
+        // The furthest slot in use, which is how far the world has to reach.
+        // Copying the whole listing and sorting it to read one end was a long
+        // way round to a maximum, and it had to special-case the empty strip.
+        occupiedSlots = theaters.reduce(
+            (furthest, theater) => Math.max(furthest, theater.position + 1),
+            0
+        );
         theatersLoaded = true;
 
         if (screenScrollAmount > maxScroll) {
