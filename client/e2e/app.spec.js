@@ -240,6 +240,65 @@ test("logging in with a wrong password shows an error and keeps the form usable"
     await expect(page.locator(".blackedout")).toHaveCount(1);
 });
 
+// If the listing request fails, nothing ever set `theatersLoaded`, so the app
+// sat on its loading spinner forever — no message, no retry, no indication that
+// anything had gone wrong. A server hiccup became a permanently broken tab.
+test("a failed load says so instead of spinning forever", async ({ page }) => {
+    await page.route("**/theaters", (route) =>
+        route.fulfill({ status: 500, contentType: "application/json", body: "{}" })
+    );
+
+    await page.goto("/");
+
+    await expect(page.getByText(/could not reach/i)).toBeVisible({ timeout: 15000 });
+    await expect(page.getByRole("button", { name: /try again/i })).toBeVisible();
+});
+
+test("the retry button actually retries", async ({ page }) => {
+    let failNext = true;
+    await page.route("**/theaters", (route) => {
+        if (failNext) {
+            failNext = false;
+            return route.fulfill({ status: 500, contentType: "application/json", body: "{}" });
+        }
+        return route.continue();
+    });
+
+    await page.goto("/");
+    await expect(page.getByRole("button", { name: /try again/i })).toBeVisible({ timeout: 15000 });
+
+    await page.getByRole("button", { name: /try again/i }).click();
+
+    await expect(page.locator(".containerInteractiveSpace")).toBeVisible({ timeout: 15000 });
+});
+
+// The login overlay stops the mouse, because it is a box on top of everything.
+// It does nothing about the keyboard: tab out of the password field and you land
+// in the hub chat behind it, type a message, press Enter, and nothing happens
+// with no explanation. The logout button is back there too.
+test("nothing behind the login overlay can be reached by keyboard", async ({ page }) => {
+    await page.goto("/");
+    await expect(page.locator(".blackedout")).toHaveCount(1);
+
+    const reachable = await page.evaluate(() => {
+        const login = document.querySelector('input[name="email"]').closest("div");
+        return [
+            ...document.querySelectorAll(
+                'a[href], button, input, select, textarea, [tabindex]:not([tabindex="-1"])'
+            ),
+        ]
+            .filter((el) => {
+                const rect = el.getBoundingClientRect();
+                if (rect.width === 0 || rect.height === 0) return false;
+                // `inert` removes a subtree from the tab order entirely.
+                return !el.closest("[inert]") && !login.contains(el);
+            })
+            .map((el) => el.name || el.id || el.tagName);
+    });
+
+    expect(reachable).toEqual([]);
+});
+
 // The client keeps "am I logged in" in localStorage, which outlives the session
 // it describes. Without checking, the app renders the entire world for somebody
 // the server does not know — driving around, typing into a chat that goes
@@ -322,16 +381,18 @@ test("driving for a while is not fought by the server", async ({ page }) => {
 test("driving diagonally is not fought by the server either", async ({ page }) => {
     await logIn(page);
 
-    const worldPosition = async () => {
-        const style = await page.locator(".playerCar").getAttribute("style");
-        const scroll = await page.locator(".world").getAttribute("style");
-        return {
-            x:
-                Number(style.match(/translate3d\((-?[\d.]+)px/)[1]) -
-                Number(scroll.match(/translate3d\((-?[\d.]+)px/)[1]),
-            y: Number(style.match(/translate3d\(-?[\d.]+px,\s*(-?[\d.]+)px/)[1]),
-        };
-    };
+    // Both read in one evaluate. Fetching them as two separate calls lets a
+    // frame land in between, so the car's position and the world's scroll
+    // describe different instants — and their difference shows a jump that
+    // never happened. That made this test fail about one run in four.
+    const worldPosition = () =>
+        page.evaluate(() => {
+            const car = document.querySelector(".playerCar").getAttribute("style");
+            const world = document.querySelector(".world").getAttribute("style");
+            const at = (style, group) =>
+                Number(style.match(/translate3d\((-?[\d.]+)px,\s*(-?[\d.]+)px/)[group]);
+            return { x: at(car, 1) - at(world, 1), y: at(car, 2) };
+        });
 
     // Sampled rather than measured end to end. Net distance is a bad detector:
     // a refused proposal leaves the server where it was, so the next one has a

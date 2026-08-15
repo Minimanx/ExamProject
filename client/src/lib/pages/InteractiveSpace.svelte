@@ -211,6 +211,12 @@
     // $state or the world would never grow past its initial size.
     let occupiedSlots = $state(0);
     let theatersLoaded = $state(false);
+    // A failed load used to leave `theatersLoaded` false forever, so the app sat
+    // on its spinner with no message and no way out — a server hiccup became a
+    // permanently broken tab.
+    let loadFailed = $state(false);
+    /** Set once the scene mounts, so the failure screen has something to call. */
+    let retryLoad;
     // The world is highestPosition * 400px wide and every slot draws its own
     // stretch of beach, road and rocks, so it must span at least the visible
     // scene or the ground runs out and bare water shows through. Derived rather
@@ -240,6 +246,7 @@
 
         let active = true;
         async function initialize() {
+            loadFailed = false;
             // Before anything else: a stored session that the server no longer
             // recognises would otherwise render a world nobody else can see us in.
             await reconcileSession(apiFetch);
@@ -255,7 +262,14 @@
                 );
             }
         }
-        initialize().catch((err) => console.error("Failed to initialize theaters", err));
+        function load() {
+            initialize().catch((err) => {
+                console.error("Failed to initialize theaters", err);
+                if (active) loadFailed = true;
+            });
+        }
+        retryLoad = load;
+        load();
 
         let previousFrame = performance.now();
         let animationFrameId;
@@ -373,6 +387,10 @@
 
     async function getTheaters() {
         const response = await apiFetch("/theaters");
+        if (!response.ok) {
+            throw new Error(`The listing answered ${response.status}`);
+        }
+
         const { data } = await response.json();
         theaters = data;
 
@@ -414,7 +432,12 @@
         <div class="container blackedout"></div>
     {/if}
 
-    <div class="container">
+    <!-- `inert` while the login overlay is up. The overlay is a box on top, which
+         stops the mouse and does nothing about the keyboard — tab out of the
+         password field and you land in the hub chat behind it, typing into
+         something the server ignores. inert takes the whole subtree out of the
+         tab order, out of hit testing, and out of the accessibility tree. -->
+    <div class="container" inert={$user.loggedIn === false}>
         <div class="containerInteractiveSpace">
             <Skyline />
             <div class="waterExtension" aria-hidden="true"></div>
@@ -527,6 +550,14 @@
             >
         </div>
     </div>
+{:else if loadFailed}
+    <div class="loadingScreen" role="alert">
+        <div class="loadFailure">
+            <p>Could not reach FlixDrive.</p>
+            <p class="detail">It may be down, or the connection dropped.</p>
+            <button class="menuButton retryButton" onclick={() => retryLoad?.()}>Try again</button>
+        </div>
+    </div>
 {:else}
     <div class="loadingScreen" role="status" aria-label="Loading">
         <div class="loadingBars">
@@ -536,6 +567,36 @@
 {/if}
 
 <style>
+    .loadFailure {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 12px;
+        padding: 32px;
+        background-color: rgb(241, 241, 241);
+        border: 3px solid rgb(27, 27, 27);
+        text-align: center;
+    }
+
+    .loadFailure p {
+        margin: 0;
+        font-size: 16px;
+    }
+
+    .loadFailure .detail {
+        font-size: 12px;
+        color: rgb(100, 100, 100);
+    }
+
+    /* Static rather than fixed: this one belongs in the box, not pinned to a
+       corner of the panel like the rest of them. */
+    .retryButton {
+        position: static;
+        height: 56px;
+        width: 220px;
+        font-size: 18px;
+    }
+
     .loadingScreen {
         position: fixed;
         inset: 0;

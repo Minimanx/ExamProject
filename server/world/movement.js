@@ -39,6 +39,24 @@ export const WORLD = {
  */
 const SPEED_TOLERANCE = 1.35;
 
+/**
+ * How much unspent travel time a player may carry forward.
+ *
+ * The limit is a budget over time, and a client's frames never line up with the
+ * server's clock. The first report after joining is the worst case: the server
+ * stamped its arrival, the client had already been integrating frames locally,
+ * and the difference is charged against a budget that has barely begun to
+ * accrue. A slow connection has the same shape — fewer reports, each covering
+ * more ground.
+ *
+ * Charging only for the time a movement actually needed lets the unused
+ * remainder carry over, which absorbs that jitter. Capping the carry-over is
+ * what stops it becoming a stored teleport: stand still for a minute and you
+ * still have only this much saved up — a second's worth, which is a third of
+ * one theater lot, not a way across the world.
+ */
+const MAX_BANKED_SECONDS = 1;
+
 /** Whether a proposal is even a pair of coordinates. */
 function isPosition(value) {
     return (
@@ -75,7 +93,11 @@ export function acceptMove(from, proposed, now) {
     // The stamp is the server's own clock, so this is not a client lying about
     // time — it is a reordered or duplicated message, which cannot be allowed to
     // make the travel budget negative.
-    const elapsedSeconds = (now - from.at) / 1000;
+    //
+    // `from.at` is the moment up to which travel has been paid for, not the last
+    // time a message arrived. Clamping it forward is what bounds the carry-over.
+    const bankedFrom = Math.max(from.at, now - MAX_BANKED_SECONDS * 1000);
+    const elapsedSeconds = (now - bankedFrom) / 1000;
     if (elapsedSeconds < 0) {
         return { accepted: false, position: from };
     }
@@ -87,5 +109,11 @@ export function acceptMove(from, proposed, now) {
         return { accepted: false, position: from };
     }
 
-    return { accepted: true, position: { x: proposed.x, y: proposed.y, at: now } };
+    // Charged for the time this movement needed rather than everything elapsed,
+    // so an unspent remainder carries forward and covers the next late report.
+    const spentSeconds = travelled / (WORLD.speedPerSecond * SPEED_TOLERANCE);
+    return {
+        accepted: true,
+        position: { x: proposed.x, y: proposed.y, at: bankedFrom + spentSeconds * 1000 },
+    };
 }

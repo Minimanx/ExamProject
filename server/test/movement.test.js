@@ -15,7 +15,8 @@ describe("acceptMove", () => {
         // 250 px/s for 100ms is 25px.
         const result = acceptMove(from, { x: 120, y: 600 }, from.at + 100);
 
-        expect(result).toEqual({ accepted: true, position: { x: 120, y: 600, at: from.at + 100 } });
+        expect(result.accepted).toBe(true);
+        expect(result.position).toMatchObject({ x: 120, y: 600 });
     });
 
     it("refuses a jump across the world", () => {
@@ -71,12 +72,6 @@ describe("acceptMove", () => {
         expect(result.accepted).toBe(false);
     });
 
-    it("accepts the very edge of the road", () => {
-        const atEdge = { x: 100, y: WORLD.minY };
-
-        expect(acceptMove(from, atEdge, from.at + 1000).accepted).toBe(true);
-    });
-
     it.each([
         ["a string", { x: "100", y: 600 }],
         ["a missing axis", { x: 100 }],
@@ -107,8 +102,70 @@ describe("acceptMove", () => {
         expect(result.position).toMatchObject({ x: 900, y: 600 });
     });
 
+    it("accepts the very edge of the road", () => {
+        const atEdge = { x: 100, y: WORLD.minY };
+
+        expect(acceptMove(from, atEdge, from.at + 1000).accepted).toBe(true);
+    });
+
     it("still bounds a first move to the world", () => {
         const result = acceptMove(null, { x: 900, y: 5 }, 1_000_000);
+
+        expect(result.accepted).toBe(false);
+    });
+});
+
+// The limit is a budget over time, and a client's frames never line up with the
+// server's clock. The first report after joining is the worst case: the server
+// stamped its arrival, the client had already been integrating frames, and the
+// difference is charged against a budget that has barely started accruing.
+//
+// A player on a slow connection sends less often and further, which is the same
+// shape. Refusing those is the rubber-banding this limit exists to prevent, but
+// aimed at honest players.
+describe("acceptMove absorbs timing jitter", () => {
+    const from = { x: 100, y: 600, at: 1_000_000 };
+
+    it("accepts a step whose travel is covered by time already banked", () => {
+        // 300ms of accrued budget spent in one late report: 75px.
+        const result = acceptMove(from, { x: 170, y: 600 }, from.at + 300);
+
+        expect(result.accepted).toBe(true);
+    });
+
+    // The budget is time, so spending it leaves less. Carrying a remainder
+    // forward must not add up to a faster car — what it buys is tolerance of
+    // when the reports arrive, not extra ground.
+    it("holds sustained speed to the limit however the reports are spaced", () => {
+        let at = { ...from };
+
+        // Five seconds of asking for three times the speed, in 100ms reports.
+        for (let i = 1; i <= 50; i++) {
+            const result = acceptMove(at, { x: at.x + 75, y: 600 }, from.at + i * 100);
+            at = result.position;
+        }
+
+        const travelled = at.x - from.x;
+        const seconds = 5;
+        const achieved = travelled / seconds;
+
+        // The limit plus its jitter allowance, and nothing like the 750 px/s asked for.
+        expect(achieved).toBeLessThanOrEqual(250 * 1.35 + 1);
+    });
+
+    // Otherwise standing still for a minute buys a teleport across the world.
+    it("does not bank unlimited credit while standing still", () => {
+        const parked = { x: 100, y: 600, at: 1_000_000 };
+
+        const result = acceptMove(parked, { x: 5000, y: 600 }, parked.at + 60_000);
+
+        expect(result.accepted).toBe(false);
+    });
+
+    it("banks at most a short burst", () => {
+        const parked = { x: 100, y: 600, at: 1_000_000 };
+        // A second of accrued budget is 250px; well over that must still fail.
+        const result = acceptMove(parked, { x: 1200, y: 600 }, parked.at + 60_000);
 
         expect(result.accepted).toBe(false);
     });
