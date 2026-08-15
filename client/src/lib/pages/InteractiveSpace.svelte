@@ -11,6 +11,7 @@
     import CreateEventScreen from "../components/CreateEventScreen.svelte";
     import { playerMovement } from "../stores/stateManagementStore.js";
     import { stepFor } from "../services/driving.js";
+    import { viewFor } from "../services/view.js";
     import AboutPage from "../components/AboutPage.svelte";
     import { page } from "$app/state";
     import { Pulse } from "svelte-loading-spinners";
@@ -35,11 +36,16 @@
                         direction: direction,
                     },
                 };
-                cars = cars;
             }
         }
     }
 
+    // Deliberately does not answer with our own car. Coming into view is
+    // symmetric and the server says so to both sides at once — see
+    // reconcileInterest. Answering was left over from before interest
+    // management, when a new arrival had to introduce itself, and it meant a
+    // round trip per car appearing: driving into a busy stretch of the strip
+    // re-announced this player once for every car that came into view.
     function handleNewCarJoined({ id, coords, color, name, screen }) {
         if (!$user.insideTheater) {
             if (cars.findIndex((car) => car.id === id) === -1) {
@@ -52,8 +58,6 @@
                         y: Number.isFinite(coords?.y) ? coords.y : 600,
                     },
                 });
-                emitCarJoined();
-                cars = cars;
             }
         }
     }
@@ -63,7 +67,6 @@
             const carIndex = cars.findIndex((car) => car.id === id);
             if (carIndex !== -1) {
                 cars.splice(carIndex, 1);
-                cars = cars;
             }
         }
     }
@@ -73,7 +76,6 @@
             const carIndex = cars.findIndex((car) => car.id === id);
             if (carIndex !== -1) {
                 cars[carIndex].color = color;
-                cars = cars;
             }
         }
     }
@@ -84,7 +86,6 @@
             if (carIndex !== -1) {
                 cars[carIndex].name = name;
                 cars[carIndex].color = color;
-                cars = cars;
             }
         }
     }
@@ -109,13 +110,15 @@
      * reached. Ignoring a refusal would leave this client drawing a car
      * somewhere nobody else sees it, so the correction is applied rather than
      * argued with. `screen` is the scroll offset, so the world x is split back
-     * across the two the way the movement loop keeps them.
+     * across the two the way the movement loop keeps them — see viewFor for why
+     * doing that by hand here put the car off the edge of the screen.
      */
     function handlePositionCorrection({ x, y }) {
         if (!Number.isFinite(x) || !Number.isFinite(y)) return;
 
-        screenScrollAmount = Math.max(0, Math.min(x, screenScrollAmount));
-        playerCoords.x = x - screenScrollAmount;
+        const view = viewFor(x, { scroll: screenScrollAmount, canvasLength, maxScroll });
+        screenScrollAmount = view.scroll;
+        playerCoords.x = view.x;
         playerCoords.y = y;
     }
 
@@ -227,6 +230,14 @@
     // the pre-measurement default. The old floor of 3 (1200px) happened to work
     // only while the scene was always 1000px wide.
     let highestPosition = $derived(Math.max(3, Math.ceil(canvasLength / 400), occupiedSlots));
+    /**
+     * How far the view can scroll before it runs off the end of the strip.
+     *
+     * Three places computed this from the same two values, one of them inside
+     * the animation loop. Derived once instead: it only changes when the world
+     * grows or the window is resized.
+     */
+    let maxScroll = $derived(Math.max(0, highestPosition * 400 - canvasLength));
     let currentTime = $state(new Date());
 
     onMount(() => {
@@ -300,7 +311,6 @@
                 if (dx > 0) {
                     playerCoords.x = Math.min(canvasLength - 50, playerCoords.x + dx);
                     playerDirection = false;
-                    const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
                     if (playerCoords.x > canvasLength - 200 && screenScrollAmount < maxScroll) {
                         const scrollDistance = Math.min(dx, maxScroll - screenScrollAmount);
                         screenScrollAmount += scrollDistance;
@@ -380,7 +390,6 @@
     function teleportToTheater(position) {
         playerCoords.y = 470;
         const worldX = position * 400 + 185;
-        const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
         screenScrollAmount = Math.min(Math.max(0, worldX - (canvasLength - 215)), maxScroll);
         playerCoords.x = worldX - screenScrollAmount;
         emitCarPosition(true);
@@ -401,7 +410,6 @@
             : 0;
         theatersLoaded = true;
 
-        const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
         if (screenScrollAmount > maxScroll) {
             screenScrollAmount = maxScroll;
             emitCarPosition(true);
