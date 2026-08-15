@@ -42,7 +42,7 @@
         {#if nextMeetingDate}
             <p class="next">
                 Next: {nextMeetingDate} at {nextMeetingLocal}
-                <span class="yourTime">your time</span>
+                <span class="yourTime">(your local time)</span>
             </p>
         {/if}
     </section>
@@ -65,55 +65,92 @@
 </article>
 
 <style>
+    /* A standalone page, not one of the app's panels. The body is dark with
+       dark text — which works everywhere else because every panel paints its
+       own light background — so a page rendered straight onto it came out
+       near-black on near-black. */
     .club {
         max-width: 640px;
         margin: 0 auto;
-        padding: 32px 16px;
-        font-family: inherit;
+        padding: 40px 20px 64px;
+        color: rgb(27, 27, 27);
+        line-height: 1.6;
+    }
+
+    :global(body:has(.club)) {
+        background-color: rgb(241, 241, 241);
     }
 
     h1 {
-        margin: 0 0 8px;
+        margin: 0 0 12px;
+        font-size: 26px;
+        line-height: 1.35;
     }
 
     h2 {
-        font-size: 15px;
-        margin: 24px 0 4px;
-        opacity: 0.7;
+        font-size: 13px;
+        margin: 28px 0 6px;
+        color: rgb(100, 100, 100);
     }
 
     .description {
         margin: 0;
+        font-size: 14px;
     }
 
     .next {
-        margin: 4px 0 0;
+        margin: 6px 0 0;
+        font-size: 14px;
     }
 
     .yourTime {
-        opacity: 0.6;
-        font-size: 12px;
+        color: rgb(110, 110, 110);
+        font-size: 11px;
     }
 
     ul {
         list-style: none;
         margin: 0;
         padding: 0;
+        font-size: 14px;
     }
 
     li {
-        padding: 2px 0;
+        padding: 3px 0;
     }
 
     .role {
-        font-size: 11px;
+        font-size: 10px;
         text-transform: uppercase;
-        opacity: 0.6;
-        margin-left: 6px;
+        color: rgb(110, 110, 110);
+        margin-left: 8px;
     }
 
+    /* A link someone follows from a club page is most often on a phone, so it
+       gets a target worth tapping rather than a line of text. */
     .enter {
         display: inline-block;
-        margin-top: 24px;
+        margin-top: 32px;
+        padding: 12px 18px;
+        font-size: 14px;
+        color: rgb(27, 27, 27);
+        background-color: rgb(228, 228, 228);
+        border: 4px solid rgb(204, 204, 204);
+    }
+
+    .enter:hover {
+        background-color: rgb(204, 204, 204);
+        border-color: rgb(189, 189, 189);
+        text-decoration: none;
+    }
+
+    @media (max-width: 480px) {
+        .club {
+            padding: 24px 16px 48px;
+        }
+
+        h1 {
+            font-size: 20px;
+        }
     }
 </style>

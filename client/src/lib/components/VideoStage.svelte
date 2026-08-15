@@ -86,7 +86,11 @@
 <div class="videoStage">
     {#if !objectUrl}
         <div class="chooser">
-            <label for="filmFile">Open your copy of the film</label>
+            <p class="chooserTitle">Open your copy of the film</p>
+            <label class="chooserButton" for="filmFile">Choose a file</label>
+            <!-- The native control is replaced rather than restyled: a browser
+                 file input cannot be styled, and "Choose File / No file chosen"
+                 in the middle of a pixel-art cinema reads as a bug. -->
             <input
                 id="filmFile"
                 name="filmFile"
@@ -150,23 +154,69 @@
         position: relative;
         display: flex;
         flex-direction: column;
-        gap: 6px;
+        align-items: center;
+        gap: 10px;
+        /* Takes the room the countdown above it does not want. */
+        flex: 1;
+        width: 100%;
+        min-height: 0;
     }
 
     .film {
-        width: 100%;
-        max-height: 40vh;
+        /* Fills the space rather than taking a fixed slice of the viewport: the
+           theater is the one screen where the film should be as big as it can
+           be. */
+        flex: 1;
+        min-height: 0;
+        max-width: 100%;
         background: #000000;
     }
 
     .chooser {
         display: flex;
         flex-direction: column;
-        gap: 4px;
-        padding: 12px;
-        border: 2px dashed #331b02;
+        align-items: center;
+        justify-content: center;
+        gap: 8px;
+        /* Fills the film's place until a film is chosen, so the screen does not
+           start as a small box adrift in an empty room. */
+        flex: 1;
+        width: 100%;
+        padding: 24px;
+        border: 3px dashed rgb(120, 120, 120);
         border-radius: 8px;
+        box-sizing: border-box;
         text-align: center;
+    }
+
+    .chooserTitle {
+        margin: 0;
+        font-size: 15px;
+    }
+
+    .chooserButton {
+        padding: 12px 18px;
+        border: 4px solid rgb(204, 204, 204);
+        background-color: rgb(228, 228, 228);
+        color: rgb(100, 100, 100);
+        cursor: pointer;
+        font-size: 14px;
+    }
+
+    .chooserButton:hover {
+        background-color: rgb(204, 204, 204);
+        border-color: rgb(189, 189, 189);
+        color: rgb(85, 85, 85);
+    }
+
+    /* Kept in the accessibility tree and reachable by keyboard through its
+       label, rather than display:none, which would remove it from both. */
+    .chooser input[type="file"] {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        opacity: 0;
+        pointer-events: none;
     }
 
     .note,

@@ -109,7 +109,6 @@
 <div class="container">
     {#if theater}
         <div class="movieInfoContainer">
-            <VideoStage {socket} isHost={theater.ownerID === $user.userID} />
             <div class="timeOfMovie">
                 {#if currentTime.getTime() < startsAt}
                     <h1>Starts in:</h1>
@@ -124,6 +123,7 @@
                     <h1>Closed</h1>
                 {/if}
             </div>
+            <VideoStage {socket} isHost={theater.ownerID === $user.userID} />
         </div>
 
         <div class="liveChatContainer">
@@ -234,6 +234,8 @@
     }
     .timeOfMovie {
         text-align: center;
+        /* Sized as a heading now that the film is the main event below it. */
+        flex: none;
     }
     #inviteToTheaterButton {
         font-size: 40px;
@@ -333,9 +335,16 @@
         background-color: rgb(225, 241, 255);
         overflow: hidden;
         display: flex;
-        flex-direction: row;
-        justify-content: center;
+        /* A column, not a row. This held only the countdown until the film was
+           added beside it, at which point the two shared one line and each got
+           half of it — the picker and the clock elbowing each other in the
+           middle of an otherwise empty screen. */
+        flex-direction: column;
+        justify-content: flex-start;
         align-items: center;
+        gap: 16px;
+        padding: 24px;
+        box-sizing: border-box;
     }
     .liveChatContainer {
         height: var(--stage-height);

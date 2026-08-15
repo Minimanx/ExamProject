@@ -131,3 +131,6 @@ dist
 # Claude Code worktrees and subagent-driven-development scratch
 .claude/worktrees/
 .superpowers/
+
+# Scratch output from browser-driven inspection.
+.playwright-mcp/

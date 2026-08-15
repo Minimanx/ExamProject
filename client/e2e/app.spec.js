@@ -517,6 +517,59 @@ test("a public club page is rendered by the server", async ({ page, request }) =
     await expect(page.getByText(/Next: .* at /)).toBeVisible();
 });
 
+// The club page renders straight onto the body, which is dark with dark text —
+// that works everywhere else only because every panel paints its own light
+// background. The first version of this page was near-black on near-black and
+// perfectly functional, which is exactly how it would have shipped.
+test("a public club page is actually readable", async ({ page, request }) => {
+    const owner = {
+        email: `contrast-${RUN}@example.com`,
+        username: `contrast${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...owner, passwordRepeat: owner.password },
+        failOnStatusCode: false,
+    });
+    await logIn(page, owner);
+
+    const created = await page.request.post(`${API}/clubs`, {
+        data: { name: `Readable ${RUN}`, description: "Legible.", isPublic: true, schedule: null },
+        failOnStatusCode: false,
+    });
+    const { slug } = (await created.json()).data;
+
+    await page.goto(`/clubs/${slug}`);
+
+    const contrast = await page.evaluate(() => {
+        const luminance = (colour) => {
+            const [r, g, b] = colour.match(/\d+/g).map(Number);
+            const channel = (value) => {
+                const v = value / 255;
+                return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
+            };
+            return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
+        };
+
+        const heading = document.querySelector("h1");
+        const text = getComputedStyle(heading).color;
+        // The nearest ancestor that actually paints something.
+        let node = heading;
+        let background = "rgba(0, 0, 0, 0)";
+        while (node && background === "rgba(0, 0, 0, 0)") {
+            background = getComputedStyle(node).backgroundColor;
+            node = node.parentElement;
+        }
+
+        const a = luminance(text);
+        const b = luminance(background);
+        return (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+    });
+
+    // 4.5:1 is the ordinary threshold for body text being legible.
+    expect(contrast).toBeGreaterThan(4.5);
+});
+
 test("a private club page is not found rather than forbidden", async ({ page, request }) => {
     const owner = {
         email: `privateowner-${RUN}@example.com`,

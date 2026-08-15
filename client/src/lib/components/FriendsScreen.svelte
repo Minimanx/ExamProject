@@ -113,97 +113,126 @@
 <div class="container">
     <h2>Friends</h2>
 
-    <div class="addFriend">
-        <input
-            name="friendUsername"
-            type="text"
-            bind:value={username}
-            onfocus={() => ($playerMovement = false)}
-            onblur={() => ($playerMovement = true)}
-            placeholder="Add by username..."
-            maxlength="16"
-        />
-        <button onclick={add}>Add</button>
-    </div>
+    <div class="scroller">
+        <div class="addFriend">
+            <input
+                name="friendUsername"
+                type="text"
+                bind:value={username}
+                onfocus={() => ($playerMovement = false)}
+                onblur={() => ($playerMovement = true)}
+                placeholder="Add by username..."
+                maxlength="16"
+            />
+            <button class="rowButton" onclick={add}>Add</button>
+        </div>
 
-    {#if loading}
-        <p class="empty">Loading...</p>
-    {:else}
-        {#if incoming.length > 0}
-            <h3>Wants to be your friend</h3>
-            <ul>
-                {#each incoming as person (person.id)}
-                    <li>
-                        <span>{person.username}</span>
-                        <button onclick={() => answer(person.id, true)}>Accept</button>
-                        <button onclick={() => answer(person.id, false)}>Decline</button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
-
-        <h3>Friends</h3>
-        {#if friends.length === 0}
-            <p class="empty">Nobody yet.</p>
+        {#if loading}
+            <p class="empty">Loading...</p>
         {:else}
-            <ul>
-                {#each friends as person (person.id)}
-                    <li>
-                        <span class="presence" class:online={person.online}></span>
-                        <span>{person.username}</span>
-                        <button disabled={!person.online} onclick={() => joinFriend(person.id)}>
-                            Join
-                        </button>
-                        <button onclick={() => remove(person.id)}>Remove</button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
+            {#if incoming.length > 0}
+                <h3>Wants to be your friend</h3>
+                <ul>
+                    {#each incoming as person (person.id)}
+                        <li>
+                            <span class="name">{person.username}</span>
+                            <button class="rowButton" onclick={() => answer(person.id, true)}>
+                                Accept
+                            </button>
+                            <button class="rowButton" onclick={() => answer(person.id, false)}>
+                                Decline
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
 
-        {#if outgoing.length > 0}
-            <h3>Asked</h3>
-            <ul>
-                {#each outgoing as person (person.id)}
-                    <li>
-                        <span>{person.username}</span>
-                        <button onclick={() => remove(person.id)}>Cancel</button>
-                    </li>
-                {/each}
-            </ul>
-        {/if}
-    {/if}
+            <h3>Friends</h3>
+            {#if friends.length === 0}
+                <p class="empty">Nobody yet. Add someone by username above.</p>
+            {:else}
+                <ul>
+                    {#each friends as person (person.id)}
+                        <li>
+                            <span class="presence" class:online={person.online}></span>
+                            <span class="name">{person.username}</span>
+                            <button
+                                class="rowButton"
+                                disabled={!person.online}
+                                onclick={() => joinFriend(person.id)}
+                            >
+                                Join
+                            </button>
+                            <button class="rowButton" onclick={() => remove(person.id)}>
+                                Remove
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
 
-    <button class="menuButton" onclick={() => (friendsBool = false)}>Back</button>
+            {#if outgoing.length > 0}
+                <h3>Asked</h3>
+                <ul>
+                    {#each outgoing as person (person.id)}
+                        <li>
+                            <span class="name">{person.username}</span>
+                            <button class="rowButton" onclick={() => remove(person.id)}>
+                                Cancel
+                            </button>
+                        </li>
+                    {/each}
+                </ul>
+            {/if}
+        {/if}
+    </div>
 </div>
 
+<button class="menuButton" id="friendsBackButton" onclick={() => (friendsBool = false)}>Back</button
+>
+
 <style>
+    /* The same panel every other screen uses: it takes over the right-hand
+       column rather than floating over the world in a different visual
+       language. */
     .container {
-        position: absolute;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        z-index: 10;
+        position: fixed;
+        background-color: rgb(241, 241, 241);
+        z-index: 100;
+        right: 0;
+        top: 80px;
+        height: calc(var(--stage-height) - 80px);
+        width: 500px;
+        border-top: 3px solid rgb(27, 27, 27);
+        border-left: 3px solid rgb(27, 27, 27);
+        box-sizing: border-box;
         display: flex;
         flex-direction: column;
-        gap: 6px;
-        width: 320px;
-        max-height: 70vh;
+        align-items: stretch;
+        /* Clear of the Back button pinned to the bottom. */
+        padding: 12px 12px 80px;
+        gap: 8px;
+    }
+
+    /* Only the list scrolls, so the heading and the add field stay put however
+       many friends there are. */
+    .scroller {
         overflow-y: auto;
-        padding: 16px;
-        background: #ffffff;
-        border: 2px solid #331b02;
-        border-radius: 10px;
-        font-size: 13px;
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
     }
 
-    h2,
-    h3 {
+    h2 {
         margin: 0;
+        font-size: 22px;
+        text-align: center;
     }
 
     h3 {
-        font-size: 13px;
-        opacity: 0.7;
+        margin: 8px 0 0;
+        font-size: 14px;
+        color: rgb(100, 100, 100);
     }
 
     ul {
@@ -212,45 +241,106 @@
         padding: 0;
         display: flex;
         flex-direction: column;
-        gap: 4px;
+        gap: 6px;
     }
 
     li {
         display: flex;
         align-items: center;
-        gap: 6px;
+        gap: 8px;
+        font-size: 15px;
     }
 
-    li span:nth-of-type(2),
-    li span:only-of-type {
+    .name {
         flex: 1;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
     }
 
     .addFriend {
         display: flex;
-        gap: 4px;
+        gap: 6px;
     }
 
     .addFriend input {
         flex: 1;
+        min-width: 0;
         font-family: inherit;
+        font-size: 15px;
+        padding: 6px 8px;
+        border: 3px solid rgb(204, 204, 204);
+        background-color: rgb(252, 252, 252);
+        box-sizing: border-box;
+    }
+
+    /* Matches the chunky menu buttons, at a size that fits in a row. */
+    .rowButton {
+        font-family: inherit;
+        font-size: 14px;
+        padding: 6px 10px;
+        border: 3px solid rgb(204, 204, 204);
+        background-color: rgb(228, 228, 228);
+        color: rgb(100, 100, 100);
+        box-sizing: border-box;
+    }
+
+    .rowButton:hover:not(:disabled) {
+        background-color: rgb(204, 204, 204);
+        border-color: rgb(189, 189, 189);
+        color: rgb(85, 85, 85);
+        cursor: pointer;
+    }
+
+    .rowButton:disabled {
+        opacity: 0.5;
     }
 
     /* Grey until they are actually connected, so "online" is a fact rather
        than a decoration. */
     .presence {
-        width: 8px;
-        height: 8px;
+        width: 10px;
+        height: 10px;
+        flex: none;
         border-radius: 50%;
-        background: #8f8f8f;
+        background: rgb(150, 150, 150);
     }
 
     .presence.online {
-        background: #2f9e44;
+        background: rgb(47, 158, 68);
     }
 
     .empty {
         margin: 0;
-        opacity: 0.7;
+        color: rgb(100, 100, 100);
+        font-size: 14px;
+    }
+
+    .menuButton {
+        position: fixed;
+        padding: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 4px solid rgb(204, 204, 204);
+        box-sizing: border-box;
+        background-color: rgb(228, 228, 228);
+        color: rgb(100, 100, 100);
+        z-index: 101;
+    }
+
+    .menuButton:hover {
+        background-color: rgb(204, 204, 204);
+        border: 4px solid rgb(189, 189, 189);
+        color: rgb(85, 85, 85);
+        cursor: pointer;
+    }
+
+    #friendsBackButton {
+        font-size: 20px;
+        right: 10px;
+        bottom: 0px;
+        height: 60px;
+        width: 235px;
     }
 </style>
