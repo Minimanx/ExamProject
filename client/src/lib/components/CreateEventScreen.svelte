@@ -1,4 +1,5 @@
 <script>
+    import { onDestroy } from "svelte";
     import { success, error } from "./toasts/toastThemes.js";
     import { Pulse } from "svelte-loading-spinners";
     import { playerMovement } from "../stores/stateManagementStore.js";
@@ -21,6 +22,10 @@
     // Debounce handle only — never read in the template, so it stays a plain
     // let rather than costing a needless re-render.
     let timeoutID;
+
+    // The movie search is debounced, so closing the panel mid-keystroke leaves a
+    // request queued against a component that will not be here to receive it.
+    onDestroy(() => clearTimeout(timeoutID));
     let loadingMovieSearch = $state(false);
     let movies = $state([]);
 

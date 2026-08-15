@@ -1,6 +1,7 @@
 import { Router } from "express";
 import bcrypt from "bcrypt";
 import db from "../database/createConnection.js";
+import { ObjectId } from "mongodb";
 import mailer from "../mailer/mailer.js";
 import crypto from "crypto";
 import { sendError } from "../errors.js";
@@ -12,6 +13,35 @@ import {
     resetPasswordSchema,
 } from "../schemas.js";
 const router = Router();
+
+/**
+ * Who the server thinks you are.
+ *
+ * The client keeps "am I logged in" in localStorage, which outlives the session
+ * it describes — a server restart, an expiry, a logout in another tab. Without
+ * something to ask, it renders the entire world for somebody the server does
+ * not know: driving around, typing into a chat that goes nowhere, invisible to
+ * everyone else and unable to join anything.
+ */
+router.get("/me", async (req, res) => {
+    if (!req.session.loggedIn) {
+        return sendError(res, "UNAUTHENTICATED", "Must be logged in");
+    }
+
+    const user = await db.users.findOne(
+        { _id: new ObjectId(req.session.userID) },
+        // Only what the client displays. It has no use for the address, and this
+        // is the response it stores.
+        { projection: { username: 1 } }
+    );
+    if (user === null) {
+        // The session outlived the account it belongs to.
+        req.session.destroy();
+        return sendError(res, "UNAUTHENTICATED", "Must be logged in");
+    }
+
+    res.status(200).send({ data: user });
+});
 
 router.get("/logout", (req, res) => {
     req.session.destroy();

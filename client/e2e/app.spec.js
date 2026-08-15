@@ -240,6 +240,34 @@ test("logging in with a wrong password shows an error and keeps the form usable"
     await expect(page.locator(".blackedout")).toHaveCount(1);
 });
 
+// The client keeps "am I logged in" in localStorage, which outlives the session
+// it describes. Without checking, the app renders the entire world for somebody
+// the server does not know — driving around, typing into a chat that goes
+// nowhere, invisible to everyone. It looks completely fine, which is what makes
+// it bad.
+test("a stored session the server has forgotten sends you back to the login", async ({ page }) => {
+    await logIn(page);
+    await expect(page.locator(".blackedout")).toHaveCount(0);
+
+    // Exactly what a server restart, an expiry, or a logout in another tab
+    // leaves behind: the local record without the session it describes.
+    await page.request.get(`${API}/logout`);
+    await page.reload();
+
+    await expect(page.locator(".blackedout")).toHaveCount(1);
+    await expect(page.locator('input[name="email"]')).toBeVisible();
+});
+
+// The other half of the same rule: a session the server does recognise must not
+// be thrown away, or every reload would log everyone out.
+test("a session the server still knows survives a reload", async ({ page }) => {
+    await logIn(page);
+
+    await page.reload();
+
+    await expect(page.locator(".blackedout")).toHaveCount(0);
+});
+
 test("logging in dismisses the overlay", async ({ page }) => {
     await logIn(page);
     await expect(page.locator(".containerInteractiveSpace")).toBeVisible();

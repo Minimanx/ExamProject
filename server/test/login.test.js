@@ -1,7 +1,7 @@
 import { describe, it, expect } from "vitest";
 import request from "supertest";
 import { app } from "../app.js";
-import { registerUser, uniqueIp } from "./helpers.js";
+import { registerUser, loginAgent, uniqueIp } from "./helpers.js";
 
 // Every request in this file hits loginRouter, which is capped at 10 per
 // 15 minutes per IP. Each call gets its own IP, and therefore its own
@@ -71,5 +71,51 @@ describe("GET /logout", () => {
 
         expect(response.status).toBe(200);
         expect(response.body.message).toBe("Successfully logged out");
+    });
+});
+
+// The client keeps "am I logged in" in localStorage, which outlives the server
+// session it describes — a restart, an expiry, a logout in another tab. Until
+// now nothing could tell it otherwise, so it would render the whole world for
+// somebody the server does not know: driving around, typing into a chat that
+// goes nowhere, invisible to everyone.
+describe("GET /me", () => {
+    it("says who you are", async () => {
+        const user = await registerUser();
+        const agent = await loginAgent(user);
+
+        const response = await agent.get("/me");
+
+        expect(response.status).toBe(200);
+        expect(response.body.data.username).toBe(user.username);
+        expect(response.body.data._id).toBeTruthy();
+    });
+
+    it("answers 401 when there is no session, so the client can act on it", async () => {
+        const response = await get("/me");
+
+        expect(response.status).toBe(401);
+        expect(response.body.code).toBe("UNAUTHENTICATED");
+    });
+
+    it("answers 401 once you have logged out", async () => {
+        const user = await registerUser();
+        const agent = await loginAgent(user);
+        await agent.get("/logout");
+
+        const response = await agent.get("/me");
+
+        expect(response.status).toBe(401);
+    });
+
+    // The client stores this and shows it; nothing needs the address.
+    it("does not include the email or the password", async () => {
+        const user = await registerUser();
+        const agent = await loginAgent(user);
+
+        const response = await agent.get("/me");
+
+        expect(JSON.stringify(response.body)).not.toContain(user.email);
+        expect(response.body.data.password).toBeUndefined();
     });
 });

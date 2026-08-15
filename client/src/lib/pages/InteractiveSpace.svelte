@@ -3,7 +3,7 @@
     import { onMount } from "svelte";
     import TheaterInfoScreen from "../components/TheaterInfoScreen.svelte";
     import LoginScreen from "../components/LoginScreen.svelte";
-    import { user } from "../stores/userStore.js";
+    import { user, reconcileSession } from "../stores/userStore.js";
     import TheatersListView from "../components/TheatersListView.svelte";
     import FriendsScreen from "../components/FriendsScreen.svelte";
     import SpeechBubble from "../art/SpeechBubble.svelte";
@@ -240,6 +240,9 @@
 
         let active = true;
         async function initialize() {
+            // Before anything else: a stored session that the server no longer
+            // recognises would otherwise render a world nobody else can see us in.
+            await reconcileSession(apiFetch);
             await getTheaters();
             if (!active || !$user.loggedIn) return;
 
@@ -305,6 +308,9 @@
             active = false;
             cancelAnimationFrame(animationFrameId);
             clearInterval(clockInterval);
+            // One per speech bubble still on screen. Left running, each fires
+            // into a component that no longer exists when its six seconds are up.
+            Object.values(bubbleTimers).forEach(clearTimeout);
             socketHandlers.forEach(([eventName, handler]) => socket.off(eventName, handler));
             keys = { w: false, s: false, a: false, d: false };
             keyDown = false;

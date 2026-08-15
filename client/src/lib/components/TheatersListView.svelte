@@ -1,8 +1,13 @@
 <script>
     import { formatTimeOfDay } from "../services/duration.js";
+    import { onDestroy } from "svelte";
     import { apiFetch } from "../services/api.js";
 
     let { theaters, teleportToTheater = () => {} } = $props();
+
+    // A search in flight when the panel closes would land on a component that is
+    // gone, having made a request nobody is waiting for.
+    onDestroy(() => clearTimeout(searchTimer));
 
     // Searching queries the server rather than filtering the prop. The client
     // has the whole strip today only because the strip is small, which is a fact
