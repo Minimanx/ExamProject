@@ -1,0 +1,89 @@
+- generic [ref=f2e2]:
+  - generic:
+    - list
+  - main [ref=f2e3]:
+    - generic [ref=f2e4]:
+      - generic [ref=f2e50]:
+        - generic [ref=f2e51]:
+          - img [ref=f2e53]:
+            - generic [ref=f2e72]: Movie Night
+            - generic [ref=f2e73]: "Starts at:"
+            - generic [ref=f2e74]: 03:28 PM
+            - generic [ref=f2e75]: "Runtime: 136 min"
+            - generic [ref=f2e76]: 0/10
+            - generic [ref=f2e79]: Public Event
+            - generic [ref=f2e80]: The Matrix
+          - img [ref=f2e82]:
+            - generic [ref=f2e101]: Sci-Fi Fest
+            - generic [ref=f2e102]: "Starts at:"
+            - generic [ref=f2e103]: 03:28 PM
+            - generic [ref=f2e104]: "Runtime: 136 min"
+            - generic [ref=f2e105]: 0/10
+            - generic [ref=f2e108]: Public Event
+            - generic [ref=f2e109]: Blade Runner
+          - img [ref=f2e111]:
+            - generic [ref=f2e130]: Noir Evening
+            - generic [ref=f2e131]: "Starts at:"
+            - generic [ref=f2e132]: 03:28 PM
+            - generic [ref=f2e133]: "Runtime: 136 min"
+            - generic [ref=f2e134]: 0/10
+            - generic [ref=f2e137]: Public Event
+            - generic [ref=f2e138]: Chinatown
+        - textbox "Say something..." [active] [ref=f2e147]
+        - generic [ref=f2e149]:
+          - generic: Anyone up for a noir double feature tonight? Bring popcorn.
+          - img [ref=f2e150]:
+            - generic [ref=f2e151]: runesuser
+      - generic [ref=f2e157]:
+        - generic [ref=f2e158] [cursor=pointer]: Change Color
+        - textbox "Change Color" [ref=f2e159] [cursor=pointer]: "#128a39"
+        - button [ref=f2e160]
+        - generic [ref=f2e163]:
+          - searchbox "Search events and films..." [ref=f2e165]
+          - list [ref=f2e167]:
+            - listitem
+            - listitem [ref=f2e168]: Name/Movie
+            - listitem [ref=f2e169]: Time
+            - listitem [ref=f2e170]: Starts
+            - listitem [ref=f2e171]
+            - listitem [ref=f2e174]
+          - generic [ref=f2e177]:
+            - list [ref=f2e178]:
+              - listitem
+              - generic [ref=f2e179]:
+                - listitem [ref=f2e180]: Movie Night
+                - listitem [ref=f2e181]: The Matrix
+              - generic [ref=f2e182]:
+                - generic [ref=f2e183]:
+                  - listitem [ref=f2e184]: "136"
+                  - listitem [ref=f2e185]: min
+                - listitem [ref=f2e187]: 03:28 PM
+                - listitem [ref=f2e189]: 0/10
+                - listitem [ref=f2e191]
+            - list [ref=f2e194]:
+              - listitem
+              - generic [ref=f2e195]:
+                - listitem [ref=f2e196]: Sci-Fi Fest
+                - listitem [ref=f2e197]: Blade Runner
+              - generic [ref=f2e198]:
+                - generic [ref=f2e199]:
+                  - listitem [ref=f2e200]: "136"
+                  - listitem [ref=f2e201]: min
+                - listitem [ref=f2e203]: 03:28 PM
+                - listitem [ref=f2e205]: 0/10
+                - listitem [ref=f2e207]
+            - list [ref=f2e210]:
+              - listitem
+              - generic [ref=f2e211]:
+                - listitem [ref=f2e212]: Noir Evening
+                - listitem [ref=f2e213]: Chinatown
+              - generic [ref=f2e214]:
+                - generic [ref=f2e215]:
+                  - listitem [ref=f2e216]: "136"
+                  - listitem [ref=f2e217]: min
+                - listitem [ref=f2e219]: 03:28 PM
+                - listitem [ref=f2e221]: 0/10
+                - listitem [ref=f2e223]
+        - button "Create Event" [ref=f2e226]
+        - button "About" [ref=f2e227]
+        - button "Friends" [ref=f2e228]

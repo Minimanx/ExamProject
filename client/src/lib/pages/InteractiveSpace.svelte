@@ -9,6 +9,7 @@
     import SpeechBubble from "../art/SpeechBubble.svelte";
     import CreateEventScreen from "../components/CreateEventScreen.svelte";
     import { playerMovement } from "../stores/stateManagementStore.js";
+    import { stepFor } from "../services/driving.js";
     import AboutPage from "../components/AboutPage.svelte";
     import { page } from "$app/state";
     import { Pulse } from "svelte-loading-spinners";
@@ -260,26 +261,29 @@
             previousFrame = timestamp;
 
             if (keyDown && $playerMovement) {
-                const distance = playerSpeed * deltaSeconds;
-                if (keys.w && playerCoords.y > 410)
-                    playerCoords.y = Math.max(410, playerCoords.y - distance);
-                if (keys.s && playerCoords.y < 725)
-                    playerCoords.y = Math.min(725, playerCoords.y + distance);
-                if (keys.a && playerCoords.x > 0) {
-                    playerCoords.x = Math.max(0, playerCoords.x - distance);
+                // Normalised, so a diagonal is not 41% faster than a straight
+                // line. It always was, and Phase 4's server-side speed limit
+                // turned that into a car that snapped backwards every frame.
+                const { dx, dy } = stepFor(keys, playerSpeed * deltaSeconds);
+
+                if (dy < 0) playerCoords.y = Math.max(410, playerCoords.y + dy);
+                if (dy > 0) playerCoords.y = Math.min(725, playerCoords.y + dy);
+
+                if (dx < 0) {
+                    playerCoords.x = Math.max(0, playerCoords.x + dx);
                     playerDirection = true;
                     if (playerCoords.x < 150 && screenScrollAmount > 0) {
-                        const scrollDistance = Math.min(distance, screenScrollAmount);
+                        const scrollDistance = Math.min(-dx, screenScrollAmount);
                         screenScrollAmount -= scrollDistance;
                         playerCoords.x += scrollDistance;
                     }
                 }
-                if (keys.d && playerCoords.x < canvasLength - 50) {
-                    playerCoords.x = Math.min(canvasLength - 50, playerCoords.x + distance);
+                if (dx > 0) {
+                    playerCoords.x = Math.min(canvasLength - 50, playerCoords.x + dx);
                     playerDirection = false;
                     const maxScroll = Math.max(0, highestPosition * 400 - canvasLength);
                     if (playerCoords.x > canvasLength - 200 && screenScrollAmount < maxScroll) {
-                        const scrollDistance = Math.min(distance, maxScroll - screenScrollAmount);
+                        const scrollDistance = Math.min(dx, maxScroll - screenScrollAmount);
                         screenScrollAmount += scrollDistance;
                         playerCoords.x -= scrollDistance;
                     }
@@ -420,7 +424,11 @@
                             style="transform: translate3d({car.coords.x}px, {car.coords.y}px, 0);"
                         >
                             {#if bubbles[car.id]}
-                                <SpeechBubble text={bubbles[car.id]} />
+                                <SpeechBubble
+                                    text={bubbles[car.id]}
+                                    carX={car.coords.x - screenScrollAmount}
+                                    stageWidth={canvasLength}
+                                />
                             {/if}
                             <Car
                                 name={car.name}
@@ -462,7 +470,11 @@
                         style="transform: translate3d({playerCoords.x}px, {playerCoords.y}px, 0);"
                     >
                         {#if bubbles[socketId]}
-                            <SpeechBubble text={bubbles[socketId]} />
+                            <SpeechBubble
+                                text={bubbles[socketId]}
+                                carX={playerCoords.x}
+                                stageWidth={canvasLength}
+                            />
                         {/if}
                         <Car
                             name={playerName}
@@ -546,6 +558,17 @@
         border: 4px solid rgb(189, 189, 189);
         color: rgb(85, 85, 85);
         cursor: pointer;
+    }
+    /* Every .menuButton is position:fixed and placed by explicit coordinates,
+       so one without them lands in the corner of the panel on top of whatever
+       is there. The bottom of the panel is now two rows, and the list above
+       reserves room for both. */
+    #friendsButton {
+        font-size: 20px;
+        right: 10px;
+        bottom: 64px;
+        height: 56px;
+        width: 478px;
     }
     #addTheaterButton {
         font-size: 20px;

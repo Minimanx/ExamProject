@@ -258,13 +258,18 @@
         flex-basis: 35px;
     }
     .searchBar {
-        padding: 4px 8px;
+        /* The list centres its children, which means they are content-width
+           unless told otherwise — so the bar was about half the panel and the
+           input's own width:100% had nothing to fill. */
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 10px;
     }
 
     .searchBar input {
         width: 100%;
         box-sizing: border-box;
-        padding: 4px 8px;
+        padding: 6px 10px;
         font-family: inherit;
         font-size: 14px;
     }
@@ -324,7 +329,9 @@
         flex-direction: column;
         width: 497px;
         align-items: center;
-        height: calc(var(--stage-height) - 160px);
+        /* 80 above for the colour picker, 144 below for the two rows of menu
+           buttons. Reserving only one row's worth put the list underneath them. */
+        height: calc(var(--stage-height) - 224px);
         position: fixed;
         top: 80px;
         font-size: 14px;

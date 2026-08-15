@@ -287,6 +287,51 @@ test("driving for a while is not fought by the server", async ({ page }) => {
     expect(covered).toBeGreaterThan(200);
 });
 
+// Diagonal driving covered 1.414x the ground of a straight line, which the
+// server's speed limit refuses — so holding two keys snapped the car backwards
+// every frame. The straight-line test above cannot see it: it only presses one
+// key.
+test("driving diagonally is not fought by the server either", async ({ page }) => {
+    await logIn(page);
+
+    const worldPosition = async () => {
+        const style = await page.locator(".playerCar").getAttribute("style");
+        const scroll = await page.locator(".world").getAttribute("style");
+        return {
+            x:
+                Number(style.match(/translate3d\((-?[\d.]+)px/)[1]) -
+                Number(scroll.match(/translate3d\((-?[\d.]+)px/)[1]),
+            y: Number(style.match(/translate3d\(-?[\d.]+px,\s*(-?[\d.]+)px/)[1]),
+        };
+    };
+
+    // Sampled rather than measured end to end. Net distance is a bad detector:
+    // a refused proposal leaves the server where it was, so the next one has a
+    // bigger budget and is accepted — the car still gets there, in a sawtooth.
+    // What the player sees is the backwards half of that sawtooth, so that is
+    // what to assert.
+    await page.keyboard.down("d");
+    await page.keyboard.down("w");
+
+    const samples = [];
+    for (let i = 0; i < 25; i++) {
+        samples.push(await worldPosition());
+        await page.waitForTimeout(50);
+    }
+
+    await page.keyboard.up("w");
+    await page.keyboard.up("d");
+
+    const backwards = samples.filter(
+        (sample, index) => index > 0 && sample.x < samples[index - 1].x - 1
+    );
+    expect(backwards).toEqual([]);
+
+    // And it did actually travel, so an unmoving car cannot pass by never
+    // going backwards.
+    expect(samples.at(-1).x - samples[0].x).toBeGreaterThan(100);
+});
+
 test("parking at a theater opens its info panel, and joining enters the theater", async ({
     page,
 }) => {
