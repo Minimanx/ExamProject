@@ -194,8 +194,16 @@ export const indexesReady = buildAll({
     // would create two friendships.
     "friendships.pair": () =>
         ensureIndex(collections.friendships, { pairLow: 1, pairHigh: 1 }, { unique: true }),
+    // A friend list reads both directions at once. The compound index above
+    // serves the pairLow half and does nothing at all for the other, so without
+    // this every friend list scanned the whole collection — defect O1's shape,
+    // reintroduced for a collection added later.
+    "friendships.pairHigh": () => ensureIndex(collections.friendships, { pairHigh: 1 }),
     // A slug is a club's address, so two clubs cannot share one.
     "clubs.slug": () => ensureIndex(collections.clubs, { slug: 1 }, { unique: true }),
+    // The club directory reads only the public ones, and is the page most
+    // likely to be linked to from outside.
+    "clubs.public": () => ensureIndex(collections.clubs, { isPublic: 1, createdAt: 1 }),
     // One membership per person per club, decided by the database rather than by
     // a check two simultaneous joins would both pass.
     "clubMembers.membership": () =>

@@ -4,7 +4,7 @@ import request from "supertest";
 import { server, app } from "../app.js";
 import db from "../database/createConnection.js";
 import { registerUser, seedTheater, uniqueIp } from "./helpers.js";
-import { resetPlaybackState } from "../socketios/playbackSocket.js";
+import { resetPlaybackState, trackedTheaterCount } from "../socketios/playbackSocket.js";
 
 // Phase 3 exit criterion: two people watch a film with synchronized play/pause.
 //
@@ -397,6 +397,45 @@ describe("countdown", () => {
             expect(seen).toEqual([]);
         } finally {
             hostSide.socket.close();
+            guest.socket.close();
+        }
+    });
+});
+
+// Playback state lives in memory, keyed by theater, and theaters are created and
+// swept continuously. Nothing removed an entry when a showing ended, so a server
+// that has been up for a week holds state for every theater that ever existed on
+// it — small objects, but an unbounded number of them.
+describe("playback state does not accumulate", () => {
+    it("forgets a theater once the last person leaves it", async () => {
+        const { theater, host } = await seedTheaterWithHost();
+        const hostSide = await joinTheater(theater, host);
+
+        hostSide.socket.emit("playbackPlay", { positionSeconds: 30 });
+        await new Promise((r) => setTimeout(r, 300));
+        expect(trackedTheaterCount()).toBe(1);
+
+        hostSide.socket.close();
+        await new Promise((r) => setTimeout(r, 500));
+
+        expect(trackedTheaterCount()).toBe(0);
+    });
+
+    it("keeps the state while anyone is still watching", async () => {
+        const { theater, host } = await seedTheaterWithHost();
+        const hostSide = await joinTheater(theater, host);
+        const guest = await joinTheater(theater);
+
+        try {
+            hostSide.socket.emit("playbackPlay", { positionSeconds: 30 });
+            await new Promise((r) => setTimeout(r, 300));
+
+            hostSide.socket.close();
+            await new Promise((r) => setTimeout(r, 500));
+
+            // The host stepping out must not reset the film for everyone else.
+            expect(trackedTheaterCount()).toBe(1);
+        } finally {
             guest.socket.close();
         }
     });

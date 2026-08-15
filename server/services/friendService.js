@@ -27,6 +27,16 @@ export function pairOf(a, b) {
     return a < b ? { pairLow: a, pairHigh: b } : { pairLow: b, pairHigh: a };
 }
 
+/**
+ * The collation the username index is built with.
+ *
+ * Uniqueness is enforced case-insensitively, so "Taken" and "taken" cannot both
+ * exist — the system already treats them as one name. A lookup without this
+ * matches case-sensitively, which means answering "no such user" about someone
+ * who plainly exists, and scanning the whole collection to do it.
+ */
+export const USERNAME_COLLATION = { locale: "en", strength: 1 };
+
 export async function request(requesterID, addresseeID) {
     if (requesterID === addresseeID) {
         throw new AlreadyExistsError("You cannot add yourself");

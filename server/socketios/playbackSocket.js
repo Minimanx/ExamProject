@@ -20,6 +20,10 @@ import { findTheater } from "../services/theaterService.js";
  * It is worth nothing once the showing ends and it changes many times a minute,
  * so persisting it would mean a database write per scrub for data with a
  * lifetime of hours. A restart costs the room one press of play.
+ *
+ * Entries are removed when the last person leaves, because theaters are created
+ * and swept continuously: without that, a server up for a week holds state for
+ * every showing that ever ran on it.
  */
 const playbackByTheater = new Map();
 
@@ -164,6 +168,16 @@ const socket = (io) => {
             io.to(theaterId).emit("playbackState", published(state));
         });
 
+        // `disconnecting` rather than `disconnect`: the socket is still in its
+        // rooms here, so the count below is taken after it has gone but before
+        // the room is torn down.
+        socket.on("disconnecting", () => {
+            const theaterId = socket.data.theaterId;
+            if (!ObjectId.isValid(theaterId)) return;
+
+            setTimeout(() => void forgetIfEmpty(io, theaterId), 0);
+        });
+
         // A countdown is a message rather than state: every client renders the
         // same numbers from the same instant, so nobody is waiting on a round
         // trip at the moment the film starts.
@@ -177,6 +191,23 @@ const socket = (io) => {
 };
 
 /**
+ * Forget a theater's playback state once nobody is left in it.
+ *
+ * Checked after someone leaves rather than on a timer: the room is the authority
+ * on who is present, and it is right there.
+ */
+async function forgetIfEmpty(io, theaterId) {
+    if (!playbackByTheater.has(theaterId)) {
+        return;
+    }
+
+    const remaining = await io.in(theaterId).fetchSockets();
+    if (remaining.length === 0) {
+        playbackByTheater.delete(theaterId);
+    }
+}
+
+/**
  * Forget every theater's playback state.
  *
  * The map outlives any one socket, so without this a test would inherit the
@@ -184,6 +215,11 @@ const socket = (io) => {
  */
 export function resetPlaybackState() {
     playbackByTheater.clear();
+}
+
+/** How many theaters are being tracked. Exists so a test can watch it stay flat. */
+export function trackedTheaterCount() {
+    return playbackByTheater.size;
 }
 
 export { COUNTDOWN_SECONDS };

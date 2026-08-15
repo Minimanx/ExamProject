@@ -60,6 +60,32 @@ function socketFor(userID) {
     return null;
 }
 
+/**
+ * Everyone with a socket open, in one pass.
+ *
+ * A friend list needs presence for each of its friends, and asking one at a
+ * time is a walk of every connection per friend. One pass answers for all of
+ * them, and the caller reads from the set.
+ *
+ * Deliberately not a maintained index. That would be a second source of truth
+ * to keep in step with connects, disconnects and reconnects — a new way to be
+ * wrong about who is present, in exchange for a scan of a few dozen sockets.
+ */
+export function onlineUserIds() {
+    const online = new Set();
+    if (socketServer === null) {
+        return online;
+    }
+
+    for (const socket of socketServer.sockets.sockets.values()) {
+        const userID = socket.request.session?.userID?.toString();
+        if (userID) {
+            online.add(userID);
+        }
+    }
+    return online;
+}
+
 export function isOnline(userID) {
     return socketFor(userID) !== null;
 }

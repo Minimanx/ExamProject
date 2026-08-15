@@ -29,6 +29,23 @@ describe("requesting a friend", () => {
         expect(stored.requesterID).toBe(asker.userID);
     });
 
+    // Signup enforces uniqueness through a collated index, so "Taken" and
+    // "taken" cannot both exist — the system already treats them as one name.
+    // Looking someone up without that collation therefore says "no such user"
+    // about a user who plainly exists, and scans the whole collection to do it.
+    it("finds someone whatever case their name is typed in", async () => {
+        const asker = await loggedIn();
+        const target = await loggedIn({ username: "Casing" });
+
+        const response = await asker.agent.post("/friends").send({ username: "casing" });
+
+        expect(response.status).toBe(200);
+        expect(await db.friendships.countDocuments({})).toBe(1);
+        // And it is the real account that was befriended, not a new one.
+        const stored = await db.friendships.findOne({});
+        expect([stored.pairLow, stored.pairHigh]).toContain(target.userID);
+    });
+
     it("refuses an unknown username", async () => {
         const asker = await loggedIn();
 

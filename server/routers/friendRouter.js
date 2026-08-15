@@ -3,7 +3,7 @@ import db from "../database/createConnection.js";
 import { sendError } from "../errors.js";
 import { validateBody } from "../validate.js";
 import { friendRequestSchema, friendAnswerSchema } from "../schemas.js";
-import { isOnline, whereIs } from "../socketios/presence.js";
+import { onlineUserIds, whereIs } from "../socketios/presence.js";
 import * as friends from "../services/friendService.js";
 
 const router = Router();
@@ -39,7 +39,7 @@ router.post(
     async (req, res) => {
         const target = await db.users.findOne(
             { username: req.body.username },
-            { projection: { _id: 1 } }
+            { projection: { _id: 1 }, collation: friends.USERNAME_COLLATION }
         );
         if (target === null) {
             return sendError(res, "NOT_FOUND", "No such user");
@@ -114,12 +114,15 @@ router.get("/friends/:id/whereabouts", requireSession("Must be logged in"), asyn
 router.get("/friends", requireSession("Must be logged in"), async (req, res) => {
     const buckets = await friends.listFor(req.session.userID.toString());
 
-    // Presence is asked of the socket layer, which is the only thing that knows.
-    // Answered for accepted friends only: whether someone you have asked is
+    // One pass over the sockets, not one per friend: asking individually made
+    // loading this page cost friends x connections.
+    //
+    // Answered for accepted friends only — whether someone you have asked is
     // online is not yours to know until they say yes.
+    const online = onlineUserIds();
     buckets.friends = buckets.friends.map((friend) => ({
         ...friend,
-        online: isOnline(friend.userID),
+        online: online.has(friend.userID),
     }));
 
     res.status(200).send({ data: buckets });
