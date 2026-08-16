@@ -33,7 +33,8 @@ const KEYS = {
     // than after "Zulu", which is where its code point puts it.
     name: (a, b) => String(a.eventName ?? "").localeCompare(String(b.eventName ?? "")),
     runtime: (a, b) => (a.movieRuntime ?? 0) - (b.movieRuntime ?? 0),
-    startTime: (a, b) => new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime(),
+    startTime: (a, b) =>
+        new Date(a.startTime ?? 0).getTime() - new Date(b.startTime ?? 0).getTime(),
     spaces: (a, b) => freeSeats(a) - freeSeats(b),
 };
 

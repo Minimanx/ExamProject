@@ -57,7 +57,11 @@ describe("ordering the listing", () => {
     // reads "2/10" and a people icon.
     it("sorts by seats still free, not by the size of the room", () => {
         const listing = [
-            theater({ eventName: "Big but full", amountOfSpaces: 20, usersInsideTheater: Array(20) }),
+            theater({
+                eventName: "Big but full",
+                amountOfSpaces: 20,
+                usersInsideTheater: Array(20),
+            }),
             theater({ eventName: "Small and empty", amountOfSpaces: 10, usersInsideTheater: [] }),
         ];
 
