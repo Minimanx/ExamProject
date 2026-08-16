@@ -5,6 +5,7 @@ import { WORLD } from "../world/movement.js";
 import { whereIs } from "./presence.js";
 import { find as findFriendship, involves } from "../services/friendService.js";
 import { limits } from "../limits.js";
+import { safeColor } from "../world/colors.js";
 const POSITION_THROTTLE_MS = 50;
 
 /**
@@ -323,7 +324,9 @@ const socket = (io) => {
 
             // Kept so someone who drives into view later can be told what this
             // car looks like — the carJoined that described it is long gone.
-            socket.data.car = { color, name, coords, screen };
+            // Checked here rather than at each place it is sent on: this is
+            // the record every later announcement of this car is built from.
+            socket.data.car = { color: safeColor(color), name, coords, screen };
 
             // The spawn position counts. Recording only on movement would leave
             // two people who have just arrived unable to hear each other, which
@@ -345,21 +348,23 @@ const socket = (io) => {
             if (!isAuthenticated(socket)) return;
             if (instanceRoom(socket) === null) return;
 
+            const checked = safeColor(color);
             if (socket.data.car) {
                 socket.data.car.name = name;
-                socket.data.car.color = color;
+                socket.data.car.color = checked;
             }
-            emitToWatchers(io, socket, "newCarUpdate", { id: socket.id, name, color });
+            emitToWatchers(io, socket, "newCarUpdate", { id: socket.id, name, color: checked });
         });
 
         socket.on("colorChanged", ({ color }) => {
             if (!isAuthenticated(socket)) return;
             if (instanceRoom(socket) === null) return;
 
+            const checked = safeColor(color);
             if (socket.data.car) {
-                socket.data.car.color = color;
+                socket.data.car.color = checked;
             }
-            emitToWatchers(io, socket, "newColorChanged", { id: socket.id, color });
+            emitToWatchers(io, socket, "newColorChanged", { id: socket.id, color: checked });
         });
 
         socket.on("theaterAdded", () => {

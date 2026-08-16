@@ -1,5 +1,6 @@
 <script>
     import { error, success } from "../components/toasts/toastThemes.js";
+    import { randomPlayerColor } from "../services/playerColor.js";
     import { apiFetch } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
@@ -48,7 +49,7 @@
             $user.loggedIn = true;
             $user.username = result.data.username;
             $user.userID = result.data._id;
-            $user.playerColor = "#" + Math.floor(Math.random() * 16777215).toString(16);
+            $user.playerColor = randomPlayerColor();
             $user.insideTheater = false;
             $playerMovement = true;
             socket.disconnect().connect();

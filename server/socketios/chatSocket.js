@@ -1,4 +1,5 @@
 import { ObjectId } from "mongodb";
+import { safeColor } from "../world/colors.js";
 import { removeOccupant } from "../services/theaterService.js";
 import { logger } from "../logger.js";
 
@@ -52,7 +53,9 @@ const socket = (io) => {
             io.to(theaterId).emit("newMessage", {
                 text,
                 username: socket.request.session.username,
-                color,
+                // Checked, not relayed: this is rendered into a style attribute
+                // on every screen in the theater. See world/colors.
+                color: safeColor(color),
             });
         });
         socket.on("leftTheater", () => handleLeaveTheater(socket, io));
