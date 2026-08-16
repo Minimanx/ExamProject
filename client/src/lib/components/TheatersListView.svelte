@@ -2,135 +2,106 @@
     import { formatTimeOfDay } from "../services/duration.js";
     import { onDestroy } from "svelte";
     import { apiFetch } from "../services/api.js";
+    import { isLocked } from "../services/access.js";
+    import { sortedBy } from "../services/theaterSort.js";
 
     let { theaters, teleportToTheater = () => {} } = $props();
 
-    // A search in flight when the panel closes would land on a component that is
+    // A query in flight when the panel closes would land on a component that is
     // gone, having made a request nobody is waiting for.
-    onDestroy(() => clearTimeout(searchTimer));
+    onDestroy(() => clearTimeout(queryTimer));
 
-    // Searching queries the server rather than filtering the prop. The client
-    // has the whole strip today only because the strip is small, which is a fact
-    // about the current size and not something to build on.
+    // Searching and filtering query the server rather than narrowing the prop.
+    // The client has the whole strip today only because the strip is small,
+    // which is a fact about the current size and not something to build on.
     let searchTerm = $state("");
+    let onlyWithSpace = $state(false);
+    let startingWithin = $state("");
     let matches = $state(null);
-    let searchTimer;
+    let queryTimer;
 
     // Debounced: a keystroke per request would put a request per keystroke on
     // the listing, which also runs the expiry sweep and the occupancy
     // reconciliation.
-    const SEARCH_DEBOUNCE_MS = 200;
+    const QUERY_DEBOUNCE_MS = 200;
 
-    function onSearchInput() {
-        clearTimeout(searchTimer);
-        const term = searchTerm.trim();
+    /**
+     * How soon an event has to start to count as "soon".
+     *
+     * The server takes any positive number of minutes; these are the answers
+     * worth a click. An event already under way matches every window — it is the
+     * one you are most likely to want to walk into.
+     */
+    const WINDOWS = [
+        { value: "", label: "Any time" },
+        { value: "30", label: "Within 30 min" },
+        { value: "60", label: "Within an hour" },
+        { value: "180", label: "Within 3 hours" },
+    ];
 
-        if (!term) {
+    /** Read when the handler runs rather than derived, so it cannot depend on
+        whether Svelte's binding or this handler saw the change first. */
+    function filtering() {
+        return searchTerm.trim() !== "" || onlyWithSpace || startingWithin !== "";
+    }
+
+    function onFilterChange() {
+        clearTimeout(queryTimer);
+
+        if (!filtering()) {
             matches = null;
             return;
         }
-        searchTimer = setTimeout(() => void runSearch(term), SEARCH_DEBOUNCE_MS);
+        queryTimer = setTimeout(() => void runQuery(), QUERY_DEBOUNCE_MS);
     }
 
-    async function runSearch(term) {
-        const response = await apiFetch(`/theaters?q=${encodeURIComponent(term)}`);
+    // A slower earlier request must not overwrite a newer one's results. A
+    // sequence number rather than re-reading the inputs: typing "noir", deleting
+    // it and typing it again makes two requests whose terms match, and the
+    // comparison that used to guard this could not tell them apart.
+    let latestQuery = 0;
+
+    async function runQuery() {
+        const mine = ++latestQuery;
+
+        const params = new URLSearchParams();
+        const term = searchTerm.trim();
+        if (term) params.set("q", term);
+        if (onlyWithSpace) params.set("hasSpace", "true");
+        if (startingWithin) params.set("startingWithin", startingWithin);
+
+        const response = await apiFetch(`/theaters?${params}`);
         if (!response.ok) return;
 
         const { data } = await response.json();
-        // A slower earlier request must not overwrite a newer one's results.
-        if (term === searchTerm.trim()) {
+        if (mine === latestQuery) {
             matches = data;
         }
     }
 
-    // null means "not searching" and shows everything; an empty array means a
-    // search that found nothing, which has to look different from no search at
+    // null means "not filtering" and shows everything; an empty array means a
+    // query that found nothing, which has to look different from no query at
     // all or the list silently reads as "there is nothing on".
-    const visible = $derived(matches ?? theaters);
+    let sort = $state({ key: null, direction: "asc" });
+    const visible = $derived(sortedBy(matches ?? theaters, sort.key, sort.direction));
 
-    let sortBySpacesPicker = $state(0);
-    let sortByNamePicker = $state(0);
-    let sortByTimePicker = $state(0);
-    let sortByDatePicker = $state(0);
-    const colors = ["color: black;", "color: red;", "color: green;"];
-
-    function sortByName() {
-        sortBySpacesPicker = 0;
-        sortByTimePicker = 0;
-        sortByDatePicker = 0;
-
-        if (sortByNamePicker === 0 || sortByNamePicker === 1) {
-            theaters.sort((a, b) => {
-                if (a.eventName > b.eventName) {
-                    return 1;
-                }
-                if (a.eventName < b.eventName) {
-                    return -1;
-                }
-            });
-            sortByNamePicker = 2;
-        } else {
-            theaters.sort((a, b) => {
-                if (a.eventName < b.eventName) {
-                    return 1;
-                }
-                if (a.eventName > b.eventName) {
-                    return -1;
-                }
-            });
-            sortByNamePicker = 1;
-        }
+    /** Ascending on the first click, reversed on the next. */
+    function sortBy(key) {
+        sort =
+            sort.key === key && sort.direction === "asc"
+                ? { key, direction: "desc" }
+                : { key, direction: "asc" };
     }
-    function sortBySpaces() {
-        sortByNamePicker = 0;
-        sortByTimePicker = 0;
-        sortByDatePicker = 0;
 
-        if (sortBySpacesPicker === 0 || sortBySpacesPicker === 1) {
-            theaters.sort((a, b) => {
-                return a.amountOfSpaces - b.amountOfSpaces;
-            });
-            sortBySpacesPicker = 2;
-        } else {
-            theaters.sort((a, b) => {
-                return b.amountOfSpaces - a.amountOfSpaces;
-            });
-            sortBySpacesPicker = 1;
-        }
-    }
-    function sortByTime() {
-        sortBySpacesPicker = 0;
-        sortByNamePicker = 0;
-        sortByDatePicker = 0;
-
-        if (sortByTimePicker === 0 || sortByTimePicker === 1) {
-            theaters.sort((a, b) => {
-                return b.movieRuntime - a.movieRuntime;
-            });
-            sortByTimePicker = 2;
-        } else {
-            theaters.sort((a, b) => {
-                return a.movieRuntime - b.movieRuntime;
-            });
-            sortByTimePicker = 1;
-        }
-    }
-    function sortByDate() {
-        sortBySpacesPicker = 0;
-        sortByNamePicker = 0;
-        sortByTimePicker = 0;
-
-        if (sortByDatePicker === 0 || sortByDatePicker === 1) {
-            theaters.sort((a, b) => {
-                return new Date(a.startTime).getTime() - new Date(b.startTime).getTime();
-            });
-            sortByDatePicker = 2;
-        } else {
-            theaters.sort((a, b) => {
-                return new Date(b.startTime).getTime() - new Date(a.startTime).getTime();
-            });
-            sortByDatePicker = 1;
-        }
+    /**
+     * The colour a column header is drawn in: green while it is sorting
+     * ascending, red descending, and the ordinary colour when it is not the one
+     * sorting. The svg needs the same answer as a fill, and used to get it by
+     * splitting the css declaration apart at the space and the semicolon.
+     */
+    function headerColor(key) {
+        if (sort.key !== key) return "rgb(27, 27, 27)";
+        return sort.direction === "asc" ? "green" : "red";
     }
 </script>
 
@@ -141,18 +112,62 @@
             type="search"
             placeholder="Search events and films..."
             bind:value={searchTerm}
-            oninput={onSearchInput}
+            oninput={onFilterChange}
         />
+        <div class="filters">
+            <label class="filterCheck">
+                <input
+                    name="hasSpace"
+                    type="checkbox"
+                    bind:checked={onlyWithSpace}
+                    onchange={onFilterChange}
+                />
+                Only with room
+            </label>
+            <select
+                name="startingWithin"
+                aria-label="How soon it starts"
+                bind:value={startingWithin}
+                onchange={onFilterChange}
+            >
+                {#each WINDOWS as window (window.value)}
+                    <option value={window.value}>{window.label}</option>
+                {/each}
+            </select>
+        </div>
     </div>
     <div class="headers">
         <ul class="unorderedListHeaders">
             <li></li>
-            <li onclick={sortByName} style={colors[sortByNamePicker]}>Name/Movie</li>
-            <li onclick={sortByTime} style={colors[sortByTimePicker]}>Time</li>
-            <li onclick={sortByDate} style={colors[sortByDatePicker]}>Starts</li>
-            <li onclick={sortBySpaces}>
+            <li>
+                <button
+                    class="sortHeader"
+                    style="color: {headerColor('name')};"
+                    onclick={() => sortBy("name")}>Name/Movie</button
+                >
+            </li>
+            <li>
+                <button
+                    class="sortHeader"
+                    style="color: {headerColor('runtime')};"
+                    onclick={() => sortBy("runtime")}>Time</button
+                >
+            </li>
+            <li>
+                <button
+                    class="sortHeader"
+                    style="color: {headerColor('startTime')};"
+                    onclick={() => sortBy("startTime")}>Starts</button
+                >
+            </li>
+            <li>
+                <button
+                    class="sortHeader"
+                    aria-label="Sort by seats free"
+                    onclick={() => sortBy("spaces")}
+                >
                 <svg
-                    fill={colors[sortBySpacesPicker].split(" ")[1].split(";")[0]}
+                    fill={headerColor("spaces")}
                     width="22px"
                     xmlns="http://www.w3.org/2000/svg"
                     viewBox="0 0 640 512"
@@ -160,6 +175,7 @@
                         d="M224 256c70.7 0 128-57.31 128-128S294.7 0 224 0C153.3 0 96 57.31 96 128S153.3 256 224 256zM274.7 304H173.3c-95.73 0-173.3 77.6-173.3 173.3C0 496.5 15.52 512 34.66 512H413.3C432.5 512 448 496.5 448 477.3C448 381.6 370.4 304 274.7 304zM479.1 320h-73.85C451.2 357.7 480 414.1 480 477.3C480 490.1 476.2 501.9 470 512h138C625.7 512 640 497.6 640 479.1C640 391.6 568.4 320 479.1 320zM432 256C493.9 256 544 205.9 544 144S493.9 32 432 32c-25.11 0-48.04 8.555-66.72 22.51C376.8 76.63 384 101.4 384 128c0 35.52-11.93 68.14-31.59 94.71C372.7 243.2 400.8 256 432 256z"
                     /></svg
                 >
+                </button>
             </li>
             <li>
                 <svg width="20px" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"
@@ -172,7 +188,14 @@
     </div>
     <div class="list">
         {#if matches !== null && matches.length === 0}
-            <p class="noMatches">No events match "{searchTerm.trim()}"</p>
+            <!-- Naming the term is the useful message when there is one, and
+                 quoting an empty string is the useless one a filter alone would
+                 otherwise produce. -->
+            <p class="noMatches">
+                {searchTerm.trim()
+                    ? `No events match "${searchTerm.trim()}"`
+                    : "No events match those filters"}
+            </p>
         {/if}
         {#each visible as theater (theater._id)}
             <ul class="unorderedList" onclick={() => teleportToTheater(theater.position)}>
@@ -202,7 +225,7 @@
                     </div>
                     <div class="eventInfoSingle">
                         <li>
-                            {#if theater.passwordBool}
+                            {#if isLocked(theater)}
                                 <svg
                                     width="22px"
                                     xmlns="http://www.w3.org/2000/svg"
@@ -241,8 +264,25 @@
         padding: 10px 0px;
         align-items: center;
     }
-    .unorderedListHeaders li:hover {
+    /* A header that sorts is a button, so a keyboard can reach it — it was a
+       bare <li> with a click handler, which nothing but a mouse could use. It
+       still has to look like a header rather than a form control. */
+    .sortHeader {
+        font: inherit;
+        color: inherit;
+        background: none;
+        border: none;
+        padding: 0;
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: center;
         cursor: pointer;
+    }
+
+    .sortHeader:focus-visible {
+        outline: 2px solid rgb(27, 27, 27);
+        outline-offset: 2px;
     }
     .unorderedListHeaders li:nth-child(1) {
         flex-basis: 26px;
@@ -271,12 +311,39 @@
         padding: 6px 10px;
     }
 
-    .searchBar input {
+    /* Scoped to the search box. Unqualified, it also caught the filter
+       checkbox and stretched it across the panel. */
+    .searchBar input[type="search"] {
         width: 100%;
         box-sizing: border-box;
         padding: 6px 10px;
         font-family: inherit;
         font-size: 14px;
+    }
+
+    .filters {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 8px;
+        padding-top: 6px;
+        font-size: 13px;
+        color: rgb(100, 100, 100);
+    }
+
+    .filterCheck {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        cursor: pointer;
+    }
+
+    .filters select {
+        font-family: inherit;
+        font-size: 13px;
+        padding: 4px 6px;
+        border: 2px solid rgb(204, 204, 204);
+        background-color: rgb(252, 252, 252);
     }
 
     .noMatches {

@@ -546,6 +546,45 @@ test("searching the list view narrows it, by event and by film", async ({ page }
     await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
 });
 
+// The listing has taken hasSpace and startingWithin since Phase 3.2, both
+// validated and tested on the server. Nothing in the UI ever sent them, so the
+// only way to filter the strip was to type into the search box.
+test("filtering by room and by how soon it starts", async ({ page }) => {
+    await logIn(page);
+
+    const names = () => page.locator(".containerListView .names").allTextContents();
+    expect((await names()).length).toBeGreaterThan(1);
+
+    // The seeded strip is three roomy events an hour out, so each filter has
+    // something to keep and something to drop.
+    await page.locator('input[name="hasSpace"]').check();
+    await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
+
+    await page.locator('select[name="startingWithin"]').selectOption("30");
+    await expect.poll(names).toEqual([]);
+    await expect(page.locator(".containerListView")).toContainText(/no events match/i);
+
+    // And clearing every filter brings the whole strip back, rather than
+    // leaving the last result set on screen.
+    await page.locator('select[name="startingWithin"]').selectOption("");
+    await page.locator('input[name="hasSpace"]').uncheck();
+    await expect.poll(async () => (await names()).length).toBeGreaterThan(1);
+});
+
+test("the sort headers can be reached and used by keyboard", async ({ page }) => {
+    await logIn(page);
+
+    const names = () => page.locator(".containerListView .names").allTextContents();
+    const header = page.getByRole("button", { name: "Name/Movie" });
+
+    await header.focus();
+    await expect(header).toBeFocused();
+    await page.keyboard.press("Enter");
+
+    const ascending = await names();
+    expect([...ascending].sort()).toEqual(ascending);
+});
+
 test("a search that matches nothing says so rather than showing everything", async ({ page }) => {
     await logIn(page);
 
@@ -941,6 +980,15 @@ test("creating a private event shows an invite link exactly once", async ({ page
     const within = await panel.boundingBox();
     expect(box.x).toBeGreaterThanOrEqual(within.x - 1);
     expect(box.x + box.width).toBeLessThanOrEqual(within.x + within.width + 1);
+
+    // And the event says so. Lobby keys renamed the field these two views read,
+    // so a private event announced itself as "Public Event" on its own marquee
+    // and drew the open padlock in the listing — the host ticked the box, was
+    // handed a key, and the event advertised itself as open to anyone.
+    await page.getByRole("button", { name: "Done" }).click();
+    await expect(page.locator(".lotSlot").filter({ hasText: "Private Night" })).toContainText(
+        "Private Event"
+    );
 });
 
 test("unknown paths fall back to the scene", async ({ page }) => {
