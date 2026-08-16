@@ -89,6 +89,18 @@
     }
 
     /**
+     * Treat Enter and Space on a non-button control as a click.
+     *
+     * What a real button does for free, and the reason a listing row — which
+     * drives you to the event — could only be used with a mouse.
+     */
+    function activateOn(event, act) {
+        if (event.key !== "Enter" && event.key !== " ") return;
+        event.preventDefault();
+        act();
+    }
+
+    /**
      * The colour a column header is drawn in: green while it is sorting
      * ascending, red descending, and the ordinary colour when it is not the one
      * sorting. The svg needs the same answer as a fill, and used to get it by
@@ -193,33 +205,45 @@
             </p>
         {/if}
         {#each visible as theater (theater._id)}
-            <ul class="unorderedList" onclick={() => teleportToTheater(theater.position)}>
-                <li></li>
+            <!-- A row drives you to the event, so it is a control rather than a
+                 list: it was a <ul> with a click handler, which nothing but a
+                 mouse could use, and a list cannot be given a button's role.
+                 The cells are spans for the same reason — an <span> outside a
+                 list is not one. -->
+            <div
+                class="unorderedList"
+                role="button"
+                tabindex="0"
+                aria-label="Drive to {theater.eventName}"
+                onclick={() => teleportToTheater(theater.position)}
+                onkeydown={(event) => activateOn(event, () => teleportToTheater(theater.position))}
+            >
+                <span></span>
                 <div class="names">
-                    <li class="namesInsideDiv">
+                    <span class="namesInsideDiv">
                         {theater.eventName}
-                    </li>
-                    <li class="namesInsideDiv movieName">
+                    </span>
+                    <span class="namesInsideDiv movieName">
                         {theater.movieName}
-                    </li>
+                    </span>
                 </div>
                 <div class="eventInfo">
                     <div class="eventInfoSingle">
-                        <li>
+                        <span>
                             {theater.movieRuntime}
-                        </li>
-                        <li>min</li>
+                        </span>
+                        <span>min</span>
                     </div>
                     <div class="eventInfoSingle">
-                        <li>{formatTimeOfDay(theater.startTime)}</li>
+                        <span>{formatTimeOfDay(theater.startTime)}</span>
                     </div>
                     <div class="eventInfoSingle">
-                        <li>
+                        <span>
                             {theater.usersInsideTheater.length}/{theater.amountOfSpaces}
-                        </li>
+                        </span>
                     </div>
                     <div class="eventInfoSingle">
-                        <li>
+                        <span>
                             {#if isLocked(theater)}
                                 <svg
                                     width="22px"
@@ -240,10 +264,10 @@
                                     /></svg
                                 >
                             {/if}
-                        </li>
+                        </span>
                     </div>
                 </div>
-            </ul>
+            </div>
         {/each}
     </div>
 </div>
@@ -422,7 +446,8 @@
         background-color: aquamarine;
         cursor: pointer;
     }
-    li {
+    li,
+    .unorderedList span {
         user-select: none;
     }
 </style>

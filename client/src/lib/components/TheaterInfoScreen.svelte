@@ -18,11 +18,12 @@
     // A key in the URL is for whichever theater the link named, so it is only
     // used for that one — walking up to a different private lobby with someone
     // else's link in your address bar must not let you in.
-    const keyForThisTheater = $derived(
+    const keyFromLink = $derived(
         page.url.searchParams.get("theater") === theater._id
             ? (page.url.searchParams.get("key") ?? "")
-            : lobbyKey
+            : ""
     );
+    const keyForThisTheater = $derived(keyFromLink || lobbyKey);
 
     async function joinTheater() {
         if (joining) return;
@@ -103,7 +104,12 @@
                     /></svg
                 >
             </h4>
-            {#if theater.isPrivate && !keyForThisTheater}
+            {#if theater.isPrivate && keyFromLink}
+                <!-- The key came with the link, so there is nothing to ask for.
+                     An empty "Invite key" box here read as though there still
+                     was, on the one path where the key was already in hand. -->
+                <p class="privateNotice">Private event — your invite link opens this one</p>
+            {:else if theater.isPrivate && !keyForThisTheater}
                 <p class="privateNotice">Private event — you need the host's invite link</p>
             {:else if theater.isPrivate}
                 <input

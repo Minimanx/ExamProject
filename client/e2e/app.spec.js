@@ -894,7 +894,7 @@ test("creating an event: search, select a movie, and submit", async ({ page }) =
 
     // The result list renders once the (intercepted) search resolves. Scope to
     // the panel: an unscoped "ul" also matches the toast container.
-    const result = panel.locator("ul").filter({ hasText: "Interstellar" }).first();
+    const result = panel.locator(".movieRow").filter({ hasText: "Interstellar" }).first();
     await expect(result).toBeVisible();
     // dispatchEvent rather than click(): the search is debounced and re-renders
     // the result list, which swallows a real mouse click landing mid-render.
@@ -955,7 +955,7 @@ test("creating a private event shows an invite link exactly once", async ({ page
     await page.locator('input[name="eventName"]').fill("Private Night");
     await page.locator('input[name="searchMovie"]').first().fill("solaris");
     await page.locator('input[name="searchMovie"]').first().dispatchEvent("change");
-    const result = panel.locator("ul").filter({ hasText: "Solaris" }).first();
+    const result = panel.locator(".movieRow").filter({ hasText: "Solaris" }).first();
     await expect(result).toBeVisible();
     await result.dispatchEvent("click");
 
@@ -1058,6 +1058,52 @@ test("someone who is not the host gets no playback controls", async ({ page }) =
     await expect(page.locator('button[name="play"]')).toHaveCount(0);
     await expect(page.locator('button[name="readyCheck"]')).toHaveCount(0);
     await expect(page.locator(".hostOnly")).toContainText(/the host has the controls/i);
+});
+
+// The private invite link carries the event and its one-time key, and the key is
+// picked up at the sign. Getting to the sign was left to the recipient: the link
+// dropped them at the world spawn to drive the strip looking for the right
+// marquee, while the public "invite to this event" link — which needs no key at
+// all — teleports.
+test("a private invite link takes you to the event, key in hand", async ({ page, request }) => {
+    const host = {
+        email: `invited-${RUN}@example.com`,
+        username: `invited${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...host, passwordRepeat: host.password },
+        failOnStatusCode: false,
+    });
+
+    await logIn(page, host);
+
+    const soon = new Date(Date.now() + 60 * 60 * 1000);
+    const created = await page.request.post(`${API}/theaters`, {
+        data: {
+            data: {
+                eventName: "By Invitation",
+                imdbID: "tt0133093",
+                amountOfSpaces: 10,
+                startTime: soon.toISOString(),
+                private: true,
+            },
+        },
+        failOnStatusCode: false,
+    });
+    expect(created.status()).toBe(200);
+    const { theaterId, lobbyKey } = await created.json();
+    expect(lobbyKey).toBeTruthy();
+
+    await page.goto(`/?theater=${theaterId}&key=${lobbyKey}`);
+
+    // Arriving at the sign is what opens the panel, so this is the teleport.
+    await expect(page.locator(".panel")).toContainText("By Invitation");
+    // The key came with the link, so the panel neither asks for one nor claims
+    // you need one — and there is a way in.
+    await expect(page.locator(".panel")).toContainText(/your invite link opens this one/i);
+    await expect(page.locator('input[name="lobbyKey"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /^join$/i })).toBeVisible();
 });
 
 test("the host of their own event gets the controls", async ({ page, request }) => {
