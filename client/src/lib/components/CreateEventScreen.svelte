@@ -150,23 +150,35 @@
                 </div>
             {/if}
             {#each movies as movie (movie.imdbID)}
-                <ul
+                <!-- Choosing a film is a control rather than a list: it was a
+                     bare <ul> with a click handler, so only a mouse could pick
+                     one, and a list cannot be given a button's role. -->
+                <div
+                    role="button"
+                    tabindex="0"
+                    aria-pressed={movie.imdbID === chosenMovieID}
+                    aria-label="Choose {movie.Title}"
                     onclick={() => (chosenMovieID = movie.imdbID)}
-                    class={movie.imdbID === chosenMovieID ? "selectedMovie" : ""}
+                    onkeydown={(event) => {
+                        if (event.key !== "Enter" && event.key !== " ") return;
+                        event.preventDefault();
+                        chosenMovieID = movie.imdbID;
+                    }}
+                    class="movieRow {movie.imdbID === chosenMovieID ? 'selectedMovie' : ''}"
                 >
-                    <li id="imageItem">
+                    <span id="imageItem">
                         <img
                             src={movie.Poster !== "N/A"
                                 ? movie.Poster
                                 : "https://www.tradeinn.com/f/13772/137720122/jibbitz-question-mark.jpg"}
                             alt="poster"
                         />
-                    </li>
-                    <li>
+                    </span>
+                    <span>
                         {movie.Title}
-                    </li>
-                    <li></li>
-                </ul>
+                    </span>
+                    <span></span>
+                </div>
             {/each}
         </div>
 
@@ -267,22 +279,23 @@
     .selectedMovie {
         background-color: aqua;
     }
-    ul {
+    /* A row is a div now, not a list — see the markup for why. */
+    .movieRow {
         width: 100%;
         margin: 0;
         text-align: center;
         display: flex;
-        list-style-type: none;
         padding: 0;
         justify-content: space-between;
         align-items: center;
         height: 90px;
     }
-    ul:hover {
+    .movieRow:hover {
         background-color: aquamarine;
         cursor: pointer;
     }
-    ul:active {
+    .movieRow:active,
+    .movieRow:focus-visible {
         background-color: aqua;
     }
     /* The panel owns the frame; this is how the form sits in it — centred and

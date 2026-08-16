@@ -13,6 +13,7 @@
     import { stepFor } from "../services/driving.js";
     import { viewFor } from "../services/view.js";
     import { createRemoteCars } from "../world/remoteCars.svelte.js";
+    import { invitedSlot } from "../services/invite.js";
     import AboutPage from "../components/AboutPage.svelte";
     import { page } from "$app/state";
     import { Pulse } from "svelte-loading-spinners";
@@ -197,11 +198,12 @@
 
             $playerMovement = true;
             $user.insideTheater = false;
-            if (page.url.searchParams.has("position")) {
-                const queryPosition = Number(page.url.searchParams.get("position"));
-                teleportToTheater(
-                    queryPosition >= highestPosition ? highestPosition - 1 : queryPosition
-                );
+
+            // Both kinds of invite link land here, including the private one,
+            // which used to carry a key to a sign it left you to find yourself.
+            const slot = invitedSlot(page.url.searchParams, theaters, highestPosition);
+            if (slot !== null) {
+                teleportToTheater(slot);
             }
         }
         function load() {
