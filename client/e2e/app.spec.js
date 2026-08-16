@@ -1386,6 +1386,60 @@ test("two people connect a voice call in a lobby", async ({ browser, request }) 
         expect(await connected(hostPage)).toBe(true);
         expect(await connected(guestPage)).toBe(true);
 
+        // The camera is gated to friends, so with strangers there is no control
+        // to press — only the reason there isn't.
+        await expect(hostPage.locator(".voice")).toContainText(/only available with friends/i);
+        await expect(hostPage.locator('button[name="toggleCamera"]')).toHaveCount(0);
+
+        // Become friends, and it becomes available. The gate is enforced on the
+        // server for every offer; this is the ordinary path through it.
+        const asked = await hostPage.request.post(`${API}/friends`, {
+            data: { username: guest.username },
+            failOnStatusCode: false,
+        });
+        expect(asked.status()).toBe(200);
+        const incoming = await guestPage.request.get(`${API}/friends`, {
+            failOnStatusCode: false,
+        });
+        const { data: lists } = await incoming.json();
+        expect(lists.incoming).toHaveLength(1);
+        const answered = await guestPage.request.patch(`${API}/friends/${lists.incoming[0].id}`, {
+            data: { accept: true },
+            failOnStatusCode: false,
+        });
+        expect(answered.status()).toBe(200);
+
+        // Rejoining is what asks the server again who may see a camera.
+        for (const page of [hostPage, guestPage]) {
+            await page.locator('button[name="leaveVoice"]').click();
+            await expect(page.locator('button[name="joinVoice"]')).toBeVisible();
+        }
+        await hostPage.locator('button[name="joinVoice"]').click();
+        await guestPage.locator('button[name="joinVoice"]').click();
+        await expect(hostPage.locator('button[name="toggleCamera"]')).toBeVisible({
+            timeout: 20000,
+        });
+
+        await hostPage.locator('button[name="toggleCamera"]').click();
+        await expect(hostPage.locator('button[name="toggleCamera"]')).toContainText(/off/i);
+        // Turning it on says nothing went wrong — in particular the server did
+        // not refuse to carry it, which is what it does between strangers.
+        await expect(hostPage.locator(".voice .failure")).toHaveCount(0);
+
+        // And the far end negotiates a two-way video section rather than one it
+        // can only receive on, which is what lets the camera be swapped in
+        // without another round of negotiation.
+        const videoDirection = await guestPage.evaluate(() => {
+            // The last one: they left and rejoined to pick up the friendship,
+            // so the earlier connections are from before it existed.
+            const pc = window.__voicePeerConnections?.at(-1);
+            const section = (pc?.remoteDescription?.sdp ?? "")
+                .split(/^m=/m)
+                .find((part) => part.startsWith("video"));
+            return (section ?? "").includes("a=sendrecv") ? "sendrecv" : "other";
+        });
+        expect(videoDirection).toBe("sendrecv");
+
         // Leaving takes the person off the other screen.
         await guestPage.locator('button[name="leaveVoice"]').click();
         await expect(hostPage.locator(".voice .peers")).not.toContainText(guest.username, {

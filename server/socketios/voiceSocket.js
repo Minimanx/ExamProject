@@ -47,10 +47,29 @@ function isAuthenticated(socket) {
  * would need to stay in step with connects, disconnects, reconnects and people
  * walking out of theaters — a second way to be wrong about who is present, in
  * exchange for nothing at this size.
+ *
+ * Walked synchronously, which matters for the cap: counting and then claiming a
+ * place has to be one step. `fetchSockets()` awaits, and everything between the
+ * count and the claim is a window in which someone else can take the last place.
+ * It happens to hold today because the local adapter hands back live references
+ * rather than copies, so the filter sees the claim — but that is a detail of an
+ * adapter this code does not otherwise depend on, and the first thing a Redis
+ * adapter would change.
  */
-async function participants(io, theaterId) {
-    const sockets = await io.in(theaterId).fetchSockets();
-    return sockets.filter((peer) => peer.data.inCall === true);
+function participants(io, theaterId) {
+    const room = io.sockets.adapter.rooms.get(theaterId);
+    if (room === undefined) {
+        return [];
+    }
+
+    const inCall = [];
+    for (const socketId of room) {
+        const peer = io.sockets.sockets.get(socketId);
+        if (peer?.data.inCall === true) {
+            inCall.push(peer);
+        }
+    }
+    return inCall;
 }
 
 function describe(peer) {
@@ -79,7 +98,7 @@ const socket = (io) => {
             if (theaterId === null) return;
             if (socket.data.inCall === true) return;
 
-            const already = await participants(io, theaterId);
+            const already = participants(io, theaterId);
             if (already.length >= limits.voiceCapacity) {
                 socket.emit("voiceFull", {
                     message: `This call is full (${limits.voiceCapacity} people).`,
@@ -96,7 +115,9 @@ const socket = (io) => {
             socket.data.userID = me;
 
             // Whether the camera may be pointed at each of them, decided here
-            // rather than asked of the client.
+            // rather than asked of the client. Worked out for both directions
+            // before anyone is told anything, so that no await sits between the
+            // two announcements below.
             const peers = [];
             for (const peer of already) {
                 peers.push({
@@ -105,14 +126,26 @@ const socket = (io) => {
                 });
             }
 
-            socket.emit("voiceJoined", { peers, capacity: limits.voiceCapacity });
-
+            // Everyone already here learns about the arrival first, and only
+            // then is the arrival told who to offer to.
+            //
+            // The other way round leaves a gap: the joiner offers the moment it
+            // hears back, and that offer can reach someone who has not yet been
+            // told the joiner exists. They then open the connection knowing
+            // nothing about them — including whether the camera is allowed — so
+            // no place for video is reserved and the answer rejects the video
+            // section outright. Two friends got an audio-only call and a camera
+            // button that did nothing.
             for (const peer of already) {
                 peer.emit("voicePeerJoined", {
                     ...describe(socket),
-                    cameraAllowed: await areFriends(peer.data.userID, me),
+                    // Friendship is mutual, so the answer for this pair is the
+                    // one already worked out above.
+                    cameraAllowed: peers.find((entry) => entry.id === peer.id).cameraAllowed,
                 });
             }
+
+            socket.emit("voiceJoined", { peers, capacity: limits.voiceCapacity });
         });
 
         /**

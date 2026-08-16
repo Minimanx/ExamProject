@@ -56,10 +56,19 @@
 
             call = createVoiceCall({
                 socket,
-                createPeerConnection: () => new RTCPeerConnection({ iceServers: data.iceServers }),
+                createPeerConnection: () => {
+                    const connection = new RTCPeerConnection({ iceServers: data.iceServers });
+                    // Reachable from a console, and from a test that wants to
+                    // know what was negotiated rather than what was drawn.
+                    (window.__voicePeerConnections ??= []).push(connection);
+                    return connection;
+                },
                 // Audio only. The camera is a separate step, gated to friends,
                 // and opening it here would light everyone's camera on join.
                 getLocalStream: () => navigator.mediaDevices.getUserMedia({ audio: true }),
+                // Asked for separately, and only when somebody turns it on, so
+                // joining a call never lights a camera.
+                getCameraStream: () => navigator.mediaDevices.getUserMedia({ video: true }),
             });
             stop = call.listen();
             // Silent until the key is held, which is what push-to-talk means —
@@ -100,6 +109,13 @@
     }
 
     const peerList = $derived(Object.values(call?.peers ?? {}));
+    /**
+     * Whether the camera is worth offering at all.
+     *
+     * The server refuses video to anyone who is not a friend, so a camera button
+     * in a room of strangers is a control whose only outcome is a refusal.
+     */
+    const anyFriendHere = $derived(peerList.some((peer) => peer.cameraAllowed));
 </script>
 
 <svelte:window onkeydown={onKeyDown} onkeyup={onKeyUp} />
@@ -139,6 +155,18 @@
             >
                 {call.muted ? "Unmute" : "Mute"}
             </button>
+        {/if}
+
+        {#if anyFriendHere}
+            <button
+                class="voiceButton"
+                name="toggleCamera"
+                onclick={() => call.setCamera(!call.cameraOn)}
+            >
+                {call.cameraOn ? "Turn camera off" : "Turn camera on"}
+            </button>
+        {:else}
+            <p class="note">The camera is only available with friends.</p>
         {/if}
 
         {#if call.failure}
@@ -234,6 +262,15 @@
         align-items: center;
         gap: 8px;
         font-size: 13px;
+    }
+
+    /* A camera tile stays small: this is a sidebar beside a film, not a
+       meeting. Someone with their camera on is a face, not the main event. */
+    .tile {
+        width: 96px;
+        height: 72px;
+        object-fit: cover;
+        background: rgb(27, 27, 27);
     }
 
     .who {
