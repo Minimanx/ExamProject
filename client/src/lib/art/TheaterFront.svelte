@@ -1,5 +1,6 @@
 <script>
     import { formatTimeOfDay } from "../services/duration.js";
+    import { isLocked } from "../services/access.js";
 
     let { theater, currentTime } = $props();
 
@@ -104,7 +105,7 @@
         /></svg
     >
     <text class="eventInfo" y="64" x="67%"
-        >{theater.passwordBool ? "Private Event" : "Public Event"}</text
+        >{isLocked(theater) ? "Private Event" : "Public Event"}</text
     >
     <text class="movieTitle {neonColor}" y="78" x="52%"
         >{theater.movieNameCutToFit || theater.movieName}</text

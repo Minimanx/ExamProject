@@ -12,6 +12,7 @@
     import { playerMovement } from "../stores/stateManagementStore.js";
     import { stepFor } from "../services/driving.js";
     import { viewFor } from "../services/view.js";
+    import { createRemoteCars } from "../world/remoteCars.svelte.js";
     import AboutPage from "../components/AboutPage.svelte";
     import { page } from "$app/state";
     import { Pulse } from "svelte-loading-spinners";
@@ -24,83 +25,31 @@
 
     const socket = createSocket();
 
-    function handleNewCarPosition({ id, coords, direction, screen }) {
-        if (!$user.insideTheater) {
-            const carIndex = cars.findIndex((car) => car.id === id);
-            if (carIndex !== -1) {
-                cars[carIndex] = {
-                    ...cars[carIndex],
-                    coords: {
-                        x: coords.x + screen,
-                        y: coords.y,
-                        direction: direction,
-                    },
-                };
-            }
-        }
+    // Everyone else's car, and what they are saying. See remoteCars for why it
+    // is not seven handlers in here.
+    const world = createRemoteCars();
+
+    /**
+     * Ignore world traffic while we are inside a theater.
+     *
+     * Every one of these handlers opened with this same guard. It is about this
+     * client's situation rather than about the world, which is why it lives here
+     * and not in remoteCars.
+     */
+    function whileOutside(handle) {
+        return (payload) => {
+            if (!$user.insideTheater) handle(payload);
+        };
     }
 
-    // Deliberately does not answer with our own car. Coming into view is
-    // symmetric and the server says so to both sides at once — see
-    // reconcileInterest. Answering was left over from before interest
-    // management, when a new arrival had to introduce itself, and it meant a
-    // round trip per car appearing: driving into a busy stretch of the strip
-    // re-announced this player once for every car that came into view.
-    function handleNewCarJoined({ id, coords, color, name, screen }) {
-        if (!$user.insideTheater) {
-            if (cars.findIndex((car) => car.id === id) === -1) {
-                cars.push({
-                    id,
-                    color,
-                    name,
-                    coords: {
-                        x: Number.isFinite(coords?.x + screen) ? coords.x + screen : 60,
-                        y: Number.isFinite(coords?.y) ? coords.y : 600,
-                    },
-                });
-            }
-        }
-    }
-
-    function handleCarLeft({ id }) {
-        if (!$user.insideTheater) {
-            const carIndex = cars.findIndex((car) => car.id === id);
-            if (carIndex !== -1) {
-                cars.splice(carIndex, 1);
-            }
-        }
-    }
-
-    function handleNewColorChanged({ id, color }) {
-        if (!$user.insideTheater) {
-            const carIndex = cars.findIndex((car) => car.id === id);
-            if (carIndex !== -1) {
-                cars[carIndex].color = color;
-            }
-        }
-    }
-
-    function handleNewCarUpdate({ id, name, color }) {
-        if (!$user.insideTheater) {
-            const carIndex = cars.findIndex((car) => car.id === id);
-            if (carIndex !== -1) {
-                cars[carIndex].name = name;
-                cars[carIndex].color = color;
-            }
-        }
-    }
-
-    function handleNewTheaterAdded() {
-        if (!$user.insideTheater) {
-            getTheaters();
-        }
-    }
-
+    // The world deliberately does not answer an arriving car with our own.
+    // Coming into view is symmetric and the server says so to both sides at
+    // once — see reconcileInterest. Answering was left over from before
+    // interest management, when a new arrival had to introduce itself, and it
+    // meant a round trip per car appearing.
     function handleNewJoinedTheater({ id }) {
-        if (!$user.insideTheater) {
-            handleCarLeft({ id });
-            getTheaters();
-        }
+        world.remove({ id });
+        getTheaters();
     }
 
     /**
@@ -150,12 +99,6 @@
         });
     }
 
-    let cars = $state([]);
-
-    // Speech bubbles, keyed by the speaker's socket id. One per car: a second
-    // message replaces the first rather than stacking, which is what a bubble
-    // over a car can actually show.
-    let bubbles = $state({});
     // The socket's own id, mirrored into state. Reading `socket.id` directly in
     // the markup does not work: it is not reactive, and at first render the
     // socket is still connecting, so the effect binds to `bubbles[undefined]`
@@ -163,22 +106,6 @@
     // reconnect, and logging in forces one.
     let socketId = $state(socket.id);
     let hubMessage = $state("");
-    const BUBBLE_LIFETIME_MS = 6000;
-    // Plain object, not $state: these are timer handles, never read by the
-    // markup, and nothing should re-render when one changes.
-    const bubbleTimers = {};
-
-    function showBubble({ id, text }) {
-        bubbles[id] = text;
-
-        // A second message from the same car replaces the first and restarts
-        // its clock, rather than the earlier timer clearing the newer bubble.
-        clearTimeout(bubbleTimers[id]);
-        bubbleTimers[id] = setTimeout(() => {
-            delete bubbles[id];
-            delete bubbleTimers[id];
-        }, BUBBLE_LIFETIME_MS);
-    }
 
     function sendHubMessage() {
         const text = hubMessage.trim();
@@ -242,14 +169,16 @@
 
     onMount(() => {
         const socketHandlers = [
-            ["newCarPosition", handleNewCarPosition],
-            ["newCarJoined", handleNewCarJoined],
-            ["carLeft", handleCarLeft],
-            ["newColorChanged", handleNewColorChanged],
-            ["newCarUpdate", handleNewCarUpdate],
-            ["newTheaterAdded", handleNewTheaterAdded],
-            ["newJoinedTheater", handleNewJoinedTheater],
-            ["newHubMessage", showBubble],
+            ["newCarPosition", whileOutside(world.move)],
+            ["newCarJoined", whileOutside(world.add)],
+            ["carLeft", whileOutside(world.remove)],
+            ["newColorChanged", whileOutside(world.recolor)],
+            ["newCarUpdate", whileOutside(world.rename)],
+            ["newTheaterAdded", whileOutside(getTheaters)],
+            ["newJoinedTheater", whileOutside(handleNewJoinedTheater)],
+            // Unguarded: the server stopped sending these to anyone inside a
+            // theater, which is the same rule enforced where it belongs.
+            ["newHubMessage", world.say],
             ["positionCorrection", handlePositionCorrection],
             ["connect", handleConnect],
         ];
@@ -334,9 +263,9 @@
             active = false;
             cancelAnimationFrame(animationFrameId);
             clearInterval(clockInterval);
-            // One per speech bubble still on screen. Left running, each fires
-            // into a component that no longer exists when its six seconds are up.
-            Object.values(bubbleTimers).forEach(clearTimeout);
+            // Including the bubble timers, each of which would otherwise fire
+            // into a component that no longer exists.
+            world.clear();
             socketHandlers.forEach(([eventName, handler]) => socket.off(eventName, handler));
             keys = { w: false, s: false, a: false, d: false };
             keyDown = false;
@@ -461,14 +390,14 @@
                     style="width: {highestPosition *
                         400}px; transform: translate3d({-screenScrollAmount}px, 0, 0);"
                 >
-                    {#each cars as car (car.id)}
+                    {#each world.cars as car (car.id)}
                         <div
                             class="remoteCar"
                             style="transform: translate3d({car.coords.x}px, {car.coords.y}px, 0);"
                         >
-                            {#if bubbles[car.id]}
+                            {#if world.bubbles[car.id]}
                                 <SpeechBubble
-                                    text={bubbles[car.id]}
+                                    text={world.bubbles[car.id]}
                                     carX={car.coords.x - screenScrollAmount}
                                     stageWidth={canvasLength}
                                 />
@@ -512,9 +441,9 @@
                         class="playerCar"
                         style="transform: translate3d({playerCoords.x}px, {playerCoords.y}px, 0);"
                     >
-                        {#if bubbles[socketId]}
+                        {#if world.bubbles[socketId]}
                             <SpeechBubble
-                                text={bubbles[socketId]}
+                                text={world.bubbles[socketId]}
                                 carX={playerCoords.x}
                                 stageWidth={canvasLength}
                             />
