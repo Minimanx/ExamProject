@@ -16,7 +16,26 @@ export default defineConfig({
         baseURL: `http://localhost:${CLIENT_PORT}`,
         trace: "retain-on-failure",
     },
-    projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+    projects: [
+        {
+            name: "chromium",
+            use: {
+                ...devices["Desktop Chrome"],
+                // The voice tests need a microphone and a peer connection. The
+                // fake device gives a real MediaStream with a generated tone,
+                // and the fake ui answers the permission prompt — without both,
+                // getUserMedia hangs waiting for a click nothing will make.
+                launchOptions: {
+                    args: [
+                        "--use-fake-device-for-media-stream",
+                        "--use-fake-ui-for-media-stream",
+                        "--autoplay-policy=no-user-gesture-required",
+                    ],
+                },
+                permissions: ["microphone"],
+            },
+        },
+    ],
     webServer: [
         {
             command: `node ../server/test-server.mjs`,

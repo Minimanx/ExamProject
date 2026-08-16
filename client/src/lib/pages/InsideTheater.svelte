@@ -7,6 +7,7 @@
     import { Pulse } from "svelte-loading-spinners";
     import { formatDuration, formatTimeOfDay } from "../services/duration.js";
     import VideoStage from "../components/VideoStage.svelte";
+    import VoiceCall from "../components/VoiceCall.svelte";
 
     const socket = createSocket();
 
@@ -211,6 +212,17 @@
                     {/if}
                 {/if}
             </div>
+
+            <!-- Every box in this sidebar is `position: fixed` — the top bar,
+                 the message list and the input all are — so the column itself
+                 is empty space and anything placed in the flow lands underneath
+                 one of them: visible, and not clickable. This joins on the same
+                 terms, in the band under the top bar, and the message list gives
+                 up the height it takes. -->
+            <div class="voiceSlot">
+                <VoiceCall {socket} />
+            </div>
+
             <div class="liveChat" bind:this={scrollContainer}>
                 {#each messages as message, index (index)}
                     <div class="wholeMessage">
@@ -342,6 +354,16 @@
         border-left: 16px solid #f1f1f1;
         border-right: 16px solid #f1f1f1;
     }
+    .voiceSlot {
+        position: fixed;
+        top: 82px;
+        right: 2px;
+        width: 494px;
+        max-height: 180px;
+        overflow-y: auto;
+        box-sizing: border-box;
+    }
+
     .liveChat {
         -ms-overflow-style: none;
         scrollbar-width: none;
@@ -352,7 +374,8 @@
         bottom: 62px;
         right: 2px;
         width: 494px;
-        max-height: calc(var(--stage-height) - 144px);
+        /* Less the band the voice panel occupies above it. */
+        max-height: calc(var(--stage-height) - 144px - 182px);
         overflow-x: auto;
         overflow-wrap: anywhere;
     }

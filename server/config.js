@@ -34,6 +34,14 @@ export function validateConfig(env = process.env) {
 
     // Optional integrations degrade to a clear error at the point of use rather
     // than preventing the app from starting.
+    // Without TURN, the pairs that cannot connect directly — symmetric NAT,
+    // restrictive firewalls — simply never connect, and it looks like silence
+    // rather than an error. STUN alone covers most but not all of them.
+    if (!env.TURN_URL || !env.TURN_USERNAME || !env.TURN_CREDENTIAL) {
+        warnings.push(
+            "TURN_URL/TURN_USERNAME/TURN_CREDENTIAL are not all set — voice calls will fail for anyone whose network needs a relay"
+        );
+    }
     if (!env.OMDB_API_KEY) {
         warnings.push("OMDB_API_KEY is not set — movie search and event creation will fail");
     }

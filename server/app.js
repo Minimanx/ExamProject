@@ -173,6 +173,12 @@ playbackSocket(io);
 import chatSocket from "./socketios/chatSocket.js";
 chatSocket(io);
 
+// Both this and chatSocket listen for `leftTheater` and `disconnecting`. The
+// call records the theater it belongs to when it starts, so tearing it down does
+// not depend on which of the two handlers ran first.
+import voiceSocket from "./socketios/voiceSocket.js";
+voiceSocket(io);
+
 import theaterRouter from "./routers/theaterRouter.js";
 app.use(theaterRouter);
 import movieRouter from "./routers/movieRouter.js";
@@ -183,6 +189,8 @@ import friendRouter from "./routers/friendRouter.js";
 app.use(friendRouter);
 import clubRouter from "./routers/clubRouter.js";
 app.use(clubRouter);
+import voiceRouter from "./routers/voiceRouter.js";
+app.use(voiceRouter);
 // Scoped to the credential endpoints by path. Registered path-less, this
 // limiter also counted everything that fell through routing — every 404, and
 // every static asset under SERVE_CLIENT=true — so ten stray requests from one
