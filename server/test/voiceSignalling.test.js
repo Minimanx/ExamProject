@@ -198,6 +198,40 @@ describe("the cap on a call", () => {
         }
     });
 
+    // The count and the claim were separated by an await, so two people asking
+    // at the same moment both saw room and both took it. A mesh over its cap is
+    // not a refusal anyone sees — it is everybody's call getting worse.
+    it("holds when more people ask at the same moment than there is room for", async () => {
+        const theater = await seedTheater({
+            eventName: "Voice: everyone at once",
+            amountOfSpaces: limits.voiceCapacity + 5,
+        });
+        const seats = [];
+
+        try {
+            for (let i = 0; i < limits.voiceCapacity + 3; i++) {
+                seats.push(await seated(theater));
+            }
+
+            const answers = seats.map(
+                (person) =>
+                    new Promise((resolve) => {
+                        person.socket.once("voiceJoined", () => resolve("in"));
+                        person.socket.once("voiceFull", () => resolve("refused"));
+                        setTimeout(() => resolve("no answer"), 4000);
+                    })
+            );
+            // All of them, without waiting for any one to be answered.
+            seats.forEach((person) => person.socket.emit("voiceJoin"));
+
+            const settled = await Promise.all(answers);
+            expect(settled.filter((answer) => answer === "in")).toHaveLength(limits.voiceCapacity);
+            expect(settled.filter((answer) => answer === "refused")).toHaveLength(3);
+        } finally {
+            seats.forEach((person) => person.socket.close());
+        }
+    });
+
     it("frees the place again when someone leaves", async () => {
         const theater = await seedTheater({
             eventName: "Voice: a place frees up",

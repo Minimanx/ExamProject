@@ -25,32 +25,84 @@ function fakeSocket() {
 }
 
 function fakeTrack(kind = "audio") {
-    return { kind, enabled: true, stop: vi.fn() };
+    const listeners = new Map();
+    return {
+        kind,
+        enabled: true,
+        muted: false,
+        stop: vi.fn(),
+        addEventListener: (name, handler) => listeners.set(name, handler),
+        fire: (name) => listeners.get(name)?.(),
+    };
 }
 
 function fakeStream(tracks = [fakeTrack()]) {
     return {
+        addTrack: (track) => tracks.push(track),
         getTracks: () => tracks,
         getAudioTracks: () => tracks.filter((track) => track.kind === "audio"),
+        getVideoTracks: () => tracks.filter((track) => track.kind === "video"),
     };
 }
 
 function fakeConnection() {
     const connection = {
         added: [],
+        senders: [],
+        removed: [],
         localDescription: null,
         remoteDescription: null,
         candidates: [],
         closed: false,
         connectionState: "new",
-        addTrack: (track, stream) => connection.added.push({ track, stream }),
+        signalingState: "stable",
+        transceivers: [],
+        addTransceiver: (kind, options) => {
+            const sender = {
+                kind,
+                track: null,
+                replaceTrack: async (track) => {
+                    sender.track = track;
+                    connection.replaced.push({ kind, track });
+                },
+            };
+            const transceiver = {
+                kind,
+                options,
+                sender,
+                direction: options?.direction,
+                receiver: { track: kind === "video" ? { kind: "video" } : null },
+            };
+            connection.transceivers.push(transceiver);
+            return transceiver;
+        },
+        replaced: [],
+        getSenders: () => connection.senders,
+        addTrack: (track, stream) => {
+            connection.added.push({ track, stream });
+            const sender = { track };
+            connection.senders.push(sender);
+            return sender;
+        },
         createOffer: async () => ({ type: "offer", sdp: "offer-sdp" }),
         createAnswer: async () => ({ type: "answer", sdp: "answer-sdp" }),
         setLocalDescription: async (description) => {
             connection.localDescription = description;
         },
+        getTransceivers: () => connection.transceivers,
         setRemoteDescription: async (description) => {
             connection.remoteDescription = description;
+            // As a browser does: a media section in the offer creates the
+            // transceiver that answers it.
+            if (
+                String(description?.sdp ?? "").includes("video") &&
+                !connection.transceivers.some((one) => one.kind === "video")
+            ) {
+                const transceiver = connection.addTransceiver("video", {
+                    direction: "recvonly",
+                });
+                transceiver.receiver = { track: { kind: "video" } };
+            }
         },
         addIceCandidate: async (candidate) => {
             connection.candidates.push(candidate);
@@ -62,10 +114,11 @@ function fakeConnection() {
     return connection;
 }
 
-function makeCall({ tracks } = {}) {
+function makeCall({ tracks, camera } = {}) {
     const socket = fakeSocket();
     const made = [];
     const stream = fakeStream(tracks);
+    const cameraStream = camera ?? fakeStream([fakeTrack("video")]);
     const call = createVoiceCall({
         socket,
         createPeerConnection: () => {
@@ -74,9 +127,13 @@ function makeCall({ tracks } = {}) {
             return connection;
         },
         getLocalStream: async () => stream,
+        getCameraStream: async () => cameraStream,
+        createStream: () => fakeStream([]),
     });
-    return { call, socket, made, stream };
+    return { call, socket, made, stream, cameraStream };
 }
+
+const FRIEND = { id: "friend-1", username: "Ada", cameraAllowed: true };
 
 const PEER = { id: "peer-1", username: "Wanda", cameraAllowed: false };
 
@@ -438,5 +495,306 @@ describe("signals that arrive faster than they can be handled", () => {
 
         expect(made).toHaveLength(1);
         expect(made[0].candidates).toEqual([{ candidate: "a=candidate:1" }]);
+    });
+});
+
+// Who a peer is and whether the camera is allowed with them comes from the
+// server, once, when they arrive. Opening the connection is a separate step and
+// happens later — when they offer — and it knew only their socket id. Writing
+// the peer record again from that put `cameraAllowed` back to false, so the
+// camera button quietly disappeared for two people who are friends.
+describe("what is known about a peer, and what is merely connected", () => {
+    it("keeps the camera permission when the peer's offer opens the connection", async () => {
+        const { call, socket } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [] });
+        await socket.fire("voicePeerJoined", {
+            id: "friend-1",
+            username: "Ada",
+            cameraAllowed: true,
+        });
+
+        // They offer, which is what actually opens the connection.
+        await socket.fire("voiceSignal", {
+            from: "friend-1",
+            description: { type: "offer", sdp: "m=audio\r\nm=video" },
+        });
+
+        expect(call.peers["friend-1"].cameraAllowed).toBe(true);
+        expect(call.peers["friend-1"].username).toBe("Ada");
+    });
+
+    it("still reserves a place for that peer's camera", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [] });
+        await socket.fire("voicePeerJoined", {
+            id: "friend-1",
+            username: "Ada",
+            cameraAllowed: true,
+        });
+        await socket.fire("voiceSignal", {
+            from: "friend-1",
+            description: { type: "offer", sdp: "m=audio\r\nm=video" },
+        });
+
+        await call.setCamera(true);
+
+        expect(made[0].replaced.at(-1).track.kind).toBe("video");
+    });
+});
+
+describe("the camera", () => {
+    it("is off until it is asked for, and never opened on join", async () => {
+        const socket = fakeSocket();
+        const getCameraStream = vi.fn(async () => fakeStream([fakeTrack("video")]));
+        const call = createVoiceCall({
+            socket,
+            createPeerConnection: fakeConnection,
+            getLocalStream: async () => fakeStream(),
+            getCameraStream,
+        });
+        call.listen();
+
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+
+        expect(call.cameraOn).toBe(false);
+        expect(getCameraStream).not.toHaveBeenCalled();
+    });
+
+    // Reserved when the connection opens, so turning the camera on later does
+    // not reorder the media sections — which the far end refuses outright:
+    // "the order of m-lines in subsequent offer doesn't match".
+    it("reserves a place for video with a friend, and none with a stranger", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+
+        await socket.fire("voiceJoined", {
+            peers: [FRIEND, { id: "stranger", username: "Someone", cameraAllowed: false }],
+        });
+
+        expect(made[0].transceivers.map((one) => one.kind)).toEqual(["video"]);
+        // Not a path that is refused — a path that is not there.
+        expect(made[1].transceivers).toEqual([]);
+    });
+
+    it("puts the camera into the place reserved for it, without offering again", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+        const offersBefore = socket.sent.filter((m) => m.payload?.description).length;
+
+        await call.setCamera(true);
+
+        expect(call.cameraOn).toBe(true);
+        expect(made[0].replaced.at(-1).track.kind).toBe("video");
+        // One offer per connection, ever.
+        expect(socket.sent.filter((m) => m.payload?.description)).toHaveLength(offersBefore);
+    });
+
+    it("has nowhere to put the camera for someone who is not a friend", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", {
+            peers: [FRIEND, { id: "stranger", username: "Someone", cameraAllowed: false }],
+        });
+
+        await call.setCamera(true);
+
+        expect(made[0].replaced.at(-1).track.kind).toBe("video");
+        expect(made[1].replaced).toEqual([]);
+    });
+
+    it("takes the camera away again, and stops the device", async () => {
+        const videoTrack = fakeTrack("video");
+        const { call, socket, made } = makeCall({ camera: fakeStream([videoTrack]) });
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+        await call.setCamera(true);
+
+        await call.setCamera(false);
+
+        expect(call.cameraOn).toBe(false);
+        expect(made[0].replaced.at(-1).track).toBe(null);
+        // The light on the laptop goes out.
+        expect(videoTrack.stop).toHaveBeenCalled();
+    });
+
+    it("does nothing when asked for the state it is already in", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+        await call.setCamera(true);
+        const before = made[0].replaced.length;
+
+        await call.setCamera(true);
+
+        expect(made[0].replaced).toHaveLength(before);
+    });
+
+    // Somebody arriving after the camera is already on should still see it.
+    it("fills a place reserved by a friend who arrives while the camera is on", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+        await call.setCamera(true);
+
+        await socket.fire("voicePeerJoined", {
+            id: "friend-2",
+            username: "Grace",
+            cameraAllowed: true,
+        });
+        await socket.fire("voiceSignal", {
+            from: "friend-2",
+            description: { type: "offer", sdp: "m=audio\r\nm=video" },
+        });
+
+        expect(made[1].replaced.at(-1).track.kind).toBe("video");
+    });
+
+    it("says so, and stays off, when the browser refuses the camera", async () => {
+        const socket = fakeSocket();
+        const call = createVoiceCall({
+            socket,
+            createPeerConnection: fakeConnection,
+            getLocalStream: async () => fakeStream(),
+            getCameraStream: async () => {
+                const error = new Error("denied");
+                error.name = "NotAllowedError";
+                throw error;
+            },
+        });
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+
+        await call.setCamera(true);
+
+        expect(call.cameraOn).toBe(false);
+        expect(call.failure).toMatch(/permission/i);
+    });
+
+    // A control that claims the camera is on when the server would not carry it
+    // is worse than one that admits it.
+    it("turns the camera back off when the server refuses to carry it", async () => {
+        const videoTrack = fakeTrack("video");
+        const { call, socket } = makeCall({ camera: fakeStream([videoTrack]) });
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+        await call.setCamera(true);
+
+        socket.fire("voiceCameraRefused", { to: FRIEND.id });
+
+        expect(call.cameraOn).toBe(false);
+        expect(call.failure).toMatch(/friends/i);
+        expect(videoTrack.stop).toHaveBeenCalled();
+    });
+
+    it("releases the camera when the call is left", async () => {
+        const videoTrack = fakeTrack("video");
+        const { call, socket } = makeCall({ camera: fakeStream([videoTrack]) });
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+        await call.setCamera(true);
+
+        call.leave();
+
+        expect(videoTrack.stop).toHaveBeenCalled();
+        expect(call.cameraOn).toBe(false);
+    });
+});
+
+// Tracks arrive one at a time, and a track from a reserved video slot has no
+// stream attached at all — so reading `event.streams[0]` replaced the audio the
+// tile was already playing with nothing.
+describe("collecting the tracks a peer sends", () => {
+    it("keeps the audio when a video track arrives afterwards", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+
+        const audio = fakeTrack("audio");
+        made[0].ontrack({ track: audio, streams: [] });
+        const video = fakeTrack("video");
+        made[0].ontrack({ track: video, streams: [] });
+
+        expect(call.peers[FRIEND.id].stream.getAudioTracks()).toEqual([audio]);
+        expect(call.peers[FRIEND.id].stream.getVideoTracks()).toEqual([video]);
+    });
+
+    // The slot is negotiated when the connection opens and sits there muted
+    // until somebody turns a camera on. A tile that appeared then would be a
+    // black rectangle beside somebody's name.
+    it("shows video only once it is actually flowing", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+
+        const video = fakeTrack("video");
+        video.muted = true;
+        made[0].ontrack({ track: video, streams: [] });
+        expect(call.peers[FRIEND.id].hasVideo).toBe(false);
+
+        video.muted = false;
+        video.fire("unmute");
+        expect(call.peers[FRIEND.id].hasVideo).toBe(true);
+
+        // And back again when they turn the camera off.
+        video.muted = true;
+        video.fire("mute");
+        expect(call.peers[FRIEND.id].hasVideo).toBe(false);
+    });
+});
+
+// An answerer cannot introduce a media section — it can only reply to the ones
+// it was sent. A slot created on that side sits unnegotiated beside the one the
+// offer brings, and the camera has nowhere to go: Chrome ends up with a
+// sendrecv transceiver whose currentDirection is null, and a separate recvonly
+// one for the remote section.
+describe("which side reserves the place for video", () => {
+    it("reserves one when it is the side that offers", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+
+        await socket.fire("voiceJoined", { peers: [FRIEND] });
+
+        expect(made[0].transceivers.map((one) => one.kind)).toEqual(["video"]);
+    });
+
+    it("takes the one the offer brings when it is the side that answers", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [] });
+        await socket.fire("voicePeerJoined", { ...FRIEND });
+
+        await socket.fire("voiceSignal", {
+            from: FRIEND.id,
+            description: { type: "offer", sdp: "m=audio\r\nm=video" },
+        });
+
+        // Exactly one video transceiver, and it is the offered one, asked to
+        // carry video both ways before the answer goes out.
+        const video = made[0].transceivers.filter((one) => one.kind === "video");
+        expect(video).toHaveLength(1);
+        expect(video[0].direction).toBe("sendrecv");
+        expect(made[0].localDescription.type).toBe("answer");
+    });
+
+    it("leaves a stranger's offer receive-only, with nothing to send into", async () => {
+        const { call, socket, made } = makeCall();
+        call.listen();
+        await socket.fire("voiceJoined", { peers: [] });
+        await socket.fire("voicePeerJoined", {
+            id: "stranger",
+            username: "Someone",
+            cameraAllowed: false,
+        });
+
+        await socket.fire("voiceSignal", {
+            from: "stranger",
+            description: { type: "offer", sdp: "m=audio\r\nm=video" },
+        });
+        await call.setCamera(true);
+
+        expect(made[0].replaced).toEqual([]);
     });
 });
