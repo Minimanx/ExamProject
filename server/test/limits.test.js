@@ -13,6 +13,9 @@ describe("readLimits", () => {
             maxEventsPerOwner: 1,
             // Phase 4: one hub instance holds this many players.
             hubCapacity: 60,
+            // Phase 6: a mesh is every participant connected to every other, so
+            // this is a product constraint rather than a tuning knob.
+            voiceCapacity: 5,
         });
     });
 

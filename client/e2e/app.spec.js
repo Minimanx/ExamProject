@@ -64,7 +64,14 @@ test.beforeEach(async ({ page }) => {
  * somewhere far away, looking like a socket problem.
  */
 async function contextWithOwnBucket(browser) {
-    return browser.newContext({ extraHTTPHeaders: { "X-Forwarded-For": nextIp() } });
+    return browser.newContext({
+        extraHTTPHeaders: { "X-Forwarded-For": nextIp() },
+        // A context made here does not inherit the project's `use` block, so the
+        // microphone grant has to be repeated. Without it getUserMedia never
+        // settles — it does not reject, it simply waits — and a call joins,
+        // lists everyone, and is silent, with nothing on screen to say why.
+        permissions: ["microphone"],
+    });
 }
 
 /** Log in on a page from a second context, and prove it worked. */
@@ -1252,5 +1259,140 @@ test("a remote car that has never moved is not mirrored", async ({ browser }) =>
     } finally {
         await watcher.close();
         await mover.close();
+    }
+});
+
+// Phase 6 exit criterion: people hold a voice conversation in a lobby with no
+// server-side media relay beyond TURN. Two browsers is what proves the mesh
+// connects at all — the cap that makes five the limit is enforced and tested on
+// the server, where a client cannot argue with it.
+//
+// Chromium runs with a fake capture device, so the audio is a generated tone
+// rather than a microphone, and the permission prompt answers itself. Everything
+// else is real: real peer connections, real ICE, real SDP through the server.
+test("two people connect a voice call in a lobby", async ({ browser, request }) => {
+    // Two browsers, two peer connections and a real ICE exchange: minutes of
+    // budget rather than the default thirty seconds, most of which is spent
+    // waiting for candidates to be gathered and paired.
+    test.setTimeout(120000);
+
+    // Some machines cannot open a capture device at all, even with the fake one
+    // and the permission granted: getUserMedia does not refuse, it simply never
+    // settles. Skipped rather than left to time out, so the reason is legible
+    // instead of arriving as a two-minute hang.
+    const probe = await browser.newContext({ permissions: ["microphone"] });
+    const probePage = await probe.newPage();
+    await probePage.goto("/");
+    const microphoneWorks = await probePage.evaluate(async () => {
+        try {
+            const stream = await Promise.race([
+                navigator.mediaDevices.getUserMedia({ audio: true }),
+                new Promise((_, reject) => setTimeout(() => reject(new Error("hung")), 8000)),
+            ]);
+            stream.getTracks().forEach((track) => track.stop());
+            return true;
+        } catch {
+            return false;
+        }
+    });
+    await probe.close();
+    test.skip(!microphoneWorks, "no capture device available for a real peer connection");
+
+    const host = {
+        email: `voice-${RUN}@example.com`,
+        username: `voice${RUN}`,
+        password: "password123",
+    };
+    const guest = {
+        email: `voiceb-${RUN}@example.com`,
+        username: `voiceb${RUN}`,
+        password: "password123",
+    };
+    for (const account of [host, guest]) {
+        await request.post(`${API}/users`, {
+            data: { ...account, passwordRepeat: account.password },
+            failOnStatusCode: false,
+        });
+    }
+
+    const first = await contextWithOwnBucket(browser);
+    const second = await contextWithOwnBucket(browser);
+    try {
+        const hostPage = await first.newPage();
+        await logInOn(hostPage, host);
+
+        const created = await hostPage.request.post(`${API}/theaters`, {
+            data: {
+                data: {
+                    eventName: "Voice Night",
+                    imdbID: "tt0133093",
+                    amountOfSpaces: 10,
+                    startTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+                },
+            },
+            failOnStatusCode: false,
+        });
+        expect(created.status()).toBe(200);
+        const { theaterId } = await created.json();
+
+        const guestPage = await second.newPage();
+        await logInOn(guestPage, guest);
+
+        for (const [page, account] of [
+            [hostPage, host],
+            [guestPage, guest],
+        ]) {
+            await page.request.patch(`${API}/theaters/${theaterId}`, {
+                data: {
+                    joining: true,
+                    userID: await page.evaluate(
+                        () => JSON.parse(localStorage.getItem("user")).userID
+                    ),
+                },
+                failOnStatusCode: false,
+            });
+            expect(account.email).toBeTruthy();
+            await page.goto(`/theaters/${theaterId}`);
+            await expect(page.locator(".liveChatContainer")).toBeVisible();
+        }
+
+        await hostPage.locator('button[name="joinVoice"]').click();
+        await expect(hostPage.locator('button[name="leaveVoice"]')).toBeVisible();
+
+        await guestPage.locator('button[name="joinVoice"]').click();
+        await expect(guestPage.locator('button[name="leaveVoice"]')).toBeVisible();
+
+        // Each sees the other in the call, by name.
+        await expect(hostPage.locator(".voice .peers")).toContainText(guest.username, {
+            timeout: 20000,
+        });
+        await expect(guestPage.locator(".voice .peers")).toContainText(host.username, {
+            timeout: 20000,
+        });
+
+        // And the connection actually completes, rather than sitting in "new"
+        // forever — which is what a mesh that signals but never connects does.
+        const connected = async (page) =>
+            page.evaluate(async () => {
+                const start = Date.now();
+                while (Date.now() - start < 20000) {
+                    const audio = document.querySelector(".voice .peers audio");
+                    if (audio?.srcObject?.getAudioTracks?.().length > 0) return true;
+                    await new Promise((r) => setTimeout(r, 250));
+                }
+                return false;
+            });
+
+        expect(await connected(hostPage)).toBe(true);
+        expect(await connected(guestPage)).toBe(true);
+
+        // Leaving takes the person off the other screen.
+        await guestPage.locator('button[name="leaveVoice"]').click();
+        await expect(hostPage.locator(".voice .peers")).not.toContainText(guest.username, {
+            timeout: 15000,
+        });
+    } finally {
+        await first.close();
+        await second.close();
     }
 });

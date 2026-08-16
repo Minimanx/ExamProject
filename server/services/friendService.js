@@ -93,6 +93,27 @@ export async function remove(friendship) {
  * One query rather than three: the rows are the same rows, and which bucket each
  * belongs to is a property of the row rather than of the query.
  */
+/**
+ * Whether these two are actually friends.
+ *
+ * One question about one pair, for the camera gate, which asks it about each
+ * peer as a call forms. `listFor` answers a different question — the whole
+ * friend list with usernames attached — and would read every friendship either
+ * person has to answer this one.
+ *
+ * Only "accepted" counts. Having asked someone to be your friend is not a
+ * relationship they have agreed to, and it must not open your camera to them.
+ */
+export async function areFriends(a, b) {
+    if (!a || !b || a === b) {
+        return false;
+    }
+
+    const { pairLow, pairHigh } = pairOf(a, b);
+    const row = await db.friendships.findOne({ pairLow, pairHigh, state: "accepted" });
+    return row !== null;
+}
+
 export async function listFor(userID) {
     const rows = await db.friendships
         .find({ $or: [{ pairLow: userID }, { pairHigh: userID }] })

@@ -36,6 +36,12 @@ export function readLimits(env = process.env) {
         // "allocate another" rather than a refusal; until then it is the cap on
         // how many people share a world.
         hubCapacity: positiveInteger(env, "HUB_CAPACITY", 60),
+        // A mesh is every participant connected to every other, so cost grows
+        // with the square of the group: five people is twenty streams, ten is
+        // ninety. This is a product constraint rather than a tuning knob — the
+        // roadmap picks a mesh precisely to avoid running media servers, and
+        // that choice only holds at small numbers.
+        voiceCapacity: positiveInteger(env, "VOICE_CAPACITY", 5),
     };
 }
 
