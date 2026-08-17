@@ -117,6 +117,41 @@ No new DNS record is required because `*.minimanx.dev` already points to the
 Coolify server. Adding the hostname to the Coolify resource allows its proxy
 to route requests and request a TLS certificate.
 
+## 3b. The client and the API must be on the same site
+
+The session lives in a cookie the API sets. A browser will only keep and resend
+that cookie if it considers the API to be first-party to the page — and "first
+party" is decided by the *site*, meaning the registrable domain, not the origin.
+
+`flixdrive.minimanx.dev` and `flixdrive-api.minimanx.dev` are two origins on one
+site (`minimanx.dev`), which is why the deployment works. A default Vercel
+address is not: `vercel.app` is on the Public Suffix List, so
+`flix-drive-lyart.vercel.app` is its own registrable domain, and the API cookie
+is third-party there.
+
+What that looks like is not an error. Signing in succeeds — the password is
+checked and answered `200` — and then nothing else works, because every later
+request arrives with no session:
+
+- Chrome and Edge in a private window block third-party cookies by default.
+- **Safari blocks them all the time**, so that address is broken for every Safari
+  user, not only in private windows.
+- Chrome is phasing them out of ordinary windows as well.
+
+So serve the app from the custom domain only: set it as the primary domain in
+Vercel and have the `.vercel.app` address redirect to it. Once nothing lands on
+the Vercel address, drop it from `CLIENT_ORIGINS` — an origin that is allowed
+through CORS but cannot hold a session is the confusing half-working case above.
+
+Preview deployments get their own `.vercel.app` addresses and have the same
+problem. They are fine for looking at pages that need no session, and cannot be
+used to test signing in.
+
+The client says so when it happens: it asks the API who it thinks you are before
+claiming to be signed in, and reports that the browser did not keep the cookie
+rather than letting the failure surface later as "Must be logged in to join
+theater".
+
 ## 4. Add backend environment variables
 
 Open the backend application's **Environment Variables** page and add these
@@ -425,6 +460,8 @@ at `error`.
 | Backend returns `503` | MongoDB health, backend health check, and exposed port `5000` |
 | Browser reports CORS errors | Add the browser's exact origin to the comma-separated `CLIENT_ORIGINS` value and redeploy the backend |
 | Login succeeds but does not persist | Both public URLs must use HTTPS and the frontend must call the configured API URL |
+| "Signed in, but your browser did not keep the session cookie" | The page is on a different *site* from the API, so the cookie is third-party — see section 3b. Most often a `.vercel.app` address instead of the custom domain |
+| Signed in, but the first action says "Must be logged in" | The same thing, from a build made before the client checked. See section 3b |
 | Socket.IO does not connect | Check `/socket.io/` in Network, Coolify proxy logs, and the exact allowed origin |
 | Movie searches fail | Verify that `OMDB_API_KEY` is an activated key from OMDb, then redeploy the backend |
 | Email times out | Confirm the deployed code uses `smtp.gmail.com:587`; Hetzner blocks outbound port `465` by default |
