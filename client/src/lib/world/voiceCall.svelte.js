@@ -52,7 +52,7 @@ export function createVoiceCall({
     /** The reserved video slot per peer, filled when the camera goes on. */
     // eslint-disable-next-line svelte/prefer-svelte-reactivity
     const videoSenders = new Map();
-    let cameraStream = null;
+    let cameraStream = $state(null);
     let cameraOn = $state(false);
 
     function upsert(id, patch) {
@@ -411,6 +411,16 @@ export function createVoiceCall({
 
         get cameraOn() {
             return cameraOn;
+        },
+
+        /**
+         * This client's own camera, for showing it back to them.
+         *
+         * Without it there is no way to tell a camera that is on from one that
+         * is on and pointed at a wall — or from one the far end never received.
+         */
+        get ownCamera() {
+            return cameraOn ? cameraStream : null;
         },
 
         /**

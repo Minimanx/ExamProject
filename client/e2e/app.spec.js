@@ -1343,14 +1343,41 @@ test("a remote car that has never moved is not mirrored", async ({ browser }) =>
     }
 });
 
-// Phase 6 exit criterion: people hold a voice conversation in a lobby with no
-// server-side media relay beyond TURN. Two browsers is what proves the mesh
-// connects at all — the cap that makes five the limit is enforced and tested on
-// the server, where a client cannot argue with it.
+// Phase 6: voice and camera in a lobby, with no server-side media relay beyond
+// TURN. What two browsers prove here is the part this repository controls — the
+// signalling, the gate, and the negotiation both ends settle on. Whether sound
+// and pictures then arrive is the network's business, and is only asserted where
+// the two peers actually pair a candidate; a track existing proves nothing about
+// media, which is the trap an earlier version of this test fell into.
 //
 // Chromium runs with a fake capture device, so the audio is a generated tone
 // rather than a microphone, and the permission prompt answers itself. Everything
 // else is real: real peer connections, real ICE, real SDP through the server.
+/**
+ * Whether these two peers actually connected, as opposed to merely agreeing to.
+ *
+ * Signalling and media are separate. A call can exchange offers, answers and
+ * candidates, end up with tracks on both sides, and still pair no candidates and
+ * carry nothing — which is what this machine does. Every "is it connected" check
+ * that looks at a track passes in that state, so the ones that look at pictures
+ * have to ask this first, and say when they were not asked.
+ */
+async function peersActuallyConnected(page) {
+    return page.evaluate(async () => {
+        const pc = window.__voicePeerConnections?.at(-1);
+        if (!pc) return false;
+
+        const deadline = Date.now() + 20000;
+        while (Date.now() < deadline) {
+            if (pc.iceConnectionState === "connected" || pc.iceConnectionState === "completed") {
+                return true;
+            }
+            await new Promise((r) => setTimeout(r, 250));
+        }
+        return false;
+    });
+}
+
 test("two people connect a voice call in a lobby", async ({ browser, request }) => {
     // Two browsers, two peer connections and a real ICE exchange: minutes of
     // budget rather than the default thirty seconds, most of which is spent
@@ -1399,7 +1426,38 @@ test("two people connect a voice call in a lobby", async ({ browser, request }) 
     const first = await contextWithOwnBucket(browser);
     const second = await contextWithOwnBucket(browser);
     try {
+        /**
+         * A camera that is a drawing, not a device.
+         *
+         * Chromium's fake capture device produces no frames on some machines —
+         * the track is live and unmuted and nothing is ever encoded — so the
+         * whole camera path could not be exercised. A canvas being drawn to is a
+         * real video source with real frames, and it needs no hardware at all.
+         */
+        const withDrawnCamera = (page) =>
+            page.addInitScript(() => {
+                const real = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
+                navigator.mediaDevices.getUserMedia = (constraints) => {
+                    if (!constraints?.video) return real(constraints);
+
+                    const canvas = document.createElement("canvas");
+                    canvas.width = 320;
+                    canvas.height = 240;
+                    const pen = canvas.getContext("2d");
+                    let frame = 0;
+                    const draw = () => {
+                        frame += 1;
+                        pen.fillStyle = frame % 2 ? "#c0ffee" : "#1b1b1b";
+                        pen.fillRect(0, 0, canvas.width, canvas.height);
+                        requestAnimationFrame(draw);
+                    };
+                    draw();
+                    return Promise.resolve(canvas.captureStream(30));
+                };
+            });
+
         const hostPage = await first.newPage();
+        await withDrawnCamera(hostPage);
         await logInOn(hostPage, host);
 
         const created = await hostPage.request.post(`${API}/theaters`, {
@@ -1417,6 +1475,7 @@ test("two people connect a voice call in a lobby", async ({ browser, request }) 
         const { theaterId } = await created.json();
 
         const guestPage = await second.newPage();
+        await withDrawnCamera(guestPage);
         await logInOn(guestPage, guest);
 
         for (const [page, account] of [
@@ -1506,6 +1565,31 @@ test("two people connect a voice call in a lobby", async ({ browser, request }) 
         // Turning it on says nothing went wrong — in particular the server did
         // not refuse to carry it, which is what it does between strangers.
         await expect(hostPage.locator(".voice .failure")).toHaveCount(0);
+
+        // The host sees their own camera back, so "on" is visible rather than
+        // merely claimed. This needs no media to cross the network.
+        await expect(hostPage.locator(".selfView video")).toBeVisible();
+
+        // The point of all of it: the other person can see them. A tile appears
+        // only once video is really flowing, so this is frames arriving rather
+        // than a track existing — which is why it is asked only where frames can
+        // arrive. Some machines negotiate perfectly and carry nothing.
+        if (await peersActuallyConnected(guestPage)) {
+            await expect(guestPage.locator(".voice .peers video")).toBeVisible({
+                timeout: 30000,
+            });
+            const liveVideo = await guestPage.evaluate(() => {
+                const tile = document.querySelector(".voice .peers video");
+                const track = tile?.srcObject?.getVideoTracks?.()[0];
+                return { muted: track?.muted, width: tile?.videoWidth };
+            });
+            expect(liveVideo.muted).toBe(false);
+            expect(liveVideo.width).toBeGreaterThan(0);
+        } else {
+            console.log(
+                "the two peers never paired a candidate on this machine — the camera arriving was not checked"
+            );
+        }
 
         // And the far end negotiates a two-way video section rather than one it
         // can only receive on, which is what lets the camera be swapped in

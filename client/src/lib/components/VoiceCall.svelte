@@ -188,12 +188,38 @@
             <p class="note failure">{call.failure}</p>
         {/if}
 
+        {#if call.ownCamera}
+            <div class="selfView">
+                <!-- Muted: this is our own microphone coming back at us. -->
+                <video
+                    class="tile"
+                    autoplay
+                    playsinline
+                    muted
+                    use:playing={{ stream: call.ownCamera, volume: 0 }}
+                ></video>
+                <span class="note">You</span>
+            </div>
+        {/if}
+
         <ul class="peers">
             {#each peerList as peer (peer.id)}
                 <li data-peer={peer.id} data-connected={peer.stream ? "yes" : "no"}>
                     <span class="who">{peer.username ?? "Someone"}</span>
                     {#if peer.connectionFailed}
                         <span class="note">could not connect</span>
+                    {/if}
+                    {#if peer.hasVideo}
+                        <!-- Muted, because the audio for this person is already
+                             playing through the element below and a second
+                             copy of it would echo. -->
+                        <video
+                            class="tile"
+                            autoplay
+                            playsinline
+                            muted
+                            use:playing={{ stream: peer.stream, volume: 0 }}
+                        ></video>
                     {/if}
                     <audio autoplay use:playing={{ stream: peer.stream, volume: peer.volume }}
                     ></audio>
@@ -286,6 +312,12 @@
         height: 72px;
         object-fit: cover;
         background: rgb(27, 27, 27);
+    }
+
+    .selfView {
+        display: flex;
+        align-items: center;
+        gap: 8px;
     }
 
     .who {
