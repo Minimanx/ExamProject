@@ -116,6 +116,21 @@
      * in a room of strangers is a control whose only outcome is a refusal.
      */
     const anyFriendHere = $derived(peerList.some((peer) => peer.cameraAllowed));
+
+    /**
+     * Why the camera is not on offer, when it is not.
+     *
+     * Two different situations, and one message for both of them said the wrong
+     * thing about the commoner one: sitting alone in a call — because the person
+     * you came to watch with has not pressed Join voice yet — read as "the
+     * camera is only available with friends", which is not what is happening and
+     * is not something you can act on.
+     */
+    const cameraUnavailable = $derived(
+        peerList.length === 0
+            ? "Nobody else has joined the call yet — the camera turns on once a friend does."
+            : "The camera is only available with friends."
+    );
 </script>
 
 <svelte:window onkeydown={onKeyDown} onkeyup={onKeyUp} />
@@ -166,7 +181,7 @@
                 {call.cameraOn ? "Turn camera off" : "Turn camera on"}
             </button>
         {:else}
-            <p class="note">The camera is only available with friends.</p>
+            <p class="note">{cameraUnavailable}</p>
         {/if}
 
         {#if call.failure}

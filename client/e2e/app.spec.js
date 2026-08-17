@@ -1144,6 +1144,56 @@ test("a private invite link takes you to the event, key in hand", async ({ page,
     await expect(page.getByRole("button", { name: /^join$/i })).toBeVisible();
 });
 
+// The camera control is hidden until somebody it is allowed with is actually in
+// the call. Saying why used one message for two different situations, so being
+// alone in a call read as "the camera is only available with friends" — which is
+// not true, and is confusing precisely when you are sitting in a private event
+// with a friend who has not pressed Join voice yet.
+test("alone in a call, the camera says who is missing rather than blaming friendship", async ({
+    page,
+    request,
+}) => {
+    const solo = {
+        email: `solo-${RUN}@example.com`,
+        username: `solo${RUN}`,
+        password: "password123",
+    };
+    await request.post(`${API}/users`, {
+        data: { ...solo, passwordRepeat: solo.password },
+        failOnStatusCode: false,
+    });
+    await logIn(page, solo);
+
+    const created = await page.request.post(`${API}/theaters`, {
+        data: {
+            data: {
+                eventName: "Alone Night",
+                imdbID: "tt0133093",
+                amountOfSpaces: 10,
+                startTime: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
+            },
+        },
+        failOnStatusCode: false,
+    });
+    expect(created.status()).toBe(200);
+    const { theaterId } = await created.json();
+    await page.request.patch(`${API}/theaters/${theaterId}`, {
+        data: {
+            joining: true,
+            userID: await page.evaluate(() => JSON.parse(localStorage.getItem("user")).userID),
+        },
+        failOnStatusCode: false,
+    });
+
+    await page.goto(`/theaters/${theaterId}`);
+    await expect(page.locator(".liveChatContainer")).toBeVisible();
+    await page.locator('button[name="joinVoice"]').click();
+    await expect(page.locator('button[name="leaveVoice"]')).toBeVisible();
+
+    await expect(page.locator(".voice")).not.toContainText(/only available with friends/i);
+    await expect(page.locator(".voice")).toContainText(/nobody else/i);
+});
+
 test("the host of their own event gets the controls", async ({ page, request }) => {
     // A fresh account, because MAX_EVENTS_PER_OWNER is 1 and the shared account
     // may already be hosting by the time this runs.
