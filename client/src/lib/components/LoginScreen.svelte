@@ -1,6 +1,7 @@
 <script>
     import { error, success } from "../components/toasts/toastThemes.js";
     import { randomPlayerColor } from "../services/playerColor.js";
+    import { sessionSurvives, COOKIE_BLOCKED_MESSAGE } from "../services/session.js";
     import { apiFetch } from "../services/api.js";
     import { user } from "../stores/userStore.js";
     import { playerMovement } from "../stores/stateManagementStore.js";
@@ -46,6 +47,16 @@
             return;
         }
         if (response.ok) {
+            // The password being right and the browser keeping the session are
+            // two different things, and only the first has happened yet. Going
+            // straight to the world on a 200 is what let someone drive around
+            // as a person the server had never heard of, until the first thing
+            // they tried answered "Must be logged in".
+            if ((await sessionSurvives(apiFetch)) === "no") {
+                error(COOKIE_BLOCKED_MESSAGE);
+                return;
+            }
+
             $user.loggedIn = true;
             $user.username = result.data.username;
             $user.userID = result.data._id;
