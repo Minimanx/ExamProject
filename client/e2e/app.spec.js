@@ -336,6 +336,37 @@ test("nothing behind the login overlay can be reached by keyboard", async ({ pag
 // the server does not know — driving around, typing into a chat that goes
 // nowhere, invisible to everyone. It looks completely fine, which is what makes
 // it bad.
+// Logging in is two things: the server accepting the password, and the browser
+// keeping the cookie that stands for the session. Only the first was checked, so
+// a browser that drops the cookie — a private window, where third-party cookies
+// are blocked by default, and the API is a separate origin from the page — went
+// straight into the world as somebody the server had never heard of. The first
+// thing they tried then answered "Must be logged in to join theater".
+test("says so when the browser does not keep the session cookie", async ({ page }) => {
+    // Scoped to the API: the page's own routes must keep working, and an
+    // unscoped pattern matches them too.
+    await page.route(`${API}/me`, (route) =>
+        route.fulfill({
+            status: 401,
+            contentType: "application/json",
+            body: JSON.stringify({ message: "Must be logged in", code: "UNAUTHENTICATED" }),
+        })
+    );
+
+    await page.goto("/");
+    await page.locator('input[name="email"]').fill(USER.email);
+    await page.locator('input[name="password"]').fill(USER.password);
+    await page.getByRole("button", { name: "Login" }).click();
+
+    // Told what actually happened, rather than shown a world that does not work.
+    await expect(page.locator(".toastContainer, body")).toContainText(
+        /did not keep the session cookie/i,
+        { timeout: 10000 }
+    );
+    // And still on the login overlay, because nothing was signed in.
+    await expect(page.locator(".blackedout")).toHaveCount(1);
+});
+
 test("a stored session the server has forgotten sends you back to the login", async ({ page }) => {
     await logIn(page);
     await expect(page.locator(".blackedout")).toHaveCount(0);
@@ -1429,16 +1460,24 @@ test("two people connect a voice call in a lobby", async ({ browser, request }) 
         // And the far end negotiates a two-way video section rather than one it
         // can only receive on, which is what lets the camera be swapped in
         // without another round of negotiation.
-        const videoDirection = await guestPage.evaluate(() => {
-            // The last one: they left and rejoined to pick up the friendship,
-            // so the earlier connections are from before it existed.
-            const pc = window.__voicePeerConnections?.at(-1);
-            const section = (pc?.remoteDescription?.sdp ?? "")
-                .split(/^m=/m)
-                .find((part) => part.startsWith("video"));
-            return (section ?? "").includes("a=sendrecv") ? "sendrecv" : "other";
-        });
-        expect(videoDirection).toBe("sendrecv");
+        // Polled rather than sampled: the answer that carries this is applied
+        // asynchronously, and reading once catches whichever moment the machine
+        // happened to be in.
+        await expect
+            .poll(
+                () =>
+                    guestPage.evaluate(() => {
+                        // The last one: they left and rejoined to pick up the
+                        // friendship, so earlier connections predate it.
+                        const pc = window.__voicePeerConnections?.at(-1);
+                        const section = (pc?.remoteDescription?.sdp ?? "")
+                            .split(/^m=/m)
+                            .find((part) => part.startsWith("video"));
+                        return (section ?? "").includes("a=sendrecv") ? "sendrecv" : "other";
+                    }),
+                { timeout: 20000 }
+            )
+            .toBe("sendrecv");
 
         // Leaving takes the person off the other screen.
         await guestPage.locator('button[name="leaveVoice"]').click();
